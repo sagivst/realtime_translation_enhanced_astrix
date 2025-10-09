@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simultaneous Translation Conference</title>
+    <link rel="stylesheet" href="/css/conference.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Join Screen -->
+        <div id="joinScreen" class="screen active">
+            <div class="join-container">
+                <h1>🌐 Simultaneous Translation Conference</h1>
+                <p class="subtitle">Speak in your language, be heard in theirs</p>
+
+                <div class="join-form">
+                    <div class="form-group">
+                        <label for="username">Your Name</label>
+                        <input type="text" id="username" placeholder="Enter your name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="language">Your Language</label>
+                        <select id="language" required>
+                            <option value="en">🇺🇸 English</option>
+                            <option value="es">🇪🇸 Spanish</option>
+                            <option value="fr">🇫🇷 French</option>
+                            <option value="de">🇩🇪 German</option>
+                            <option value="it">🇮🇹 Italian</option>
+                            <option value="pt">🇵🇹 Portuguese</option>
+                            <option value="ja">🇯🇵 Japanese</option>
+                            <option value="ko">🇰🇷 Korean</option>
+                            <option value="zh">🇨🇳 Chinese</option>
+                            <option value="ru">🇷🇺 Russian</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="roomId">Room ID (leave empty to create new)</label>
+                        <input type="text" id="roomId" placeholder="Enter room ID or leave blank">
+                    </div>
+
+                    <button id="joinBtn" class="btn btn-primary btn-large">
+                        Join Conference
+                    </button>
+
+                    <div class="info-box">
+                        <p><strong>How it works:</strong></p>
+                        <ul>
+                            <li>Speak in your native language</li>
+                            <li>Everyone hears you in their language</li>
+                            <li>Maximum latency: 2000ms</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conference Screen -->
+        <div id="conferenceScreen" class="screen">
+            <div class="conference-container">
+                <!-- Header -->
+                <div class="conference-header">
+                    <div class="room-info">
+                        <h2>Conference Room</h2>
+                        <div class="room-details">
+                            <span class="room-id">Room: <strong id="currentRoomId">-</strong></span>
+                            <span class="user-lang">Your Language: <strong id="currentLanguage">-</strong></span>
+                        </div>
+                    </div>
+                    <button id="leaveBtn" class="btn btn-danger">Leave Room</button>
+                </div>
+
+                <!-- Main Content -->
+                <div class="conference-content">
+                    <!-- Participants Panel -->
+                    <div class="participants-panel">
+                        <h3>Participants (<span id="participantCount">0</span>)</h3>
+                        <div id="participantsList" class="participants-list"></div>
+                    </div>
+
+                    <!-- Audio Control Panel -->
+                    <div class="audio-panel">
+                        <div class="audio-visualizer">
+                            <canvas id="audioVisualizer" width="600" height="100"></canvas>
+                        </div>
+
+                        <div class="controls">
+                            <button id="toggleMicBtn" class="btn btn-mic">
+                                <span class="mic-icon">🎤</span>
+                                <span class="btn-text">Start Speaking</span>
+                            </button>
+
+                            <div class="status-display">
+                                <div class="status-indicator" id="statusIndicator"></div>
+                                <span id="statusText">Ready to speak</span>
+                            </div>
+                        </div>
+
+                        <!-- Transcription Display -->
+                        <div class="transcription-box">
+                            <h4>What you're saying:</h4>
+                            <div id="transcriptionDisplay" class="transcription-text">
+                                <p class="placeholder">Your speech will appear here...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Translation Feed -->
+                    <div class="translation-panel">
+                        <h3>Translation Feed</h3>
+                        <div id="translationFeed" class="translation-feed">
+                            <p class="placeholder">Translations will appear here...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pipeline Log Panel -->
+                <div class="pipeline-log-panel">
+                    <div class="log-header">
+                        <h3>Pipeline Log</h3>
+                        <button id="clearLogBtn" class="btn btn-small">Clear</button>
+                    </div>
+                    <div id="pipelineLog" class="pipeline-log">
+                        <p class="placeholder">Pipeline events will appear here...</p>
+                    </div>
+                </div>
+
+                <!-- Footer Stats -->
+                <div class="conference-footer">
+                    <div class="stats">
+                        <span>Latency: <strong id="latencyStat">-</strong></span>
+                        <span>Connection: <strong id="connectionStatus">Connecting...</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio element for playback -->
+    <audio id="audioPlayer" controls autoplay style="display: none;"></audio>
+
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Conference app script -->
+    <script src="/js/conference.js"></script>
+</body>
+</html>

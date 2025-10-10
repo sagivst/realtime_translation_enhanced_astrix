@@ -11,6 +11,8 @@ let analyser = null;
 let isRecording = false;
 let audioChunks = [];
 let recordingInterval = null;
+let audioQueue = [];
+let isPlayingAudio = false;
 
 // DOM Elements
 const joinScreen = document.getElementById('joinScreen');
@@ -96,35 +98,17 @@ socket.on('translated-audio', async (data) => {
         }
     }
 
-    // Play audio if available
+    // Queue audio for playback if available
     if (data.audioData) {
         try {
             const audioBlob = base64ToBlob(data.audioData, 'audio/mp3');
-            const audioUrl = URL.createObjectURL(audioBlob);
+            audioQueue.push(audioBlob);
+            console.log('Audio added to queue. Queue length:', audioQueue.length);
 
-            // Ensure audio player is configured correctly
-            audioPlayer.volume = 1.0;  // Set volume to maximum
-            audioPlayer.muted = false;  // Ensure not muted
-            audioPlayer.src = audioUrl;
-
-            // Play with proper promise handling
-            const playPromise = audioPlayer.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        console.log('Audio playing successfully');
-                    })
-                    .catch(error => {
-                        console.error('Error playing audio:', error);
-                        // Try to play again after user interaction
-                        showNotification('Click to enable audio playback');
-                    });
+            // Start playing if not already playing
+            if (!isPlayingAudio) {
+                playNextAudio();
             }
-
-            // Clean up URL after playback
-            audioPlayer.onended = () => {
-                URL.revokeObjectURL(audioUrl);
-            };
         } catch (error) {
             console.error('Error setting up audio:', error);
         }
@@ -140,6 +124,77 @@ socket.on('pipeline-log', (data) => {
     console.log('Pipeline log:', data);
     addPipelineLog(data);
 });
+
+// Audio playback queue system (mobile-compatible)
+async function playNextAudio() {
+    if (audioQueue.length === 0) {
+        isPlayingAudio = false;
+        console.log('Audio queue empty');
+        return;
+    }
+
+    isPlayingAudio = true;
+    const audioBlob = audioQueue.shift();
+
+    try {
+        // Create a NEW audio element for each playback (better for mobile)
+        const audio = new Audio();
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        // Configure for maximum volume and loudspeaker on mobile
+        audio.volume = 1.0;
+        audio.muted = false;
+
+        // Set audio to use loudspeaker on mobile devices
+        if (audio.setSinkId) {
+            try {
+                await audio.setSinkId('default');
+            } catch (e) {
+                console.log('setSinkId not supported:', e);
+            }
+        }
+
+        audio.src = audioUrl;
+        audio.preload = 'auto';
+
+        console.log('Starting audio playback...');
+
+        // Play the audio
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            await playPromise;
+            console.log('Audio playing successfully');
+        }
+
+        // Wait for audio to finish
+        await new Promise((resolve, reject) => {
+            audio.onended = () => {
+                console.log('Audio playback ended');
+                URL.revokeObjectURL(audioUrl);
+                resolve();
+            };
+
+            audio.onerror = (e) => {
+                console.error('Audio playback error:', e, audio.error);
+                URL.revokeObjectURL(audioUrl);
+                reject(e);
+            };
+        });
+
+    } catch (error) {
+        console.error('Error playing audio:', error);
+        if (error.name === 'NotAllowedError') {
+            showNotification('Tap screen to enable audio playback');
+        }
+    }
+
+    // Play next audio in queue
+    if (audioQueue.length > 0) {
+        playNextAudio();
+    } else {
+        isPlayingAudio = false;
+    }
+}
 
 // Join room functionality
 joinBtn.addEventListener('click', async () => {
@@ -264,13 +319,21 @@ async function initializeAudio() {
             audioBitsPerSecond: 128000
         });
 
-        mediaRecorder.ondataavailable = (event) => {
+        mediaRecorder.ondataavailable = async (event) => {
             if (event.data.size > 0) {
-                audioChunks.push(event.data);
+                console.log('Audio data available:', event.data.size, 'bytes');
+
+                // Send audio immediately for lower latency
+                const arrayBuffer = await event.data.arrayBuffer();
+                socket.emit('audio-stream', {
+                    audioBuffer: arrayBuffer,
+                    roomId: currentRoom
+                });
             }
         };
 
         mediaRecorder.onstop = async () => {
+            // Final cleanup - send any remaining data
             if (audioChunks.length > 0) {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 audioChunks = [];
@@ -303,20 +366,21 @@ function startRecording() {
     isRecording = true;
     audioChunks = [];
 
-    // Start recording
-    mediaRecorder.start();
+    // Start recording with timeslice for continuous chunks
+    // This sends data every 1500ms without stopping/starting
+    mediaRecorder.start(1500);
 
-    // Send audio chunks every 2 seconds for low latency
+    // Backup interval to ensure data is sent
     recordingInterval = setInterval(() => {
-        if (mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-            setTimeout(() => {
-                if (isRecording) {
-                    mediaRecorder.start();
-                }
-            }, 100);
+        if (mediaRecorder.state === 'recording' && audioChunks.length > 0) {
+            // Request data if not automatically sent
+            try {
+                mediaRecorder.requestData();
+            } catch (e) {
+                console.log('requestData failed:', e);
+            }
         }
-    }, 2000);
+    }, 1500);
 
     // Start visualization
     visualizeAudio();

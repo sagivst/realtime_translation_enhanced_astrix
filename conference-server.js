@@ -1,5 +1,7 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const socketIo = require('socket.io');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -11,7 +13,29 @@ const deepl = require('deepl-node');
 const sdk = require('microsoft-cognitiveservices-speech-sdk');
 
 const app = express();
-const server = http.createServer(app);
+
+// Create HTTPS server if certificates exist, otherwise HTTP
+let server;
+try {
+  const certPath = path.join(__dirname, 'cert.pem');
+  const keyPath = path.join(__dirname, 'key.pem');
+
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    const options = {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath)
+    };
+    server = https.createServer(options, app);
+    console.log('✓ HTTPS server configured with SSL certificates');
+  } else {
+    server = http.createServer(app);
+    console.log('⚠ HTTP server (certificates not found)');
+  }
+} catch (error) {
+  console.error('Error loading certificates, falling back to HTTP:', error.message);
+  server = http.createServer(app);
+}
+
 const io = socketIo(server, {
   cors: {
     origin: "*",
@@ -457,7 +481,7 @@ io.on('connection', (socket) => {
 
 // API Routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'conference.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/health', (req, res) => {
@@ -494,15 +518,26 @@ server.listen(PORT, HOST, () => {
     });
   });
 
+  const protocol = server instanceof https.Server ? 'https' : 'http';
+
   console.log(`Conference server running on port ${PORT}`);
+  console.log(`\nProtocol: ${protocol.toUpperCase()}`);
   console.log('\nAccess URLs:');
-  console.log(`  - Local:    http://localhost:${PORT}`);
+  console.log(`  - Local:    ${protocol}://localhost:${PORT}`);
   localIPs.forEach(ip => {
-    console.log(`  - Network:  http://${ip}:${PORT}`);
+    console.log(`  - Network:  ${protocol}://${ip}:${PORT}`);
   });
   console.log('\nServices status:');
   console.log('  - Deepgram STT:', deepgramApiKey ? '✓' : '✗ (not configured)');
   console.log('  - DeepL Translation:', deeplApiKey ? '✓' : '✗ (not configured)');
   console.log('  - Azure TTS:', (azureSpeechKey && azureSpeechRegion) ? '✓' : '✗ (not configured)');
+
+  if (protocol === 'https') {
+    console.log('\n✓ HTTPS enabled - Microphone will work on remote devices!');
+    console.log('  (You may need to click "Advanced" and accept the self-signed certificate)');
+  } else {
+    console.log('\n⚠ HTTP only - Microphone will only work on localhost');
+    console.log('  Add cert.pem and key.pem for HTTPS support');
+  }
   console.log('\n✓ Server is accessible from other devices on your network');
 });

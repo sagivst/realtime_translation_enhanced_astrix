@@ -86,6 +86,12 @@
                             <canvas id="audioVisualizer" width="600" height="100"></canvas>
                         </div>
 
+                        <!-- Latency Stats -->
+                        <div class="latency-stats">
+                            <span class="latency-item">Last Latency: <strong id="latencyStat">-</strong></span>
+                            <span class="latency-item">Avg (1min): <strong id="avgLatencyStat" style="font-size: 1.2em;">-</strong></span>
+                        </div>
+
                         <div class="controls">
                             <button id="toggleMicBtn" class="btn btn-mic">
                                 <span class="mic-icon">🎤</span>
@@ -120,7 +126,10 @@
                 <div class="pipeline-log-panel">
                     <div class="log-header">
                         <h3>Pipeline Log</h3>
-                        <button id="clearLogBtn" class="btn btn-small">Clear</button>
+                        <div class="log-actions">
+                            <button id="exportLogBtn" class="btn btn-small btn-success" onclick="exportLogsToCSV()">📊 Export CSV</button>
+                            <button id="clearLogBtn" class="btn btn-small">Clear</button>
+                        </div>
                     </div>
                     <div id="pipelineLog" class="pipeline-log">
                         <p class="placeholder">Pipeline events will appear here...</p>
@@ -130,7 +139,6 @@
                 <!-- Footer Stats -->
                 <div class="conference-footer">
                     <div class="stats">
-                        <span>Latency: <strong id="latencyStat">-</strong></span>
                         <span>Connection: <strong id="connectionStatus">Connecting...</strong></span>
                     </div>
                 </div>

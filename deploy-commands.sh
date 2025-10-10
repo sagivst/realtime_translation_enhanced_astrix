@@ -12,7 +12,7 @@ APP_NAME="realtime-translation-sagiv"
 LOCATION="germanywestcentral"
 SKU="B1"
 
-# Your API Keys
+# Your API Keys - REPLACE THESE WITH YOUR ACTUAL KEYS
 DEEPGRAM_KEY="your_deepgram_api_key_here"
 DEEPL_KEY="your_deepl_api_key_here"
 AZURE_SPEECH_KEY="your_azure_speech_key_here"

@@ -14,6 +14,10 @@ let recordingInterval = null;
 let audioQueue = [];
 let isPlayingAudio = false;
 
+// Latency tracking for rolling average
+let latencyHistory = [];
+const LATENCY_WINDOW_MS = 60000; // 1 minute window
+
 // DOM Elements
 const joinScreen = document.getElementById('joinScreen');
 const conferenceScreen = document.getElementById('conferenceScreen');
@@ -32,6 +36,7 @@ const translationFeed = document.getElementById('translationFeed');
 const currentRoomId = document.getElementById('currentRoomId');
 const currentLanguageDisplay = document.getElementById('currentLanguage');
 const latencyStat = document.getElementById('latencyStat');
+const avgLatencyStat = document.getElementById('avgLatencyStat');
 const connectionStatus = document.getElementById('connectionStatus');
 const audioPlayer = document.getElementById('audioPlayer');
 const audioVisualizer = document.getElementById('audioVisualizer');
@@ -96,6 +101,9 @@ socket.on('translated-audio', async (data) => {
         } else {
             latencyStat.style.color = '#2ecc71';
         }
+
+        // Update rolling average
+        updateLatencyAverage(data.latency);
     }
 
     // Queue audio for playback if available
@@ -549,6 +557,40 @@ function showNotification(message) {
 // Utility functions
 function generateRoomId() {
     return 'room-' + Math.random().toString(36).substr(2, 9);
+}
+
+function updateLatencyAverage(latency) {
+    const now = Date.now();
+
+    // Add new latency data point with timestamp
+    latencyHistory.push({
+        timestamp: now,
+        latency: latency
+    });
+
+    // Remove data points older than 1 minute
+    latencyHistory = latencyHistory.filter(point =>
+        now - point.timestamp <= LATENCY_WINDOW_MS
+    );
+
+    // Calculate average
+    if (latencyHistory.length > 0) {
+        const sum = latencyHistory.reduce((acc, point) => acc + point.latency, 0);
+        const avg = Math.round(sum / latencyHistory.length);
+
+        avgLatencyStat.textContent = `${avg}ms`;
+
+        // Color code based on average latency
+        if (avg > 2000) {
+            avgLatencyStat.style.color = '#e74c3c';
+        } else if (avg > 1500) {
+            avgLatencyStat.style.color = '#f39c12';
+        } else {
+            avgLatencyStat.style.color = '#2ecc71';
+        }
+    } else {
+        avgLatencyStat.textContent = '-';
+    }
 }
 
 function getLanguageName(code) {

@@ -327,24 +327,19 @@ async function initializeAudio() {
             audioBitsPerSecond: 128000
         });
 
-        mediaRecorder.ondataavailable = async (event) => {
+        mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 console.log('Audio data available:', event.data.size, 'bytes');
-
-                // Send audio immediately for lower latency
-                const arrayBuffer = await event.data.arrayBuffer();
-                socket.emit('audio-stream', {
-                    audioBuffer: arrayBuffer,
-                    roomId: currentRoom
-                });
+                audioChunks.push(event.data);
             }
         };
 
         mediaRecorder.onstop = async () => {
-            // Final cleanup - send any remaining data
             if (audioChunks.length > 0) {
+                // Create complete WebM blob from accumulated chunks
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                audioChunks = [];
+                const audioSize = audioBlob.size;
+                console.log('Sending audio blob:', audioSize, 'bytes');
 
                 // Convert to array buffer and send
                 const arrayBuffer = await audioBlob.arrayBuffer();
@@ -352,6 +347,9 @@ async function initializeAudio() {
                     audioBuffer: arrayBuffer,
                     roomId: currentRoom
                 });
+
+                // Clear chunks for next recording cycle
+                audioChunks = [];
             }
         };
 
@@ -374,21 +372,24 @@ function startRecording() {
     isRecording = true;
     audioChunks = [];
 
-    // Start recording with timeslice for continuous chunks
-    // This sends data every 1500ms without stopping/starting
-    mediaRecorder.start(1500);
+    // Start first recording cycle
+    mediaRecorder.start();
+    console.log('Recording started');
 
-    // Backup interval to ensure data is sent
+    // Set up interval to stop/start recording every 1450ms
+    // This creates complete WebM files that Deepgram can process
+    // 50ms gap between stop and start is acceptable for real-time translation
     recordingInterval = setInterval(() => {
-        if (mediaRecorder.state === 'recording' && audioChunks.length > 0) {
-            // Request data if not automatically sent
-            try {
-                mediaRecorder.requestData();
-            } catch (e) {
-                console.log('requestData failed:', e);
-            }
+        if (mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            setTimeout(() => {
+                if (isRecording) {
+                    audioChunks = [];
+                    mediaRecorder.start();
+                }
+            }, 50);
         }
-    }, 1500);
+    }, 1450);
 
     // Start visualization
     visualizeAudio();

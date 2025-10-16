@@ -1,0 +1,50 @@
+=== Latency Measurement Summary ===
+
+Date: 2025-10-16T18:52:08.339Z
+Duration: 30s
+Total Measurements: 29
+
+Component Latency (milliseconds):
+────────────────────────────────────────────────────────────
+ASR:
+  Min: 153ms
+  Avg: 193ms
+  P50: 189ms
+  P95: 232ms
+  P99: 237ms
+  Max: 237ms
+
+MT:
+  Min: 102ms
+  Avg: 140ms
+  P50: 136ms
+  P95: 195ms
+  P99: 196ms
+  Max: 196ms
+
+TTS:
+  Min: 150ms
+  Avg: 193ms
+  P50: 189ms
+  P95: 243ms
+  P99: 246ms
+  Max: 246ms
+
+TRANSMISSION:
+  Min: 102ms
+  Avg: 157ms
+  P50: 161ms
+  P95: 198ms
+  P99: 200ms
+  Max: 200ms
+
+ENDTOEND:
+  Min: 558ms
+  Avg: 683ms
+  P50: 677ms
+  P95: 762ms
+  P99: 777ms
+  Max: 777ms
+
+Overall Result:
+  ✅ PASS - End-to-end latency (p95): 762ms <= 900ms target

@@ -1,0 +1,216 @@
+{
+  "testConfiguration": {
+    "participants": 3,
+    "duration": 30,
+    "conversationPattern": "round-robin"
+  },
+  "summary": {
+    "cpu": {
+      "min": 22,
+      "max": 24,
+      "avg": 23
+    },
+    "memory": {
+      "min": 4,
+      "max": 4,
+      "avg": 4
+    },
+    "latency": {
+      "min": 745,
+      "max": 866,
+      "avg": 812
+    },
+    "participants": [
+      {
+        "name": "User 1",
+        "language": "en",
+        "totalSpeechTime": 10,
+        "translationCount": 3
+      },
+      {
+        "name": "User 2",
+        "language": "es",
+        "totalSpeechTime": 9,
+        "translationCount": 3
+      },
+      {
+        "name": "User 3",
+        "language": "de",
+        "totalSpeechTime": 10,
+        "translationCount": 3
+      }
+    ],
+    "frameDrops": {
+      "total": 0,
+      "rate": "0.00%"
+    }
+  },
+  "samples": [
+    {
+      "timestamp": 1760640703366,
+      "elapsed": 5,
+      "cpu": {
+        "user": 16,
+        "system": 6
+      },
+      "memory": {
+        "rss": 42,
+        "heapTotal": 6,
+        "heapUsed": 4,
+        "external": 1
+      },
+      "system": {
+        "freemem": 248,
+        "totalmem": 24576,
+        "loadavg": [
+          4.84228515625,
+          4.78125,
+          4.7041015625
+        ]
+      },
+      "participants": {
+        "total": 3,
+        "speaking": 1,
+        "translations": 1
+      },
+      "translation": {
+        "activeStreams": 2,
+        "avgLatency": 865.7834390354172,
+        "frameDrops": 0
+      }
+    },
+    {
+      "timestamp": 1760640708367,
+      "elapsed": 10,
+      "cpu": {
+        "user": 17,
+        "system": 6
+      },
+      "memory": {
+        "rss": 42,
+        "heapTotal": 6,
+        "heapUsed": 4,
+        "external": 1
+      },
+      "system": {
+        "freemem": 180,
+        "totalmem": 24576,
+        "loadavg": [
+          4.5341796875,
+          4.71826171875,
+          4.68212890625
+        ]
+      },
+      "participants": {
+        "total": 3,
+        "speaking": 1,
+        "translations": 3
+      },
+      "translation": {
+        "activeStreams": 2,
+        "avgLatency": 839.4503623922639,
+        "frameDrops": 0
+      }
+    },
+    {
+      "timestamp": 1760640713368,
+      "elapsed": 15,
+      "cpu": {
+        "user": 17,
+        "system": 6
+      },
+      "memory": {
+        "rss": 42,
+        "heapTotal": 6,
+        "heapUsed": 4,
+        "external": 1
+      },
+      "system": {
+        "freemem": 146,
+        "totalmem": 24576,
+        "loadavg": [
+          4.3310546875,
+          4.6728515625,
+          4.666015625
+        ]
+      },
+      "participants": {
+        "total": 3,
+        "speaking": 1,
+        "translations": 4
+      },
+      "translation": {
+        "activeStreams": 2,
+        "avgLatency": 770.6972696775861,
+        "frameDrops": 0
+      }
+    },
+    {
+      "timestamp": 1760640718369,
+      "elapsed": 20,
+      "cpu": {
+        "user": 18,
+        "system": 6
+      },
+      "memory": {
+        "rss": 42,
+        "heapTotal": 6,
+        "heapUsed": 4,
+        "external": 1
+      },
+      "system": {
+        "freemem": 66,
+        "totalmem": 24576,
+        "loadavg": [
+          4.70458984375,
+          4.74462890625,
+          4.69140625
+        ]
+      },
+      "participants": {
+        "total": 3,
+        "speaking": 1,
+        "translations": 6
+      },
+      "translation": {
+        "activeStreams": 2,
+        "avgLatency": 744.726795241719,
+        "frameDrops": 0
+      }
+    },
+    {
+      "timestamp": 1760640723370,
+      "elapsed": 25,
+      "cpu": {
+        "user": 18,
+        "system": 6
+      },
+      "memory": {
+        "rss": 42,
+        "heapTotal": 6,
+        "heapUsed": 4,
+        "external": 1
+      },
+      "system": {
+        "freemem": 61,
+        "totalmem": 24576,
+        "loadavg": [
+          5.52880859375,
+          4.91455078125,
+          4.75146484375
+        ]
+      },
+      "participants": {
+        "total": 3,
+        "speaking": 1,
+        "translations": 8
+      },
+      "translation": {
+        "activeStreams": 2,
+        "avgLatency": 839.5540529864625,
+        "frameDrops": 0
+      }
+    }
+  ],
+  "timestamp": "2025-10-16T18:52:08.366Z"
+}

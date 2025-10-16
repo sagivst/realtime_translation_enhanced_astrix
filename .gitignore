@@ -1,0 +1,43 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# API Keys and secrets
+*-credentials.json
+*-password.txt
+*-secret.txt
+deploy-commands.sh
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Audio files
+*.wav
+*.mp3
+recordings/
+
+# Build output
+dist/
+build/

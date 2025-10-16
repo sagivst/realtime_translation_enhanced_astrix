@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Translation - English ⇄ Japanese</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎤 Real-time Translation</h1>
+            <p class="subtitle">English ⇄ Japanese Simultaneous Translation</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <div class="language-selector">
+                    <label for="sourceLanguage">Source Language:</label>
+                    <select id="sourceLanguage">
+                        <option value="en-US">English (US)</option>
+                        <option value="ja-JP">Japanese</option>
+                    </select>
+                </div>
+
+                <button id="startBtn" class="btn btn-primary">
+                    <span class="btn-icon">🎤</span>
+                    <span class="btn-text">Start Speaking</span>
+                </button>
+
+                <button id="stopBtn" class="btn btn-danger" disabled>
+                    <span class="btn-icon">⏹️</span>
+                    <span class="btn-text">Stop</span>
+                </button>
+
+                <div class="status">
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    <span id="statusText">Ready</span>
+                </div>
+            </div>
+
+            <!-- Translation Display -->
+            <div class="translation-container">
+                <!-- Original Text Panel -->
+                <div class="panel original-panel">
+                    <h2>
+                        <span class="flag" id="sourceFlag">🇺🇸</span>
+                        Original
+                    </h2>
+                    <div class="text-display" id="originalText">
+                        <p class="placeholder">Speak to see your text here...</p>
+                    </div>
+                    <div class="interim-text" id="interimText"></div>
+                </div>
+
+                <!-- Translation Panel -->
+                <div class="panel translation-panel">
+                    <h2>
+                        <span class="flag" id="targetFlag">🇯🇵</span>
+                        Translation
+                    </h2>
+                    <div class="text-display" id="translatedText">
+                        <p class="placeholder">Translation will appear here...</p>
+                    </div>
+                    <div class="interim-text" id="interimTranslation"></div>
+                </div>
+            </div>
+
+            <!-- History Log -->
+            <div class="history-section">
+                <div class="history-header">
+                    <h3>Translation History</h3>
+                    <button id="clearHistoryBtn" class="btn btn-small">Clear</button>
+                </div>
+                <div id="historyLog" class="history-log"></div>
+            </div>
+
+            <!-- Manual Input (Optional) -->
+            <div class="manual-input">
+                <h3>Manual Translation</h3>
+                <div class="input-group">
+                    <textarea id="manualInput" placeholder="Type text to translate..."></textarea>
+                    <button id="translateBtn" class="btn btn-secondary">Translate</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by Web Speech API and Socket.io</p>
+            <p class="info-text">
+                <span class="connection-status" id="connectionStatus">Connecting...</span>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Main application script -->
+    <script src="/js/app.js"></script>
+</body>
+</html>

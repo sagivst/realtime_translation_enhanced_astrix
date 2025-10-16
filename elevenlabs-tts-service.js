@@ -240,6 +240,171 @@ class ElevenLabsTTSService extends EventEmitter {
             throw enhancedError;
         }
     }
+
+    /**
+     * Synthesize with emotion control (Hume EVI integration)
+     *
+     * Maps emotion and prosody vectors to ElevenLabs voice settings:
+     * - Emotion arousal → stability (high arousal = less stable/more dynamic)
+     * - Emotion valence + prosody rate → style (positive = higher style value)
+     * - Prosody energy → similarity_boost adjustment
+     */
+    async synthesizeWithEmotion(text, voiceId, emotionVector, options = {}) {
+        const {
+            modelId = 'eleven_multilingual_v2',
+            baseLine = {
+                stability: 0.5,
+                similarityBoost: 0.75,
+                style: 0
+            }
+        } = options;
+
+        // Extract emotion and prosody
+        const emotion = emotionVector.emotion || {};
+        const prosody = emotionVector.prosody || {};
+
+        // Map emotion to voice settings
+        const voiceSettings = this.emotionToVoiceSettings(emotion, prosody, baseLine);
+
+        try {
+            const response = await axios.post(
+                `${this.baseURL}/text-to-speech/${voiceId}`,
+                {
+                    text: text,
+                    model_id: modelId,
+                    voice_settings: voiceSettings
+                },
+                {
+                    headers: {
+                        'xi-api-key': this.apiKey,
+                        'Content-Type': 'application/json',
+                        'Accept': 'audio/mpeg'
+                    },
+                    responseType: 'arraybuffer'
+                }
+            );
+
+            this.emit('synthesized', {
+                text,
+                voiceId,
+                emotion: emotion.primary || 'neutral',
+                voiceSettings
+            });
+
+            return {
+                audio: Buffer.from(response.data),
+                format: 'mp3',
+                voiceId: voiceId,
+                emotion: emotion.primary || 'neutral',
+                voiceSettings
+            };
+
+        } catch (error) {
+            const detailedMessage = error.response?.data?.detail?.message ||
+                                    JSON.stringify(error.response?.data) ||
+                                    error.message;
+            console.error('Error synthesizing with emotion:', detailedMessage);
+            const enhancedError = new Error(detailedMessage);
+            enhancedError.response = error.response;
+            throw enhancedError;
+        }
+    }
+
+    /**
+     * Map emotion and prosody to ElevenLabs voice settings
+     *
+     * @param {Object} emotion - Hume EVI emotion data
+     * @param {Object} prosody - Hume EVI prosody data
+     * @param {Object} baseLine - Baseline voice settings
+     * @returns {Object} Voice settings for ElevenLabs API
+     */
+    emotionToVoiceSettings(emotion, prosody, baseLine) {
+        // Default values
+        const arousal = emotion.arousal || 0.5;     // 0 (calm) to 1 (excited)
+        const valence = emotion.valence || 0;       // -1 (negative) to 1 (positive)
+        const energy = prosody.energy || 0.5;       // 0 (quiet) to 1 (loud)
+        const rate = prosody.rate || 1.0;           // Speaking rate multiplier
+
+        // STABILITY: Lower stability = more expression/variation
+        // High arousal (excited) → lower stability (more dynamic)
+        // Arousal 0.5 (neutral) → stability 0.5
+        // Arousal 1.0 (very excited) → stability 0.2
+        // Arousal 0.0 (very calm) → stability 0.8
+        const stability = baseLine.stability + (0.5 - arousal) * 0.6;
+        const clampedStability = Math.max(0.2, Math.min(0.9, stability));
+
+        // SIMILARITY BOOST: Adjust based on energy level
+        // Higher energy → slightly higher similarity (stay closer to voice)
+        const similarityBoost = baseLine.similarityBoost + (energy - 0.5) * 0.15;
+        const clampedSimilarity = Math.max(0.65, Math.min(0.95, similarityBoost));
+
+        // STYLE: Controlled by valence and rate
+        // Positive valence + faster rate → higher style value (more expressive)
+        // Negative valence + slower rate → lower style value (more subdued)
+        const styleAdjust = ((valence + 1) / 2) * 0.3 + (rate - 1.0) * 0.2;
+        const style = baseLine.style + styleAdjust;
+        const clampedStyle = Math.max(0, Math.min(1, style));
+
+        return {
+            stability: clampedStability,
+            similarity_boost: clampedSimilarity,
+            style: clampedStyle,
+            use_speaker_boost: true
+        };
+    }
+
+    /**
+     * Get emotion-adjusted settings preview (for debugging)
+     */
+    previewEmotionSettings(emotionVector, baseLine = {}) {
+        const emotion = emotionVector.emotion || {};
+        const prosody = emotionVector.prosody || {};
+
+        const settings = this.emotionToVoiceSettings(
+            emotion,
+            prosody,
+            {
+                stability: baseLine.stability || 0.5,
+                similarityBoost: baseLine.similarityBoost || 0.75,
+                style: baseLine.style || 0
+            }
+        );
+
+        return {
+            emotion: {
+                primary: emotion.primary || 'neutral',
+                arousal: emotion.arousal || 0.5,
+                valence: emotion.valence || 0,
+                energy: prosody.energy || 0.5,
+                rate: prosody.rate || 1.0
+            },
+            voiceSettings: settings,
+            description: this.describeVoiceSettings(settings, emotion.primary || 'neutral')
+        };
+    }
+
+    /**
+     * Describe voice settings in human-readable format
+     */
+    describeVoiceSettings(settings, emotionName) {
+        const descriptions = [];
+
+        if (settings.stability < 0.4) {
+            descriptions.push('highly expressive and dynamic');
+        } else if (settings.stability > 0.7) {
+            descriptions.push('calm and consistent');
+        } else {
+            descriptions.push('moderately expressive');
+        }
+
+        if (settings.style > 0.5) {
+            descriptions.push('enthusiastic tone');
+        } else if (settings.style < -0.2) {
+            descriptions.push('subdued tone');
+        }
+
+        return `${emotionName} - ${descriptions.join(', ')}`;
+    }
 }
 
 module.exports = ElevenLabsTTSService;

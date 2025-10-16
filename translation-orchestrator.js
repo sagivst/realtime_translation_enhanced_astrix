@@ -19,6 +19,7 @@ const { ProsodicSegmenter } = require('./prosodic-segmenter');
 const { ASRStreamingWorker } = require('./asr-streaming-worker');
 const { DeepLIncrementalMT } = require('./deepl-incremental-mt');
 const ElevenLabsTTSService = require('./elevenlabs-tts-service');
+const { HumeEVIAdapter } = require('./hume-evi-adapter');
 
 const FRAME_SIZE = 640;
 const FRAME_DURATION_MS = 20;
@@ -39,6 +40,8 @@ class TranslationOrchestrator extends EventEmitter {
         this.deepgramClient = services.deepgramClient;
         this.deeplClient = services.deeplClient;
         this.elevenLabsApiKey = services.elevenLabsApiKey;
+        this.humeEVIApiKey = services.humeEVIApiKey;
+        this.voiceId = services.voiceId || options.voiceId;
 
         // Components
         this.frameCollector = null;
@@ -47,6 +50,7 @@ class TranslationOrchestrator extends EventEmitter {
         this.asrWorker = null;
         this.mtService = null;
         this.ttsService = null;
+        this.humeEVIAdapter = null;
 
         // State
         this.running = false;
@@ -141,11 +145,21 @@ class TranslationOrchestrator extends EventEmitter {
         console.log(`[Orchestrator:${this.channelId}] ✓ MT Service initialized`);
 
         // 6. ElevenLabs TTS (text-to-speech)
-        this.ttsService = new ElevenLabsTTSService(
-            this.elevenLabsApiKey,
-            { language: this.targetLang }
-        );
+        this.ttsService = new ElevenLabsTTSService(this.elevenLabsApiKey);
         console.log(`[Orchestrator:${this.channelId}] ✓ TTS Service initialized`);
+
+        // 7. Hume EVI Adapter (emotion analysis) - OPTIONAL
+        if (this.humeEVIApiKey) {
+            this.humeEVIAdapter = new HumeEVIAdapter(this.humeEVIApiKey, {
+                sampleRate: 16000,
+                channels: 1,
+                enableEmotionDetection: true,
+                enableProsodyAnalysis: true
+            });
+            await this.humeEVIAdapter.connect();
+            console.log(`[Orchestrator:${this.channelId}] ✓ Hume EVI Adapter connected (emotion-aware TTS enabled)`);
+        } else {
+            console.log(`[Orchestrator:${this.channelId}] ⚠ Hume EVI API key not provided, emotion analysis disabled`);
     }
 
     /**
@@ -165,6 +179,11 @@ class TranslationOrchestrator extends EventEmitter {
                 try {
                     // 1. Feed frame to Prosodic Segmenter
                     this.prosodicSegmenter.processFrame(frame.data);
+
+                    // 2. Push to Hume EVI for emotion analysis (if enabled)
+                    if (this.humeEVIAdapter) {
+                        this.humeEVIAdapter.pushAudioAndText(frame.data, null);
+                    }
 
                     // 2. Check if segment is ready
                     if (this.prosodicSegmenter.hasSegment()) {
@@ -202,11 +221,31 @@ class TranslationOrchestrator extends EventEmitter {
                                     latencyMarker.mt_t = Date.now();
 
                                     if (translation.text && translation.text.trim().length > 0) {
-                                        // 6. Synthesize with TTS
-                                        const audioBuffer = await this.ttsService.synthesize(
-                                            translation.text,
-                                            this.targetLang
-                                        );
+                                        // 6. Synthesize with TTS (emotion-aware if Hume EVI enabled)
+                                        let audioBuffer;
+                                        let emotionUsed = null;
+
+                                        if (this.humeEVIAdapter && this.voiceId) {
+                                            // Get emotion vector from Hume EVI
+                                            const emotionVector = this.humeEVIAdapter.getEmotionVector();
+
+                                            // Synthesize with emotion
+                                            const result = await this.ttsService.synthesizeWithEmotion(
+                                                translation.text,
+                                                this.voiceId,
+                                                emotionVector
+                                            );
+
+                                            audioBuffer = result.audio;
+                                            emotionUsed = result.emotion;
+                                        } else {
+                                            // Standard synthesis without emotion
+                                            const result = await this.ttsService.synthesize(
+                                                translation.text,
+                                                this.voiceId || 'default'
+                                            );
+                                            audioBuffer = result.audio;
+                                        }
 
                                         latencyMarker.tts_t = Date.now();
 
@@ -227,6 +266,7 @@ class TranslationOrchestrator extends EventEmitter {
                                             channelId: this.channelId,
                                             sourceText: transcript.text,
                                             translatedText: translation.text,
+                                            emotion: emotionUsed,
                                             latency: {
                                                 total: totalLatency,
                                                 asr: latencyMarker.asr_t - latencyMarker.t0,
@@ -342,6 +382,11 @@ class TranslationOrchestrator extends EventEmitter {
             this.mtService.clearSession(this.channelId);
         }
 
+        // Disconnect Hume EVI
+        if (this.humeEVIAdapter) {
+            this.humeEVIAdapter.disconnect();
+        }
+
         this.running = false;
 
         console.log(`[Orchestrator:${this.channelId}] ✓ Stopped`);
@@ -378,8 +423,10 @@ class TranslationOrchestrator extends EventEmitter {
                 frameCollector: this.frameCollector ? this.frameCollector.getStats() : null,
                 pacingGovernor: this.pacingGovernor ? this.pacingGovernor.getStats() : null,
                 asrWorker: this.asrWorker ? this.asrWorker.getStats() : null,
-                mtService: this.mtService ? this.mtService.getStats() : null
-            }
+                mtService: this.mtService ? this.mtService.getStats() : null,
+                humeEVI: this.humeEVIAdapter ? this.humeEVIAdapter.getStats() : null
+            },
+            emotionEnabled: !!this.humeEVIAdapter
         };
     }
 }

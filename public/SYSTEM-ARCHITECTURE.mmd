@@ -1,0 +1,181 @@
+%% HMLCP Real-Time Translation System Architecture
+%% Emphasizing Internal vs External Components
+
+graph TB
+    %% ====================================================================
+    %% EXTERNAL COMPONENTS (Client-Side)
+    %% ====================================================================
+    subgraph EXTERNAL_CLIENTS["🌍 EXTERNAL - Client Devices"]
+        style EXTERNAL_CLIENTS fill:#ffe5e5,stroke:#ff6b6b,stroke-width:3px
+
+        DESKTOP["🖥️ Desktop SIP Client<br/>(Linphone/Zoiper)<br/>IP: Dynamic"]
+        MOBILE["📱 Mobile SIP Client<br/>(GSWave/Zoiper)<br/>IP: Dynamic via NAT"]
+        WEBRTC["🌐 WebRTC Browser Client<br/>(Chrome/Firefox)<br/>WebSocket Connection"]
+    end
+
+    %% ====================================================================
+    %% AZURE INFRASTRUCTURE (Internal - Entry Point)
+    %% ====================================================================
+    subgraph AZURE_EXTERNAL["☁️ AZURE - Public Endpoints"]
+        style AZURE_EXTERNAL fill:#e5f3ff,stroke:#4dabf7,stroke-width:3px
+
+        AZURE_VM["🔵 Azure VM<br/>Public IP: 4.185.84.26<br/>OS: Ubuntu 20.04<br/>Region: Germany West Central"]
+    end
+
+    %% ====================================================================
+    %% INTERNAL - ASTERISK PBX LAYER
+    %% ====================================================================
+    subgraph INTERNAL_ASTERISK["📞 INTERNAL - Asterisk PBX Server"]
+        style INTERNAL_ASTERISK fill:#e5ffe5,stroke:#51cf66,stroke-width:3px
+
+        PJSIP["🔌 PJSIP Endpoint<br/>Port: 5060 (SIP)<br/>Auth: user1/Translation2025!"]
+        CONFBRIDGE["🎧 ConfBridge Mixer<br/>Room: 1000<br/>Format: slin16 (16kHz)"]
+        EXTMEDIA["📡 ExternalMedia Channel<br/>Direction: 'in' (receive-only)<br/>Format: slin16<br/>Transport: RTP/UDP"]
+        ARI["🔗 Asterisk REST Interface<br/>Port: 8088<br/>WebSocket: ws://localhost:8088/ari"]
+    end
+
+    %% ====================================================================
+    %% INTERNAL - NODE.JS APPLICATION LAYER
+    %% ====================================================================
+    subgraph INTERNAL_NODEJS["🟢 INTERNAL - Node.js Translation Pipeline"]
+        style INTERNAL_NODEJS fill:#e5ffe5,stroke:#2f9e44,stroke-width:3px
+
+        ARI_HANDLER["📋 ARI Handler<br/>asterisk-ari-handler.js<br/>Manages Channels & Bridges"]
+        RTP_PARSER["📦 RTP Parser<br/>Extracts Audio Payload<br/>Handles Seq/Timestamp"]
+        SEGMENTER["✂️ Prosodic Segmenter<br/>VAD + Silence Detection<br/>500-3000ms segments"]
+
+        subgraph TRANSLATION_PIPELINE["🔄 Translation Pipeline"]
+            ASR_WORKER["🎤 ASR Worker<br/>asr-streaming-worker.js<br/>Deepgram WebSocket<br/>Auto-reconnect: DISABLED"]
+            MT_SERVICE["🌐 MT Service<br/>deepl-incremental-mt.js<br/>Context-aware Translation"]
+            TTS_SERVICE["🗣️ TTS Service<br/>elevenlabs-tts-service.js<br/>Emotion Mapping"]
+        end
+    end
+
+    %% ====================================================================
+    %% INTERNAL - HMLCP SYSTEM
+    %% ====================================================================
+    subgraph INTERNAL_HMLCP["🧠 INTERNAL - HMLCP System"]
+        style INTERNAL_HMLCP fill:#e5ffe5,stroke:#51cf66,stroke-width:3px
+
+        USER_PROFILE["👤 User Profile Manager<br/>hmlcp/user-profile.js<br/>Cache: In-Memory Map"]
+        ULO_LAYER["🔄 ULO Layer<br/>hmlcp/ulo-layer.js<br/>Phrase Mapping Engine"]
+        PATTERN_EXT["📊 Pattern Extractor<br/>hmlcp/pattern-extractor.js<br/>Learning System"]
+
+        PROFILE_STORAGE["💾 Profile Storage<br/>hmlcp/profiles/*.json<br/>Auto-save: Every 5 min<br/>Azure File System"]
+    end
+
+    %% ====================================================================
+    %% EXTERNAL - API SERVICES
+    %% ====================================================================
+    subgraph EXTERNAL_APIS["🔴 EXTERNAL - Cloud API Services"]
+        style EXTERNAL_APIS fill:#ffe5e5,stroke:#ff6b6b,stroke-width:3px
+
+        DEEPGRAM["🎙️ Deepgram STT API<br/>Model: nova-2<br/>Custom Vocabulary Support<br/>Endpoint: api.deepgram.com"]
+        DEEPL["🌍 DeepL Translation API<br/>30+ Languages<br/>Neural MT<br/>Endpoint: api-free.deepl.com"]
+        ELEVENLABS["🗣️ ElevenLabs TTS API<br/>Voice: turbo_v2<br/>Emotion Support<br/>Endpoint: api.elevenlabs.io"]
+    end
+
+    %% ====================================================================
+    %% EXTERNAL - AZURE WEBAPP (HMLCP WebUI)
+    %% ====================================================================
+    subgraph EXTERNAL_AZURE_WEBAPP["☁️ EXTERNAL - Azure Web App"]
+        style EXTERNAL_AZURE_WEBAPP fill:#fff9db,stroke:#fcc419,stroke-width:3px
+
+        WEBAPP["🌐 HMLCP Web UI<br/>realtime-translation-1760218638<br/>.azurewebsites.net<br/>Socket.IO Server<br/>WebSocket Support: Enabled"]
+    end
+
+    %% ====================================================================
+    %% CONNECTION FLOWS
+    %% ====================================================================
+
+    %% Client to Asterisk Connections
+    DESKTOP -->|"SIP REGISTER<br/>UDP:5060"| PJSIP
+    MOBILE -->|"SIP REGISTER<br/>UDP:5060<br/>NAT Traversal"| PJSIP
+    WEBRTC -->|"WebSocket<br/>Socket.IO"| WEBAPP
+
+    %% Asterisk Internal Flow
+    PJSIP -->|"Add to Bridge"| CONFBRIDGE
+    CONFBRIDGE -->|"Create ExternalMedia<br/>localhost RTP"| EXTMEDIA
+    EXTMEDIA -->|"WebSocket Events<br/>ws://localhost:8088"| ARI
+
+    %% ARI to Node.js Pipeline
+    ARI -->|"StasisStart Event<br/>Channel Info"| ARI_HANDLER
+    ARI_HANDLER -->|"Bind RTP Socket<br/>UDP localhost"| EXTMEDIA
+    EXTMEDIA -.->|"RTP Packets<br/>slin16 audio<br/>640 bytes/20ms"| RTP_PARSER
+
+    %% Translation Pipeline Flow
+    RTP_PARSER -->|"PCM Audio Frames<br/>Sequential"| SEGMENTER
+    SEGMENTER -->|"Complete Segments<br/>500-3000ms"| ASR_WORKER
+
+    %% HMLCP Integration
+    ARI_HANDLER -->|"Load Profile<br/>userId + language"| USER_PROFILE
+    USER_PROFILE -->|"Generate Keywords<br/>biasTerms → boost:25"| ASR_WORKER
+    USER_PROFILE -.->|"Provide Phrase Map"| ULO_LAYER
+    USER_PROFILE -.->|"Persist Profile<br/>Every 5 min"| PROFILE_STORAGE
+
+    %% External API Calls
+    ASR_WORKER -->|"WebSocket Stream<br/>Audio + Keywords"| DEEPGRAM
+    DEEPGRAM -.->|"Raw Transcription<br/>confidence score"| ASR_WORKER
+
+    ASR_WORKER -->|"Raw Transcription"| ULO_LAYER
+    ULO_LAYER -->|"Processed Text<br/>Phrase mappings applied"| MT_SERVICE
+
+    MT_SERVICE -->|"HTTPS POST<br/>source/target lang"| DEEPL
+    DEEPL -.->|"Translated Text<br/>JSON response"| MT_SERVICE
+
+    MT_SERVICE -->|"Translated Text"| TTS_SERVICE
+    TTS_SERVICE -->|"HTTPS POST<br/>text + voice_id"| ELEVENLABS
+    ELEVENLABS -.->|"MP3 Audio<br/>base64 encoded"| TTS_SERVICE
+
+    %% Learning Loop
+    ULO_LAYER -.->|"Text Samples<br/>for analysis"| PATTERN_EXT
+    PATTERN_EXT -.->|"Update Metrics<br/>intentMatchRate"| USER_PROFILE
+
+    %% Output to Clients
+    TTS_SERVICE -.->|"Synthesized Audio<br/>+ Metadata"| ARI_HANDLER
+    ARI_HANDLER -.->|"Send to Participant<br/>RTP or WebSocket"| CONFBRIDGE
+    CONFBRIDGE -.->|"Mixed Audio<br/>RTP Stream"| PJSIP
+    PJSIP -.->|"SIP/RTP"| DESKTOP
+    PJSIP -.->|"SIP/RTP"| MOBILE
+
+    %% WebApp Integration
+    WEBAPP -.->|"Audio Stream Events<br/>WebSocket"| ARI_HANDLER
+    ARI_HANDLER -.->|"Translated Audio<br/>+ Timing Metrics"| WEBAPP
+    WEBAPP -.->|"Play Audio<br/>Display Text"| WEBRTC
+
+    %% ====================================================================
+    %% STYLING
+    %% ====================================================================
+
+    classDef externalClient fill:#ffe5e5,stroke:#ff6b6b,stroke-width:2px,color:#333
+    classDef externalAPI fill:#ffe5e5,stroke:#ff6b6b,stroke-width:2px,color:#333
+    classDef internalAsterisk fill:#e5ffe5,stroke:#51cf66,stroke-width:2px,color:#333
+    classDef internalNodeJS fill:#e5ffe5,stroke:#2f9e44,stroke-width:2px,color:#333
+    classDef internalHMLCP fill:#e5ffe5,stroke:#51cf66,stroke-width:2px,color:#333
+    classDef azureInfra fill:#e5f3ff,stroke:#4dabf7,stroke-width:2px,color:#333
+    classDef storage fill:#fff9db,stroke:#fcc419,stroke-width:2px,color:#333
+
+    class DESKTOP,MOBILE,WEBRTC externalClient
+    class DEEPGRAM,DEEPL,ELEVENLABS externalAPI
+    class PJSIP,CONFBRIDGE,EXTMEDIA,ARI internalAsterisk
+    class ARI_HANDLER,RTP_PARSER,SEGMENTER,ASR_WORKER,MT_SERVICE,TTS_SERVICE internalNodeJS
+    class USER_PROFILE,ULO_LAYER,PATTERN_EXT internalHMLCP
+    class AZURE_VM azureInfra
+    class PROFILE_STORAGE,WEBAPP storage
+
+    %% ====================================================================
+    %% LEGEND
+    %% ====================================================================
+
+    subgraph LEGEND["📖 LEGEND"]
+        style LEGEND fill:#f8f9fa,stroke:#333,stroke-width:1px
+
+        L1["🔴 RED = External Components"]
+        L2["🟢 GREEN = Internal Components"]
+        L3["🔵 BLUE = Azure Infrastructure"]
+        L4["🟡 YELLOW = Persistent Storage"]
+        L5["━━━▶ Solid = Primary Data Flow"]
+        L6["┄┄┄▶ Dotted = Response/Callback"]
+    end
+
+    class L1,L2,L3,L4,L5,L6 externalClient

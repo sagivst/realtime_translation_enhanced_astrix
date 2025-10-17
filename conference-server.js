@@ -1314,7 +1314,18 @@ server.listen(PORT, HOST, () => {
 
 // Initialize Asterisk ARI Handler for SIP phone integration
 const AsteriskARIHandler = require('./asterisk-ari-handler');
-const ariHandler = new AsteriskARIHandler({ io, rooms, participants });
+const ariHandler = new AsteriskARIHandler({
+  io,
+  rooms,
+  participants,
+  translationServices: {
+    transcribeAudio,
+    translateText,
+    synthesizeSpeech,
+    getUserProfile,
+    languageMap
+  }
+});
 
 // Connect to Asterisk ARI (async, won't block server startup)
 ariHandler.connect().catch(err => {

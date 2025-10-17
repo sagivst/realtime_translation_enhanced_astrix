@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Audio Recordings</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .summary {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .summary h2 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-box {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .channel-group {
+            background: white;
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .channel-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .channel-id {
+            font-family: monospace;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .audio-item {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .audio-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .audio-filename {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+        .audio-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #666;
+        }
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .meta-label {
+            font-weight: 600;
+        }
+        audio {
+            width: 100%;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .download-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 12px;
+            display: inline-block;
+        }
+        .download-btn:hover {
+            background: #45a049;
+        }
+        .play-all-btn {
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .play-all-btn:hover {
+            background: #0b7dda;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Audio Recordings</h1>
+
+    <div class="summary">
+        <h2>Recording Summary</h2>
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-label">Total Files</div>
+                <div class="stat-value">11</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Channels</div>
+                <div class="stat-value">2</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Total Size</div>
+                <div class="stat-value">~970 KB</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Format</div>
+                <div class="stat-value">WAV</div>
+            </div>
+        </div>
+        <p style="margin-top: 15px; color: #666;">
+            <strong>Audio Format:</strong> PCM 16kHz, Mono, 16-bit<br>
+            <strong>Captured From:</strong> Asterisk Channel Snooping (spy: both)<br>
+            <strong>Purpose:</strong> Debug audio capture before Deepgram transcription
+        </p>
+    </div>
+
+    <!-- Channel 1 -->
+    <div class="channel-group">
+        <div class="channel-header">
+            <div>
+                <h3 style="margin: 0;">Channel 1 (Participant A)</h3>
+                <div class="channel-id">ID: 1760657632.59828</div>
+            </div>
+            <div>7 recordings</div>
+        </div>
+
+        <button class="play-all-btn" onclick="playAllChannel1()">▶ Play All Channel 1 Sequentially</button>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 1</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio1" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657635960.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657635960</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 2</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio2" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657638960.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657638960</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 3</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio3" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657641960.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657641960</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 4</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio4" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657644960.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657644960</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 5</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio5" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657647960.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657647960</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 6</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio6" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657650959.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657650959</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 7 (Final)</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 58K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~1.8s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch1_audio7" controls preload="metadata">
+                <source src="debug-audio-1760657632.59828-1760657652808.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657652808</div>
+        </div>
+    </div>
+
+    <!-- Channel 2 -->
+    <div class="channel-group">
+        <div class="channel-header">
+            <div>
+                <h3 style="margin: 0;">Channel 2 (Participant B)</h3>
+                <div class="channel-id">ID: 1760657640.59831</div>
+            </div>
+            <div>4 recordings</div>
+        </div>
+
+        <button class="play-all-btn" onclick="playAllChannel2()">▶ Play All Channel 2 Sequentially</button>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 1</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch2_audio1" controls preload="metadata">
+                <source src="debug-audio-1760657640.59831-1760657643863.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657643863</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 2</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch2_audio2" controls preload="metadata">
+                <source src="debug-audio-1760657640.59831-1760657646863.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657646863</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 3</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 94K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~3s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch2_audio3" controls preload="metadata">
+                <source src="debug-audio-1760657640.59831-1760657649863.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657649863</div>
+        </div>
+
+        <div class="audio-item">
+            <div class="audio-info">
+                <div class="audio-filename">Segment 4 (Final)</div>
+                <div class="audio-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Size:</span> 59K
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duration:</span> ~1.8s
+                    </div>
+                </div>
+            </div>
+            <audio id="ch2_audio4" controls preload="metadata">
+                <source src="debug-audio-1760657640.59831-1760657651730.wav" type="audio/wav">
+            </audio>
+            <div class="timestamp">Timestamp: 1760657651730</div>
+        </div>
+    </div>
+
+    <script>
+        let currentChannel1Index = 0;
+        let currentChannel2Index = 0;
+
+        function playAllChannel1() {
+            currentChannel1Index = 0;
+            playNextChannel1();
+        }
+
+        function playNextChannel1() {
+            if (currentChannel1Index < 7) {
+                const audio = document.getElementById(`ch1_audio${currentChannel1Index + 1}`);
+                audio.play();
+                audio.onended = () => {
+                    currentChannel1Index++;
+                    playNextChannel1();
+                };
+            }
+        }
+
+        function playAllChannel2() {
+            currentChannel2Index = 0;
+            playNextChannel2();
+        }
+
+        function playNextChannel2() {
+            if (currentChannel2Index < 4) {
+                const audio = document.getElementById(`ch2_audio${currentChannel2Index + 1}`);
+                audio.play();
+                audio.onended = () => {
+                    currentChannel2Index++;
+                    playNextChannel2();
+                };
+            }
+        }
+    </script>
+</body>
+</html>

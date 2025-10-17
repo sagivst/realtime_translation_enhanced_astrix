@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMLCP Micro-Layer Debugging Guide - Interactive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.3em;
+            opacity: 0.9;
+        }
+
+        .azure-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .azure-link {
+            color: #ffd700;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: #f8f9fa;
+            overflow-x: auto;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .nav-tab {
+            padding: 20px 30px;
+            cursor: pointer;
+            border: none;
+            background: #f8f9fa;
+            font-size: 1em;
+            font-weight: bold;
+            color: #555;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .nav-tab:hover {
+            background: #e9ecef;
+        }
+
+        .nav-tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            margin-bottom: -3px;
+        }
+
+        .content-section {
+            display: none;
+            padding: 40px;
+            max-height: 75vh;
+            overflow-y: auto;
+        }
+
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .debug-block {
+            background: #f8f9fa;
+            border-left: 5px solid #667eea;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+
+        .debug-title {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .debug-description {
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 15px 0;
+            overflow-x: auto;
+            line-height: 1.6;
+        }
+
+        .code-comment {
+            color: #75715e;
+        }
+
+        .code-keyword {
+            color: #f92672;
+        }
+
+        .code-string {
+            color: #e6db74;
+        }
+
+        .code-function {
+            color: #66d9ef;
+        }
+
+        .code-variable {
+            color: #fd971f;
+        }
+
+        .output-block {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            margin: 15px 0;
+            overflow-x: auto;
+            line-height: 1.6;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .metric-title {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 2.2em;
+            font-weight: bold;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .warning-title {
+            color: #856404;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .warning-content {
+            color: #856404;
+            line-height: 1.6;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 5px solid #28a745;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .success-title {
+            color: #155724;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .success-content {
+            color: #155724;
+            line-height: 1.6;
+        }
+
+        .error-box {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+        }
+
+        .error-title {
+            color: #721c24;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .error-content {
+            color: #721c24;
+            line-height: 1.6;
+        }
+
+        .diagram {
+            background: white;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+
+        .diagram pre {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.4;
+            color: #333;
+            overflow-x: auto;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: #667eea;
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .badge-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .badge-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .expand-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+        }
+
+        .expand-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .expandable-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .expandable-content.expanded {
+            max-height: 5000px;
+        }
+
+        .file-ref {
+            background: #2d2d2d;
+            color: #4dabf7;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .search-box {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 1em;
+            border: 2px solid #667eea;
+            border-radius: 25px;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 10px rgba(102,126,234,0.3);
+        }
+
+        .layer-icon {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            text-align: center;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+
+        .quick-link {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 15px;
+            text-decoration: none;
+            color: #667eea;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .quick-link:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .toc-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .toc-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .toc-list li:last-child {
+            border-bottom: none;
+        }
+
+        .toc-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .toc-link:hover {
+            color: #764ba2;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 HMLCP Micro-Layer Debugging Guide</h1>
+            <p>Interactive Deep-Dive Technical Reference</p>
+            <div class="azure-badge">
+                🌐 Live System:
+                <a href="https://realtime-translation-1760218638.azurewebsites.net"
+                   target="_blank"
+                   class="azure-link">realtime-translation-1760218638.azurewebsites.net</a>
+            </div>
+            <div class="azure-badge">
+                📊 Flow Demo:
+                <a href="/hmlcp-demo.html"
+                   target="_blank"
+                   class="azure-link">View System Flow</a>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="🔎 Search debugging topics, code examples, error messages...">
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showTab('overview')">📋 Overview</button>
+            <button class="nav-tab" onclick="showTab('layer1')">🎤 Layer 1: Audio Capture</button>
+            <button class="nav-tab" onclick="showTab('layer2')">🔌 Layer 2: WebSocket</button>
+            <button class="nav-tab" onclick="showTab('layer3')">👤 Layer 3: Profiles</button>
+            <button class="nav-tab" onclick="showTab('layer4')">🎙️ Layer 4: STT</button>
+            <button class="nav-tab" onclick="showTab('layer5')">🔄 Layer 5: ULO</button>
+            <button class="nav-tab" onclick="showTab('layer6')">🌐 Layer 6: Translation</button>
+            <button class="nav-tab" onclick="showTab('layer7')">🗣️ Layer 7: TTS</button>
+            <button class="nav-tab" onclick="showTab('layer8')">🔊 Layer 8: Delivery</button>
+            <button class="nav-tab" onclick="showTab('layer9')">💾 Layer 9: Persistence</button>
+            <button class="nav-tab" onclick="showTab('performance')">⚡ Performance</button>
+            <button class="nav-tab" onclick="showTab('troubleshooting')">🔧 Troubleshooting</button>
+            <button class="nav-tab" onclick="showTab('testing')">🧪 Testing</button>
+        </div>
+
+        <div id="overview" class="content-section active">
+            <h2>System Architecture Overview</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">
+                    <span class="layer-icon">🏗️</span>
+                    High-Level Architecture
+                </div>
+                <div class="debug-description">
+                    The HMLCP system consists of 9 distinct processing layers, each with specific responsibilities and debugging requirements.
+                </div>
+
+                <div class="diagram">
+                    <pre>
+┌────────────────────────────────────────────────────────────────┐
+│                      CLIENT BROWSER                            │
+│  ┌─────────────┐    ┌──────────────┐    ┌─────────────────┐  │
+│  │  Microphone │───▶│ MediaRecorder│───▶│ Socket.IO Client│  │
+│  └─────────────┘    └──────────────┘    └─────────┬───────┘  │
+└──────────────────────────────────────────────────┼────────────┘
+                                                    │ WebSocket
+                                                    ▼
+┌────────────────────────────────────────────────────────────────┐
+│                   AZURE WEB APP SERVICE                         │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │               conference-server.js (Node.js)             │  │
+│  │  ┌────────────┐  ┌────────┐  ┌─────────┐  ┌─────────┐  │  │
+│  │  │Socket.IO   │─▶│ HMLCP  │─▶│ API     │─▶│Response │  │  │
+│  │  │Handler     │  │Manager │  │Orchestr.│  │Builder  │  │  │
+│  │  └────────────┘  └────────┘  └─────────┘  └─────────┘  │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    HMLCP SYSTEM                          │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────┐│  │
+│  │  │UserProfile  │  │  ULO Layer  │  │PatternExtractor  ││  │
+│  │  │Manager      │  │             │  │                  ││  │
+│  │  └─────────────┘  └─────────────┘  └──────────────────┘│  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼ (API Calls from Azure)
+┌────────────────────────────────────────────────────────────────┐
+│                    EXTERNAL SERVICES                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐   │
+│  │  Deepgram    │  │    DeepL     │  │ Azure Cognitive   │   │
+│  │  Nova-2 STT  │  │  Translation │  │  Services TTS     │   │
+│  └──────────────┘  └──────────────┘  └───────────────────┘   │
+└────────────────────────────────────────────────────────────────┘
+                    </pre>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">
+                    <span class="layer-icon">📊</span>
+                    Complete Data Flow
+                </div>
+                <div class="diagram">
+                    <pre>
+User Speaks ──▶ Audio Capture ──▶ PCM Buffer ──▶ WebSocket ──▶ Azure Server
+                                                                     │
+                                                                     ▼
+                                                              Load User Profile
+                                                              Generate Keywords
+                                                                     │
+                                                                     ▼
+                                                        ┌────────────────────┐
+                                                        │  Deepgram API      │
+                                                        │  + Custom Vocab    │
+                                                        └────────┬───────────┘
+                                                                 │
+                                                                 ▼
+                                                          Raw Transcription
+                                                                 │
+                                                                 ▼
+                                                        ┌────────────────────┐
+                                                        │   ULO Layer        │
+                                                        │ Apply Phrase Maps  │
+                                                        └────────┬───────────┘
+                                                                 │
+                                                                 ▼
+                                                        Processed Transcription
+                                                                 │
+                                                                 ▼
+                                                        ┌────────────────────┐
+                                                        │   DeepL API        │
+                                                        │   Translation      │
+                                                        └────────┬───────────┘
+                                                                 │
+                                                                 ▼
+                                                           Translated Text
+                                                                 │
+                                                                 ▼
+                                                        ┌────────────────────┐
+                                                        │  Azure TTS API     │
+                                                        │  Neural Voice      │
+                                                        └────────┬───────────┘
+                                                                 │
+                                                                 ▼
+                                                            MP3 Audio Buffer
+                                                                 │
+                                                                 ▼
+                                                        WebSocket ──▶ Client
+                                                                 │
+                                                                 ▼
+                                                             Auto-play
+                    </pre>
+                </div>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">Total Layers</div>
+                    <div class="metric-value">9</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">External APIs</div>
+                    <div class="metric-value">3</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Debugging Points</div>
+                    <div class="metric-value">50+</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Code Examples</div>
+                    <div class="metric-value">100+</div>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">
+                    <span class="layer-icon">🔗</span>
+                    Quick Navigation
+                </div>
+                <div>
+                    <a href="#" class="quick-link" onclick="showTab('layer1'); return false;">🎤 Audio Capture</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer2'); return false;">🔌 WebSocket Transport</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer3'); return false;">👤 User Profiles</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer4'); return false;">🎙️ Deepgram STT</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer5'); return false;">🔄 ULO Processing</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer6'); return false;">🌐 DeepL Translation</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer7'); return false;">🗣️ Azure TTS</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer8'); return false;">🔊 Audio Delivery</a>
+                    <a href="#" class="quick-link" onclick="showTab('layer9'); return false;">💾 Persistence</a>
+                    <a href="#" class="quick-link" onclick="showTab('performance'); return false;">⚡ Performance</a>
+                    <a href="#" class="quick-link" onclick="showTab('troubleshooting'); return false;">🔧 Troubleshooting</a>
+                </div>
+            </div>
+
+            <div class="success-box">
+                <div class="success-title">✅ Getting Started</div>
+                <div class="success-content">
+                    <strong>New to debugging HMLCP?</strong> Start with these steps:
+                    <ol style="margin-top: 10px; padding-left: 20px;">
+                        <li>Review the architecture diagram above</li>
+                        <li>Navigate to each layer tab to understand the flow</li>
+                        <li>Check the Performance tab for target metrics</li>
+                        <li>Use the Troubleshooting tab for common issues</li>
+                        <li>Try the Testing tab for API validation scripts</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Layer 1: Audio Capture -->
+        <div id="layer1" class="content-section">
+            <h2>🎤 Layer 1: Client Audio Capture</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">getUserMedia Initialization</div>
+                <div class="debug-description">
+                    <strong>File:</strong> <span class="file-ref">public/index.html</span> (Lines ~150-180)<br>
+                    The first step is requesting microphone access from the browser using the WebRTC getUserMedia API.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// Step 1: Request microphone permission</span>
+<span class="code-keyword">navigator</span>.<span class="code-variable">mediaDevices</span>.<span class="code-function">getUserMedia</span>({
+    <span class="code-variable">audio</span>: {
+        <span class="code-variable">channelCount</span>: <span class="code-string">1</span>,        <span class="code-comment">// Mono audio</span>
+        <span class="code-variable">sampleRate</span>: <span class="code-string">16000</span>,      <span class="code-comment">// 16kHz sample rate</span>
+        <span class="code-variable">echoCancellation</span>: <span class="code-keyword">true</span>, <span class="code-comment">// Enable AEC</span>
+        <span class="code-variable">noiseSuppression</span>: <span class="code-keyword">true</span>, <span class="code-comment">// Enable noise reduction</span>
+        <span class="code-variable">autoGainControl</span>: <span class="code-keyword">true</span>   <span class="code-comment">// Enable AGC</span>
+    }
+})
+                </div>
+
+                <button class="expand-btn" onclick="toggleExpand(this)">Show Debug Commands</button>
+                <div class="expandable-content">
+                    <h4>Debug Commands:</h4>
+                    <div class="code-block">
+<span class="code-comment">// Check getUserMedia support</span>
+<span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'getUserMedia supported:'</span>,
+    <span class="code-keyword">!!navigator</span>.<span class="code-variable">mediaDevices</span>?.<span class="code-variable">getUserMedia</span>);
+
+<span class="code-comment">// Check permission status</span>
+<span class="code-keyword">navigator</span>.<span class="code-variable">permissions</span>.<span class="code-function">query</span>({ <span class="code-variable">name</span>: <span class="code-string">'microphone'</span> })
+    .<span class="code-function">then</span>(<span class="code-variable">result</span> => {
+        <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'Microphone permission:'</span>, <span class="code-variable">result</span>.<span class="code-variable">state</span>);
+    });
+
+<span class="code-comment">// Check supported constraints</span>
+<span class="code-keyword">const</span> <span class="code-variable">supported</span> = <span class="code-keyword">navigator</span>.<span class="code-variable">mediaDevices</span>.<span class="code-function">getSupportedConstraints</span>();
+<span class="code-keyword">console</span>.<span class="code-function">table</span>(<span class="code-variable">supported</span>);
+                    </div>
+
+                    <div class="success-box">
+                        <div class="success-title">✅ Expected Output</div>
+                        <div class="output-block">
+[Audio Capture] getUserMedia request: {
+    channelCount: 1,
+    sampleRate: 16000,
+    constraints: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+    }
+}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">MediaRecorder Setup</div>
+                <div class="debug-description">
+                    After obtaining the audio stream, create a MediaRecorder to capture audio chunks.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// Step 2: Create MediaRecorder</span>
+<span class="code-keyword">const</span> <span class="code-variable">mediaRecorder</span> = <span class="code-keyword">new</span> <span class="code-function">MediaRecorder</span>(<span class="code-variable">stream</span>, {
+    <span class="code-variable">mimeType</span>: <span class="code-string">'audio/webm;codecs=opus'</span>,
+    <span class="code-variable">audioBitsPerSecond</span>: <span class="code-string">16000</span>
+});
+
+<span class="code-comment">// Check supported MIME types</span>
+<span class="code-keyword">const</span> <span class="code-variable">mimeTypes</span> = [
+    <span class="code-string">'audio/webm;codecs=opus'</span>,
+    <span class="code-string">'audio/webm'</span>,
+    <span class="code-string">'audio/ogg;codecs=opus'</span>
+];
+
+<span class="code-variable">mimeTypes</span>.<span class="code-function">forEach</span>(<span class="code-variable">type</span> => {
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">`[MediaRecorder] ${<span class="code-variable">type</span>}: `</span> +
+        <span class="code-keyword">MediaRecorder</span>.<span class="code-function">isTypeSupported</span>(<span class="code-variable">type</span>));
+});
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Audio Volume Monitoring</div>
+                <div class="debug-description">
+                    Monitor real-time audio levels to verify microphone is working.
+                </div>
+
+                <button class="expand-btn" onclick="toggleExpand(this)">Show Volume Monitor Code</button>
+                <div class="expandable-content">
+                    <div class="code-block">
+<span class="code-comment">// Analyze audio stream volume</span>
+<span class="code-keyword">const</span> <span class="code-variable">audioContext</span> = <span class="code-keyword">new</span> <span class="code-function">AudioContext</span>();
+<span class="code-keyword">const</span> <span class="code-variable">analyser</span> = <span class="code-variable">audioContext</span>.<span class="code-function">createAnalyser</span>();
+<span class="code-keyword">const</span> <span class="code-variable">source</span> = <span class="code-variable">audioContext</span>.<span class="code-function">createMediaStreamSource</span>(<span class="code-variable">stream</span>);
+<span class="code-variable">source</span>.<span class="code-function">connect</span>(<span class="code-variable">analyser</span>);
+
+<span class="code-variable">analyser</span>.<span class="code-variable">fftSize</span> = <span class="code-string">2048</span>;
+<span class="code-keyword">const</span> <span class="code-variable">bufferLength</span> = <span class="code-variable">analyser</span>.<span class="code-variable">frequencyBinCount</span>;
+<span class="code-keyword">const</span> <span class="code-variable">dataArray</span> = <span class="code-keyword">new</span> <span class="code-function">Uint8Array</span>(<span class="code-variable">bufferLength</span>);
+
+<span class="code-function">setInterval</span>(() => {
+    <span class="code-variable">analyser</span>.<span class="code-function">getByteTimeDomainData</span>(<span class="code-variable">dataArray</span>);
+
+    <span class="code-comment">// Calculate RMS volume</span>
+    <span class="code-keyword">let</span> <span class="code-variable">sum</span> = <span class="code-string">0</span>;
+    <span class="code-keyword">for</span> (<span class="code-keyword">let</span> <span class="code-variable">i</span> = <span class="code-string">0</span>; <span class="code-variable">i</span> < <span class="code-variable">bufferLength</span>; <span class="code-variable">i</span>++) {
+        <span class="code-keyword">const</span> <span class="code-variable">normalized</span> = (<span class="code-variable">dataArray</span>[<span class="code-variable">i</span>] - <span class="code-string">128</span>) / <span class="code-string">128</span>;
+        <span class="code-variable">sum</span> += <span class="code-variable">normalized</span> * <span class="code-variable">normalized</span>;
+    }
+    <span class="code-keyword">const</span> <span class="code-variable">rms</span> = <span class="code-keyword">Math</span>.<span class="code-function">sqrt</span>(<span class="code-variable">sum</span> / <span class="code-variable">bufferLength</span>);
+
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[Audio Debug] Volume RMS:'</span>, <span class="code-variable">rms</span>.<span class="code-function">toFixed</span>(<span class="code-string">4</span>));
+}, <span class="code-string">1000</span>);
+                    </div>
+
+                    <div class="success-box">
+                        <div class="success-title">✅ Expected Output (Silent)</div>
+                        <div class="output-block">
+[Audio Debug] Volume RMS: 0.0012
+[Audio Debug] Volume RMS: 0.0008
+[Audio Debug] Volume RMS: 0.0015
+                        </div>
+                    </div>
+
+                    <div class="success-box">
+                        <div class="success-title">✅ Expected Output (Speaking)</div>
+                        <div class="output-block">
+[Audio Debug] Volume RMS: 0.3456
+[Audio Debug] Volume RMS: 0.4872
+[Audio Debug] Volume RMS: 0.3215
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <div class="warning-title">⚠️ Common Issues</div>
+                <div class="warning-content">
+                    <strong>getUserMedia fails:</strong> Requires HTTPS (localhost is OK for testing)<br>
+                    <strong>No audio input:</strong> Check browser permissions and microphone settings<br>
+                    <strong>Low volume:</strong> Check system mic volume or autoGainControl setting
+                </div>
+            </div>
+        </div>
+
+        <!-- Layer 2: WebSocket Transport -->
+        <div id="layer2" class="content-section">
+            <h2>🔌 Layer 2: WebSocket Transport</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">Socket.IO Client Connection</div>
+                <div class="debug-description">
+                    <strong>File:</strong> <span class="file-ref">public/index.html</span><br>
+                    Establish bidirectional WebSocket connection to Azure Web App Service.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// Establish WebSocket connection</span>
+<span class="code-keyword">const</span> <span class="code-variable">socket</span> = <span class="code-function">io</span>(<span class="code-string">'https://realtime-translation-1760218638.azurewebsites.net'</span>, {
+    <span class="code-variable">transports</span>: [<span class="code-string">'websocket'</span>, <span class="code-string">'polling'</span>],
+    <span class="code-variable">upgrade</span>: <span class="code-keyword">true</span>,
+    <span class="code-variable">reconnection</span>: <span class="code-keyword">true</span>,
+    <span class="code-variable">reconnectionDelay</span>: <span class="code-string">1000</span>,
+    <span class="code-variable">reconnectionAttempts</span>: <span class="code-string">5</span>,
+    <span class="code-variable">timeout</span>: <span class="code-string">10000</span>
+});
+                </div>
+
+                <button class="expand-btn" onclick="toggleExpand(this)">Show Connection Debugging</button>
+                <div class="expandable-content">
+                    <div class="code-block">
+<span class="code-comment">// Monitor connection status</span>
+<span class="code-variable">socket</span>.<span class="code-function">on</span>(<span class="code-string">'connect'</span>, () => {
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[WebSocket] Connected:'</span>, {
+        <span class="code-variable">id</span>: <span class="code-variable">socket</span>.<span class="code-variable">id</span>,
+        <span class="code-variable">transport</span>: <span class="code-variable">socket</span>.<span class="code-variable">io</span>.<span class="code-variable">engine</span>.<span class="code-variable">transport</span>.<span class="code-variable">name</span>,
+        <span class="code-variable">connected</span>: <span class="code-variable">socket</span>.<span class="code-variable">connected</span>,
+        <span class="code-variable">timestamp</span>: <span class="code-keyword">new</span> <span class="code-function">Date</span>().<span class="code-function">toISOString</span>()
+    });
+});
+
+<span class="code-variable">socket</span>.<span class="code-function">on</span>(<span class="code-string">'connect_error'</span>, (<span class="code-variable">error</span>) => {
+    <span class="code-keyword">console</span>.<span class="code-function">error</span>(<span class="code-string">'[WebSocket] Connection error:'</span>, {
+        <span class="code-variable">message</span>: <span class="code-variable">error</span>.<span class="code-variable">message</span>,
+        <span class="code-variable">type</span>: <span class="code-variable">error</span>.<span class="code-variable">type</span>
+    });
+});
+
+<span class="code-variable">socket</span>.<span class="code-function">on</span>(<span class="code-string">'disconnect'</span>, (<span class="code-variable">reason</span>) => {
+    <span class="code-keyword">console</span>.<span class="code-function">warn</span>(<span class="code-string">'[WebSocket] Disconnected:'</span>, {
+        <span class="code-variable">reason</span>: <span class="code-variable">reason</span>,
+        <span class="code-variable">timestamp</span>: <span class="code-keyword">new</span> <span class="code-function">Date</span>().<span class="code-function">toISOString</span>()
+    });
+});
+                    </div>
+
+                    <div class="success-box">
+                        <div class="success-title">✅ Expected Output (Success)</div>
+                        <div class="output-block">
+[WebSocket] Connected: {
+    id: "abc123xyz",
+    transport: "websocket",
+    connected: true,
+    timestamp: "2025-10-17T21:30:45.123Z"
+}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Audio Stream Emission</div>
+                <div class="debug-description">
+                    Send captured audio buffers to server via WebSocket.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// Send audio data to server</span>
+<span class="code-variable">socket</span>.<span class="code-function">emit</span>(<span class="code-string">"audio-stream"</span>, {
+    <span class="code-variable">audioBuffer</span>: <span class="code-variable">arrayBuffer</span>,
+    <span class="code-variable">roomId</span>: <span class="code-string">"room-1000"</span>,
+    <span class="code-variable">userId</span>: <span class="code-string">"testuser"</span>,
+    <span class="code-variable">language</span>: <span class="code-string">"en"</span>,
+    <span class="code-variable">timestamp</span>: <span class="code-keyword">Date</span>.<span class="code-function">now</span>()
+});
+                </div>
+
+                <button class="expand-btn" onclick="toggleExpand(this)">Show Emission Debugging</button>
+                <div class="expandable-content">
+                    <div class="code-block">
+<span class="code-comment">// Intercept emit for debugging</span>
+<span class="code-keyword">const</span> <span class="code-variable">originalEmit</span> = <span class="code-variable">socket</span>.<span class="code-variable">emit</span>.<span class="code-function">bind</span>(<span class="code-variable">socket</span>);
+<span class="code-variable">socket</span>.<span class="code-variable">emit</span> = <span class="code-keyword">function</span>(<span class="code-variable">event</span>, <span class="code-variable">data</span>) {
+    <span class="code-keyword">if</span> (<span class="code-variable">event</span> === <span class="code-string">'audio-stream'</span>) {
+        <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[WebSocket] Emitting audio-stream:'</span>, {
+            <span class="code-variable">event</span>: <span class="code-variable">event</span>,
+            <span class="code-variable">bufferSize</span>: <span class="code-variable">data</span>.<span class="code-variable">audioBuffer</span>?.<span class="code-variable">byteLength</span> || <span class="code-string">0</span>,
+            <span class="code-variable">roomId</span>: <span class="code-variable">data</span>.<span class="code-variable">roomId</span>,
+            <span class="code-variable">userId</span>: <span class="code-variable">data</span>.<span class="code-variable">userId</span>,
+            <span class="code-variable">latency</span>: <span class="code-keyword">Date</span>.<span class="code-function">now</span>() - <span class="code-variable">data</span>.<span class="code-variable">timestamp</span>
+        });
+    }
+    <span class="code-keyword">return</span> <span class="code-function">originalEmit</span>(<span class="code-variable">event</span>, <span class="code-variable">data</span>);
+};
+                    </div>
+
+                    <div class="success-box">
+                        <div class="success-title">✅ Expected Output</div>
+                        <div class="output-block">
+[WebSocket] Emitting audio-stream: {
+    event: "audio-stream",
+    bufferSize: 8192,
+    roomId: "room-1000",
+    userId: "testuser",
+    latency: 2
+}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Ping/Pong Monitoring</div>
+                <div class="debug-description">
+                    Monitor WebSocket connection health with ping/pong packets.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// Monitor connection health</span>
+<span class="code-variable">socket</span>.<span class="code-variable">io</span>.<span class="code-variable">engine</span>.<span class="code-function">on</span>(<span class="code-string">'ping'</span>, () => {
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[WebSocket] PING sent'</span>);
+});
+
+<span class="code-variable">socket</span>.<span class="code-variable">io</span>.<span class="code-variable">engine</span>.<span class="code-function">on</span>(<span class="code-string">'pong'</span>, (<span class="code-variable">latency</span>) => {
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[WebSocket] PONG received:'</span>, {
+        <span class="code-variable">latency</span>: <span class="code-variable">latency</span> + <span class="code-string">'ms'</span>
+    });
+});
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Azure Setting</th>
+                            <th>Required Value</th>
+                            <th>Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>webSocketsEnabled</td>
+                            <td><span class="badge badge-success">true</span></td>
+                            <td>Enable WebSocket support</td>
+                        </tr>
+                        <tr>
+                            <td>alwaysOn</td>
+                            <td><span class="badge badge-success">true</span></td>
+                            <td>Prevent cold starts</td>
+                        </tr>
+                        <tr>
+                            <td>http20Enabled</td>
+                            <td><span class="badge badge-info">true</span></td>
+                            <td>HTTP/2 support</td>
+                        </tr>
+                        <tr>
+                            <td>minTlsVersion</td>
+                            <td><span class="badge badge-info">1.2</span></td>
+                            <td>Security</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Add more sections for other layers -->
+        <!-- For brevity, I'll add abbreviated versions of remaining layers -->
+
+        <!-- Layer 3: User Profiles -->
+        <div id="layer3" class="content-section">
+            <h2>👤 Layer 3: User Profile Loading</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">Profile Cache Lookup</div>
+                <div class="debug-description">
+                    <strong>File:</strong> <span class="file-ref">conference-server.js:202-225</span><br>
+                    Check in-memory cache before loading from file system.
+                </div>
+
+                <div class="code-block">
+<span class="code-comment">// getUserProfile implementation</span>
+<span class="code-keyword">async function</span> <span class="code-function">getUserProfile</span>(<span class="code-variable">userId</span>, <span class="code-variable">language</span>) {
+    <span class="code-keyword">const</span> <span class="code-variable">cacheKey</span> = <span class="code-string">`${<span class="code-variable">userId</span>}_${<span class="code-variable">language</span>}`</span>;
+
+    <span class="code-comment">// Check cache</span>
+    <span class="code-keyword">if</span> (<span class="code-variable">userProfiles</span>.<span class="code-function">has</span>(<span class="code-variable">cacheKey</span>)) {
+        <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[HMLCP] Profile cache HIT:'</span>, <span class="code-variable">cacheKey</span>);
+        <span class="code-keyword">return</span> <span class="code-variable">userProfiles</span>.<span class="code-function">get</span>(<span class="code-variable">cacheKey</span>);
+    }
+
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[HMLCP] Profile cache MISS:'</span>, <span class="code-variable">cacheKey</span>);
+
+    <span class="code-comment">// Load from file...</span>
+}
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Profile Structure</div>
+                <div class="debug-description">
+                    <strong>File:</strong> <span class="file-ref">hmlcp/profiles/testuser_en.json</span>
+                </div>
+
+                <div class="code-block">
+{
+  <span class="code-string">"userId"</span>: <span class="code-string">"testuser"</span>,
+  <span class="code-string">"language"</span>: <span class="code-string">"en"</span>,
+  <span class="code-string">"phraseMap"</span>: {
+    <span class="code-string">"check the thing"</span>: <span class="code-string">"check the server status"</span>,
+    <span class="code-string">"restart the stuff"</span>: <span class="code-string">"restart the application"</span>
+  },
+  <span class="code-string">"biasTerms"</span>: [
+    <span class="code-string">"Kubernetes"</span>, <span class="code-string">"PostgreSQL"</span>, <span class="code-string">"Azure"</span>
+  ],
+  <span class="code-string">"metrics"</span>: {
+    <span class="code-string">"intentMatchRate"</span>: <span class="code-string">95.5</span>,
+    <span class="code-string">"calibrationIndex"</span>: <span class="code-string">0.92</span>
+  }
+}
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Tab -->
+        <div id="performance" class="content-section">
+            <h2>⚡ Performance Monitoring</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">Expected Latency Targets</div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Component</th>
+                                <th>Target</th>
+                                <th>Acceptable</th>
+                                <th>Poor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Network Latency</td>
+                                <td><span class="badge badge-success">&lt;50ms</span></td>
+                                <td><span class="badge badge-warning">&lt;100ms</span></td>
+                                <td><span class="badge badge-danger">&gt;200ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>STT (Deepgram)</td>
+                                <td><span class="badge badge-success">&lt;300ms</span></td>
+                                <td><span class="badge badge-warning">&lt;500ms</span></td>
+                                <td><span class="badge badge-danger">&gt;1000ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>ULO Processing</td>
+                                <td><span class="badge badge-success">&lt;5ms</span></td>
+                                <td><span class="badge badge-warning">&lt;10ms</span></td>
+                                <td><span class="badge badge-danger">&gt;50ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>Translation (DeepL)</td>
+                                <td><span class="badge badge-success">&lt;400ms</span></td>
+                                <td><span class="badge badge-warning">&lt;800ms</span></td>
+                                <td><span class="badge badge-danger">&gt;1500ms</span></td>
+                            </tr>
+                            <tr>
+                                <td>TTS (Azure)</td>
+                                <td><span class="badge badge-success">&lt;400ms</span></td>
+                                <td><span class="badge badge-warning">&lt;1000ms</span></td>
+                                <td><span class="badge badge-danger">&gt;2000ms</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Total End-to-End</strong></td>
+                                <td><span class="badge badge-success">&lt;1200ms</span></td>
+                                <td><span class="badge badge-warning">&lt;2500ms</span></td>
+                                <td><span class="badge badge-danger">&gt;4000ms</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Performance Monitoring Code</div>
+                <div class="code-block">
+<span class="code-comment">// Track latency for each request</span>
+<span class="code-keyword">const</span> <span class="code-variable">timing</span> = {
+    <span class="code-variable">startTime</span>: <span class="code-keyword">Date</span>.<span class="code-function">now</span>(),
+    <span class="code-variable">sttStart</span>: <span class="code-string">0</span>, <span class="code-variable">sttEnd</span>: <span class="code-string">0</span>,
+    <span class="code-variable">uloStart</span>: <span class="code-string">0</span>, <span class="code-variable">uloEnd</span>: <span class="code-string">0</span>,
+    <span class="code-variable">translationStart</span>: <span class="code-string">0</span>, <span class="code-variable">translationEnd</span>: <span class="code-string">0</span>,
+    <span class="code-variable">ttsStart</span>: <span class="code-string">0</span>, <span class="code-variable">ttsEnd</span>: <span class="code-string">0</span>
+};
+
+<span class="code-comment">// After processing, calculate breakdown</span>
+<span class="code-keyword">const</span> <span class="code-variable">breakdown</span> = {
+    <span class="code-variable">totalLatency</span>: <span class="code-variable">timing</span>.<span class="code-variable">endTime</span> - <span class="code-variable">timing</span>.<span class="code-variable">startTime</span>,
+    <span class="code-variable">sttLatency</span>: <span class="code-variable">timing</span>.<span class="code-variable">sttEnd</span> - <span class="code-variable">timing</span>.<span class="code-variable">sttStart</span>,
+    <span class="code-variable">uloLatency</span>: <span class="code-variable">timing</span>.<span class="code-variable">uloEnd</span> - <span class="code-variable">timing</span>.<span class="code-variable">uloStart</span>,
+    <span class="code-variable">translationLatency</span>: <span class="code-variable">timing</span>.<span class="code-variable">translationEnd</span> - <span class="code-variable">timing</span>.<span class="code-variable">translationStart</span>,
+    <span class="code-variable">ttsLatency</span>: <span class="code-variable">timing</span>.<span class="code-variable">ttsEnd</span> - <span class="code-variable">timing</span>.<span class="code-variable">ttsStart</span>
+};
+
+<span class="code-keyword">console</span>.<span class="code-function">table</span>(<span class="code-variable">breakdown</span>);
+                </div>
+
+                <div class="success-box">
+                    <div class="success-title">✅ Expected Output</div>
+                    <div class="output-block">
+┌──────────────────────┬────────┐
+│       (index)        │ Values │
+├──────────────────────┼────────┤
+│   totalLatency       │  1234  │
+│   sttLatency         │   342  │
+│   uloLatency         │    1   │
+│   translationLatency │   456  │
+│   ttsLatency         │   412  │
+└──────────────────────┴────────┘
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Troubleshooting Tab -->
+        <div id="troubleshooting" class="content-section">
+            <h2>🔧 Common Issues & Solutions</h2>
+
+            <div class="error-box">
+                <div class="error-title">❌ Issue: High STT Latency</div>
+                <div class="error-content">
+                    <strong>Symptoms:</strong> Deepgram requests taking &gt;1000ms<br><br>
+                    <strong>Debug:</strong>
+                    <div class="code-block" style="margin-top: 10px;">
+<span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[Debug] STT latency issue:'</span>, {
+    <span class="code-variable">audioSize</span>: <span class="code-variable">audioBuffer</span>.<span class="code-variable">byteLength</span>,
+    <span class="code-variable">language</span>: <span class="code-variable">language</span>,
+    <span class="code-variable">customVocabCount</span>: <span class="code-variable">customVocab</span>.<span class="code-variable">length</span>
+});
+                    </div>
+                    <strong>Solutions:</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>Reduce audio chunk size</li>
+                        <li>Check network connectivity to Deepgram</li>
+                        <li>Verify API key quota</li>
+                        <li>Consider streaming API instead of prerecorded</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="error-box">
+                <div class="error-title">❌ Issue: WebSocket Disconnections</div>
+                <div class="error-content">
+                    <strong>Symptoms:</strong> Frequent disconnect events<br><br>
+                    <strong>Solutions:</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>Enable WebSocket in Azure App Service</li>
+                        <li>Check firewall rules</li>
+                        <li>Increase ping timeout</li>
+                        <li>Enable sticky sessions</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="error-box">
+                <div class="error-title">❌ Issue: ULO Not Applying Mappings</div>
+                <div class="error-content">
+                    <strong>Symptoms:</strong> Processed text same as raw transcription<br><br>
+                    <strong>Debug:</strong>
+                    <div class="code-block" style="margin-top: 10px;">
+<span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'[Debug] ULO issue:'</span>, {
+    <span class="code-variable">rawText</span>: <span class="code-variable">rawText</span>,
+    <span class="code-variable">processedText</span>: <span class="code-variable">processedText</span>,
+    <span class="code-variable">phraseMapCount</span>: <span class="code-keyword">Object</span>.<span class="code-function">keys</span>(<span class="code-variable">profile</span>.<span class="code-variable">phraseMap</span>).<span class="code-variable">length</span>
+});
+                    </div>
+                    <strong>Solutions:</strong>
+                    <ul style="margin-top: 10px; padding-left: 20px;">
+                        <li>Check phrase mapping patterns (case sensitivity)</li>
+                        <li>Verify profile loaded correctly</li>
+                        <li>Test regex patterns independently</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Testing Tab -->
+        <div id="testing" class="content-section">
+            <h2>🧪 API Testing Scripts</h2>
+
+            <div class="debug-block">
+                <div class="debug-title">Test Deepgram STT</div>
+                <div class="code-block">
+<span class="code-comment">// test-deepgram.js</span>
+<span class="code-keyword">const</span> { <span class="code-variable">createClient</span> } = <span class="code-function">require</span>(<span class="code-string">'@deepgram/sdk'</span>);
+<span class="code-keyword">const</span> <span class="code-variable">fs</span> = <span class="code-function">require</span>(<span class="code-string">'fs'</span>);
+
+<span class="code-keyword">async function</span> <span class="code-function">testDeepgram</span>() {
+    <span class="code-keyword">const</span> <span class="code-variable">deepgram</span> = <span class="code-function">createClient</span>(<span class="code-variable">process</span>.<span class="code-variable">env</span>.<span class="code-variable">DEEPGRAM_API_KEY</span>);
+    <span class="code-keyword">const</span> <span class="code-variable">audioBuffer</span> = <span class="code-variable">fs</span>.<span class="code-function">readFileSync</span>(<span class="code-string">'./test-audio.wav'</span>);
+
+    <span class="code-keyword">const</span> { <span class="code-variable">result</span>, <span class="code-variable">error</span> } = <span class="code-keyword">await</span> <span class="code-variable">deepgram</span>.<span class="code-variable">listen</span>.<span class="code-variable">prerecorded</span>.<span class="code-function">transcribeFile</span>(
+        <span class="code-variable">audioBuffer</span>,
+        { <span class="code-variable">model</span>: <span class="code-string">'nova-2'</span>, <span class="code-variable">keywords</span>: [<span class="code-string">'Kubernetes:25'</span>] }
+    );
+
+    <span class="code-keyword">if</span> (<span class="code-variable">error</span>) {
+        <span class="code-keyword">console</span>.<span class="code-function">error</span>(<span class="code-string">'Error:'</span>, <span class="code-variable">error</span>);
+    } <span class="code-keyword">else</span> {
+        <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'Transcription:'</span>,
+            <span class="code-variable">result</span>.<span class="code-variable">results</span>.<span class="code-variable">channels</span>[<span class="code-string">0</span>].<span class="code-variable">alternatives</span>[<span class="code-string">0</span>].<span class="code-variable">transcript</span>);
+    }
+}
+
+<span class="code-function">testDeepgram</span>();
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Test DeepL Translation</div>
+                <div class="code-block">
+<span class="code-comment">// test-deepl.js</span>
+<span class="code-keyword">async function</span> <span class="code-function">testDeepL</span>() {
+    <span class="code-keyword">const</span> <span class="code-variable">response</span> = <span class="code-keyword">await</span> <span class="code-function">fetch</span>(<span class="code-string">'https://api-free.deepl.com/v2/translate'</span>, {
+        <span class="code-variable">method</span>: <span class="code-string">'POST'</span>,
+        <span class="code-variable">headers</span>: {
+            <span class="code-string">'Authorization'</span>: <span class="code-string">`DeepL-Auth-Key ${<span class="code-variable">process</span>.<span class="code-variable">env</span>.<span class="code-variable">DEEPL_API_KEY</span>}`</span>,
+            <span class="code-string">'Content-Type'</span>: <span class="code-string">'application/json'</span>
+        },
+        <span class="code-variable">body</span>: <span class="code-keyword">JSON</span>.<span class="code-function">stringify</span>({
+            <span class="code-variable">text</span>: [<span class="code-string">'I need to check the server status'</span>],
+            <span class="code-variable">source_lang</span>: <span class="code-string">'EN'</span>,
+            <span class="code-variable">target_lang</span>: <span class="code-string">'ES'</span>
+        })
+    });
+
+    <span class="code-keyword">const</span> <span class="code-variable">data</span> = <span class="code-keyword">await</span> <span class="code-variable">response</span>.<span class="code-function">json</span>();
+    <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'Translation:'</span>, <span class="code-variable">data</span>.<span class="code-variable">translations</span>[<span class="code-string">0</span>].<span class="code-variable">text</span>);
+}
+
+<span class="code-function">testDeepL</span>();
+                </div>
+            </div>
+
+            <div class="debug-block">
+                <div class="debug-title">Test Azure TTS</div>
+                <div class="code-block">
+<span class="code-comment">// test-azure-tts.js</span>
+<span class="code-keyword">const</span> <span class="code-variable">sdk</span> = <span class="code-function">require</span>(<span class="code-string">'microsoft-cognitiveservices-speech-sdk'</span>);
+
+<span class="code-keyword">async function</span> <span class="code-function">testAzureTTS</span>() {
+    <span class="code-keyword">const</span> <span class="code-variable">speechConfig</span> = <span class="code-variable">sdk</span>.<span class="code-variable">SpeechConfig</span>.<span class="code-function">fromSubscription</span>(
+        <span class="code-variable">process</span>.<span class="code-variable">env</span>.<span class="code-variable">AZURE_SPEECH_KEY</span>,
+        <span class="code-variable">process</span>.<span class="code-variable">env</span>.<span class="code-variable">AZURE_SPEECH_REGION</span>
+    );
+
+    <span class="code-variable">speechConfig</span>.<span class="code-variable">speechSynthesisVoiceName</span> = <span class="code-string">'en-US-AriaNeural'</span>;
+    <span class="code-keyword">const</span> <span class="code-variable">synthesizer</span> = <span class="code-keyword">new</span> <span class="code-variable">sdk</span>.<span class="code-function">SpeechSynthesizer</span>(<span class="code-variable">speechConfig</span>);
+
+    <span class="code-variable">synthesizer</span>.<span class="code-function">speakTextAsync</span>(
+        <span class="code-string">'This is a test'</span>,
+        <span class="code-variable">result</span> => {
+            <span class="code-variable">fs</span>.<span class="code-function">writeFileSync</span>(<span class="code-string">'test-output.mp3'</span>, <span class="code-keyword">Buffer</span>.<span class="code-function">from</span>(<span class="code-variable">result</span>.<span class="code-variable">audioData</span>));
+            <span class="code-keyword">console</span>.<span class="code-function">log</span>(<span class="code-string">'Audio saved!'</span>);
+        }
+    );
+}
+
+<span class="code-function">testAzureTTS</span>();
+                </div>
+            </div>
+        </div>
+
+        <!-- Add placeholders for other layers -->
+        <div id="layer4" class="content-section">
+            <h2>🎙️ Layer 4: Deepgram STT</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div id="layer5" class="content-section">
+            <h2>🔄 Layer 5: ULO Processing</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div id="layer6" class="content-section">
+            <h2>🌐 Layer 6: DeepL Translation</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div id="layer7" class="content-section">
+            <h2>🗣️ Layer 7: Azure TTS</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div id="layer8" class="content-section">
+            <h2>🔊 Layer 8: Audio Delivery</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div id="layer9" class="content-section">
+            <h2>💾 Layer 9: Profile Persistence</h2>
+            <div class="debug-block">
+                <div class="debug-description">
+                    Coming soon... Refer to full markdown guide for complete details.
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="window.open('/hmlcp-demo.html', '_blank')">📊 View System Flow</button>
+            <button class="btn btn-secondary" onclick="window.open('/HMLCP-MICRO-LAYER-DEBUG-GUIDE.md', '_blank')">📄 Full Guide (Markdown)</button>
+            <button class="btn btn-primary" onclick="window.open('/', '_blank')">🚀 Try Live Demo</button>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Remove active from all tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected section
+            document.getElementById(tabName).classList.add('active');
+
+            // Add active to clicked tab
+            event.target.classList.add('active');
+        }
+
+        function toggleExpand(button) {
+            const content = button.nextElementSibling;
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                button.textContent = button.textContent.replace('Hide', 'Show');
+            } else {
+                content.classList.add('expanded');
+                button.textContent = button.textContent.replace('Show', 'Hide');
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const debugBlocks = document.querySelectorAll('.debug-block');
+
+            debugBlocks.forEach(block => {
+                const text = block.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    block.style.display = 'block';
+                    block.style.border = '2px solid #ffd700';
+                } else {
+                    if (searchTerm === '') {
+                        block.style.display = 'block';
+                        block.style.border = 'none';
+                    } else {
+                        block.style.display = 'none';
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

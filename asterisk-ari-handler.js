@@ -1,20 +1,27 @@
 /**
  * Asterisk ARI Handler for Real-Time Translation
- * 
+ *
  * Handles incoming SIP calls via Asterisk ARI, streams audio bidirectionally,
  * processes through translation pipeline, and delivers to conference participants
  */
 
 const ariClient = require('ari-client');
 const { Transform } = require('stream');
+const AudioPlaybackHandler = require('./audio-playback-handler');
+const RTPAudioReceiver = require('./rtp-audio-receiver');
 
 class AsteriskARIHandler {
-    constructor(conferenceServer) {
-        this.server = conferenceServer;
+    constructor(options) {
+        this.server = options;
         this.ari = null;
         this.bridges = new Map(); // roomId -> Asterisk bridge
         this.channels = new Map(); // channelId -> channel info
         this.activeRooms = new Map(); // roomId -> { participants: [], bridge: Bridge }
+        this.playbackHandlers = new Map(); // channelId -> AudioPlaybackHandler
+        this.audioReceivers = new Map(); // channelId -> RTPAudioReceiver
+
+        // Translation services
+        this.translationServices = options.translationServices || null;
 
         // Get configuration from environment variables or use defaults
         const asteriskHost = process.env.ASTERISK_HOST || 'localhost';
@@ -63,9 +70,15 @@ class AsteriskARIHandler {
     async handleStasisStart(event, channel) {
         console.log(`[ARI] 📞 Incoming call: ${channel.name} (${channel.caller.number})`);
 
-        //Skip snoop channels - they're automatically handled
+        // Skip snoop channels - they're automatically handled
         if (channel.name.startsWith('Snoop/')) {
             console.log(`[ARI] Skipping snoop channel: ${channel.name}`);
+            return;
+        }
+
+        // Skip ExternalMedia/UnicastRTP channels - they're internal RTP bridges
+        if (channel.name.startsWith('UnicastRTP/') || channel.name.includes('external-')) {
+            console.log(`[ARI] Skipping ExternalMedia channel: ${channel.name}`);
             return;
         }
 
@@ -94,24 +107,56 @@ class AsteriskARIHandler {
             const callerName = channel.caller.name || channel.caller.number || 'Anonymous';
             
             console.log(`[ARI] Caller: ${callerName}, Room: ${roomId}, Language: ${language}`);
-            
-            // Store channel info
-            this.channels.set(channel.id, {
+
+            // Create audio playback handler for this channel
+            const playbackHandler = new AudioPlaybackHandler(channel.id, roomId);
+            this.playbackHandlers.set(channel.id, playbackHandler);
+
+            console.log(`[ARI] ✓ Created audio playback handler for ${callerName}`);
+
+            // Store channel info BEFORE creating receiver
+            const channelInfo = {
                 channel,
                 roomId,
                 language,
                 callerName,
                 userId: `sip-${channel.caller.number}`,
                 joinedAt: Date.now()
+            };
+            this.channels.set(channel.id, channelInfo);
+
+            // Create RTP audio receiver for this channel
+            const rtpPort = 10000 + (this.channels.size % 1000); // Dynamic port allocation
+            const audioReceiver = new RTPAudioReceiver({
+                channelId: channel.id,
+                language: language,
+                port: rtpPort
             });
-            
+
+            // Listen for audio segments and process through translation pipeline
+            audioReceiver.on('audio-segment', async (segment) => {
+                const currentChannelInfo = this.channels.get(segment.channelId);
+                if (currentChannelInfo) {
+                    await this.handleAudioSegment(segment, currentChannelInfo);
+                }
+            });
+
+            this.audioReceivers.set(channel.id, audioReceiver);
+
+            console.log(`[ARI] ✓ Created RTP audio receiver for ${callerName} on port ${rtpPort}`);
+
+            // CRITICAL: Start snooping BEFORE adding to bridge
+            // This captures clean participant audio, not conference mix
+            await this.startAudioStreaming(channel, roomId, language);
+            console.log(`[ARI] ✓ Started audio streaming BEFORE bridge (clean audio)`);
+
             // Get or create bridge for this room
             const bridge = await this.getOrCreateBridge(roomId);
-            
-            // Add channel to bridge
+
+            // NOW add channel to bridge (participant can hear others)
             await bridge.addChannel({ channel: channel.id });
             console.log(`[ARI] ✓ Added ${callerName} to conference bridge for room ${roomId}`);
-            
+
             // Notify conference server about new participant
             this.notifyParticipantJoined(roomId, {
                 userId: `sip-${channel.caller.number}`,
@@ -120,10 +165,10 @@ class AsteriskARIHandler {
                 transport: 'asterisk-ari',
                 channelId: channel.id
             });
-            
-            // Start snooping/recording for STT
-            await this.startAudioStreaming(channel, roomId, language);
-            
+
+            // Update RTP destinations for all participants in the room
+            await this.updateRTPDestinationsForRoom(roomId);
+
         } catch (error) {
             console.error(`[ARI] Error handling incoming call:`, error);
             try {
@@ -136,16 +181,55 @@ class AsteriskARIHandler {
 
     async handleStasisEnd(event, channel) {
         const channelInfo = this.channels.get(channel.id);
-        
+
         if (channelInfo) {
             console.log(`[ARI] 📴 Call ended: ${channelInfo.callerName} (${channel.name})`);
-            
+
             // Notify conference server
             this.notifyParticipantLeft(channelInfo.roomId, channelInfo.userId);
-            
-            // Clean up
+
+            // Clean up snoop bridge
+            if (channelInfo.snoopBridge) {
+                try {
+                    await channelInfo.snoopBridge.destroy();
+                    console.log(`[ARI] ✓ Cleaned up snoop bridge for ${channelInfo.callerName}`);
+                } catch (e) {
+                    // Bridge may already be destroyed
+                }
+            }
+
+            // Clean up ExternalMedia channel
+            if (channelInfo.externalMediaChannel) {
+                try {
+                    await channelInfo.externalMediaChannel.hangup();
+                    console.log(`[ARI] ✓ Cleaned up ExternalMedia channel for ${channelInfo.callerName}`);
+                } catch (e) {
+                    // Channel may already be hung up
+                }
+            }
+
+            // Clean up playback handler
+            const playbackHandler = this.playbackHandlers.get(channel.id);
+            if (playbackHandler) {
+                await playbackHandler.cleanup();
+                this.playbackHandlers.delete(channel.id);
+                console.log(`[ARI] ✓ Cleaned up playback handler for ${channelInfo.callerName}`);
+            }
+
+            // Clean up audio receiver
+            const audioReceiver = this.audioReceivers.get(channel.id);
+            if (audioReceiver) {
+                await audioReceiver.stop();
+                this.audioReceivers.delete(channel.id);
+                console.log(`[ARI] ✓ Cleaned up audio receiver for ${channelInfo.callerName}`);
+            }
+
+            // Clean up channel info
             this.channels.delete(channel.id);
-            
+
+            // Update RTP destinations for remaining participants
+            await this.updateRTPDestinationsForRoom(channelInfo.roomId);
+
             // Check if bridge should be destroyed
             await this.cleanupBridgeIfEmpty(channelInfo.roomId);
         }
@@ -214,54 +298,94 @@ class AsteriskARIHandler {
     }
 
     async startAudioStreaming(channel, roomId, language) {
-        console.log(`[ARI] Starting audio streaming for ${channel.name}`);
-        
+        console.log(`[ARI] Starting audio streaming for ${channel.name} (BEFORE bridge for clean audio)`);
+
         try {
+            // Get the audio receiver for this channel
+            const audioReceiver = this.audioReceivers.get(channel.id);
+            if (!audioReceiver) {
+                console.error(`[ARI] No audio receiver found for channel ${channel.id}`);
+                return;
+            }
+
+            // Start the RTP audio receiver
+            await audioReceiver.start();
+            console.log(`[ARI] ✓ Started RTP audio receiver on port ${audioReceiver.port}`);
+
             // Create a snoop channel to capture audio
             const snoopChannel = this.ari.Channel();
-            
-            const snoopId = await channel.snoopChannel({
-                spy: 'in', // Capture incoming audio from caller
-                whisper: 'out', // Allow sending audio to caller
+
+            await channel.snoopChannel({
+                spy: 'in', // Capture audio FROM participant (their microphone) - CRITICAL for clean speech
+                whisper: 'out', // Allow sending audio TO participant (translations)
                 app: this.config.applicationName,
                 appArgs: `snoop,${roomId},${language}`
             }, snoopChannel);
-            
-            console.log(`[ARI] ✓ Created snoop channel: ${snoopId}`);
-            
+
+            // Get the actual snoop channel ID from the snoopChannel object
+            const snoopChannelId = snoopChannel.id;
+
+            console.log(`[ARI] ✓ Created snoop channel: ${snoopChannelId}`);
+
             // Store snoop channel reference
             const channelInfo = this.channels.get(channel.id);
             if (channelInfo) {
-                channelInfo.snoopChannelId = snoopId;
+                channelInfo.snoopChannelId = snoopChannelId;
+                channelInfo.snoopChannel = snoopChannel;
             }
-            
-            // Start external media for audio streaming
-            await this.setupExternalMedia(snoopChannel, roomId, language, channel.id);
-            
+
+            // Start external media for audio streaming and bridge snoop → ExternalMedia
+            await this.setupExternalMedia(snoopChannelId, roomId, language, channel.id, audioReceiver.port);
+
         } catch (error) {
             console.error(`[ARI] Error starting audio streaming:`, error);
         }
     }
 
-    async setupExternalMedia(channel, roomId, language, parentChannelId) {
+    async setupExternalMedia(snoopChannelId, roomId, language, parentChannelId, rtpPort) {
         try {
-            // Use ExternalMedia to stream RTP audio to/from Node.js
-            const externalMedia = await channel.externalMedia({
+            // Create a new ExternalMedia channel (not on existing channel)
+            // ExternalMedia creates a NEW channel that connects to external RTP endpoint
+            const externalMediaChannel = this.ari.Channel();
+
+            // Generate unique channel ID for ExternalMedia
+            const channelId = `external-${parentChannelId}-${Date.now()}`;
+
+            await externalMediaChannel.externalMedia({
                 app: this.config.applicationName,
-                external_host: '127.0.0.1:10000', // RTP endpoint
+                external_host: `127.0.0.1:${rtpPort}`, // RTP endpoint where our receiver listens
                 format: 'slin16', // 16kHz signed linear PCM
-                direction: 'both'
+                channelId: channelId
             });
-            
-            console.log(`[ARI] ✓ ExternalMedia established for room ${roomId}`);
-            
-            // TODO: Set up RTP receiver/sender here
-            // This would require additional RTP handling libraries
-            // For now, we'll use a simpler approach with recordings
-            
+
+            console.log(`[ARI] ✓ ExternalMedia channel created: ${channelId} → 127.0.0.1:${rtpPort}`);
+
+            // CRITICAL: Create a bridge to connect snoop → ExternalMedia
+            // This allows audio to flow from snooped channel to our RTP receiver
+            const snoopBridge = this.ari.Bridge();
+            await snoopBridge.create({ type: 'mixing', name: `snoop-bridge-${parentChannelId}` });
+
+            console.log(`[ARI] ✓ Created snoop bridge to connect audio flow`);
+
+            // Add snoop channel to bridge
+            await snoopBridge.addChannel({ channel: snoopChannelId });
+            console.log(`[ARI] ✓ Added snoop channel to bridge`);
+
+            // Add ExternalMedia channel to bridge
+            await snoopBridge.addChannel({ channel: externalMediaChannel.id });
+            console.log(`[ARI] ✓ Added ExternalMedia to bridge - audio path complete`);
+
+            // Store reference to ExternalMedia channel and bridge
+            const parentChannelInfo = this.channels.get(parentChannelId);
+            if (parentChannelInfo) {
+                parentChannelInfo.externalMediaChannelId = externalMediaChannel.id;
+                parentChannelInfo.externalMediaChannel = externalMediaChannel;
+                parentChannelInfo.snoopBridge = snoopBridge;
+            }
+
         } catch (error) {
-            console.log(`[ARI] ExternalMedia not available, falling back to recording method`);
-            await this.setupRecordingFallback(channel, roomId, language, parentChannelId);
+            console.error(`[ARI] ExternalMedia error:`, error);
+            console.log(`[ARI] ExternalMedia not available, audio capture may not work`);
         }
     }
 
@@ -286,6 +410,140 @@ class AsteriskARIHandler {
         console.log(`[ARI] ✓ Started recording: ${recordingName}`);
     }
 
+    /**
+     * Handle audio segment from RTP receiver - process through translation pipeline
+     * @param {Object} segment - Audio segment with metadata
+     * @param {Object} channelInfo - Channel information
+     */
+    async handleAudioSegment(segment, channelInfo) {
+        if (!this.translationServices) {
+            console.warn('[ARI] Translation services not available');
+            return;
+        }
+
+        const { transcribeAudio, translateText, synthesizeSpeech, getUserProfile, languageMap } = this.translationServices;
+        const pipelineStart = Date.now();
+
+        console.log('[ARI] Processing audio segment:', {
+            channelId: segment.channelId,
+            duration: segment.duration,
+            frames: segment.frames,
+            language: segment.language
+        });
+
+        try {
+            // Step 1: Transcribe audio (STT)
+            const sttStart = Date.now();
+            const { profile, uloLayer } = await getUserProfile(
+                channelInfo.userId,
+                channelInfo.language
+            );
+            const customVocab = uloLayer.generateCustomVocabulary();
+
+            // DEBUG: Log audio buffer details being sent to Deepgram
+            console.log('[ARI] 🔍 DEBUG: Sending to Deepgram:', {
+                audioSize: segment.audio.length,
+                duration: segment.duration,
+                frames: segment.frames,
+                language: segment.language,
+                reason: segment.reason,
+                timestamp: new Date(segment.timestamp).toISOString()
+            });
+
+            const { text: transcription, confidence } = await transcribeAudio(
+                segment.audio, // WAV format
+                segment.language,
+                customVocab
+            );
+            const sttDuration = Date.now() - sttStart;
+
+            // DEBUG: Log Deepgram response
+            console.log('[ARI] 🔍 DEBUG: Deepgram response:', {
+                transcription: transcription || '(empty)',
+                confidence: confidence,
+                length: transcription ? transcription.length : 0,
+                duration: sttDuration
+            });
+
+            if (!transcription || transcription.trim() === '') {
+                console.log('[ARI] Empty transcription, skipping');
+                return;
+            }
+
+            console.log(`[ARI] Transcribed (${sttDuration}ms): "${transcription}"`);
+
+            // Apply HMLCP ULO layer
+            const processedText = uloLayer.apply(transcription);
+            profile.addTextSample(transcription);
+
+            // Step 2: Get all other participants in the room
+            const channelsInRoom = Array.from(this.channels.values())
+                .filter(ch => ch.roomId === channelInfo.roomId && ch.channel.id !== channelInfo.channel.id);
+
+            if (channelsInRoom.length === 0) {
+                console.log('[ARI] No other participants in room, skipping translation');
+                return;
+            }
+
+            console.log(`[ARI] Translating for ${channelsInRoom.length} participant(s)`);
+
+            // Step 3: Translate and synthesize for each participant
+            const translationPromises = channelsInRoom.map(async (targetChannel) => {
+                try {
+                    // Translate
+                    const transStart = Date.now();
+                    const translatedText = await translateText(
+                        processedText,
+                        channelInfo.language,
+                        targetChannel.language
+                    );
+                    const transDuration = Date.now() - transStart;
+
+                    console.log(`[ARI] Translated (${transDuration}ms): "${translatedText}"`);
+
+                    // Synthesize speech
+                    const ttsStart = Date.now();
+                    const audioData = await synthesizeSpeech(
+                        translatedText,
+                        targetChannel.language
+                    );
+                    const ttsDuration = Date.now() - ttsStart;
+
+                    if (!audioData) {
+                        console.warn('[ARI] TTS returned no audio data');
+                        return;
+                    }
+
+                    console.log(`[ARI] Synthesized (${ttsDuration}ms): ${audioData.length} bytes`);
+
+                    // Step 4: Send to target participant via playback handler
+                    await this.playAudioToChannel(targetChannel.channel.id, audioData, {
+                        sourceText: transcription,
+                        processedText: processedText,
+                        translatedText: translatedText,
+                        sourceLanguage: channelInfo.language,
+                        targetLanguage: targetChannel.language,
+                        speakerName: channelInfo.callerName
+                    });
+
+                    const totalLatency = Date.now() - pipelineStart;
+                    console.log(`[ARI] ✓ Complete pipeline: ${totalLatency}ms (STT: ${sttDuration}ms, Trans: ${transDuration}ms, TTS: ${ttsDuration}ms)`);
+
+                } catch (error) {
+                    console.error(`[ARI] Translation error for channel ${targetChannel.channel.id}:`, error);
+                }
+            });
+
+            await Promise.all(translationPromises);
+
+            const totalDuration = Date.now() - pipelineStart;
+            console.log(`[ARI] ✓ Processed segment for ${channelsInRoom.length} participant(s) in ${totalDuration}ms`);
+
+        } catch (error) {
+            console.error('[ARI] Error processing audio segment:', error);
+        }
+    }
+
     notifyParticipantJoined(roomId, participant) {
         // Emit event to conference server's Socket.IO
         if (this.server && this.server.io) {
@@ -301,37 +559,106 @@ class AsteriskARIHandler {
         }
     }
 
-    async playAudioToChannel(channelId, audioBuffer) {
+    /**
+     * Play translated audio to a channel using RTP packets
+     * @param {string} channelId - Channel ID to play audio to
+     * @param {Buffer} mp3Buffer - MP3 audio buffer from TTS
+     * @param {Object} metadata - Translation metadata
+     */
+    async playAudioToChannel(channelId, mp3Buffer, metadata = {}) {
         const channelInfo = this.channels.get(channelId);
         if (!channelInfo) {
             console.warn(`[ARI] Channel ${channelId} not found for audio playback`);
             return;
         }
-        
+
+        const playbackHandler = this.playbackHandlers.get(channelId);
+        if (!playbackHandler) {
+            console.warn(`[ARI] Playback handler not found for channel ${channelId}`);
+            return;
+        }
+
         try {
-            // Save audio buffer to temp file
-            const tempFile = `/tmp/translation-${Date.now()}.wav`;
-            require('fs').writeFileSync(tempFile, audioBuffer);
-            
-            // Play the file to the channel
-            const playback = this.ari.Playback();
-            await channelInfo.channel.play({ media: `sound:${tempFile}` }, playback);
-            
-            console.log(`[ARI] ✓ Playing translated audio to ${channelInfo.callerName}`);
-            
+            console.log(`[ARI] Playing translated audio to ${channelInfo.callerName} via RTP`);
+
+            // Use the playback handler to convert and send audio
+            await playbackHandler.handleSynthesizedAudio(mp3Buffer, metadata);
+
+            console.log(`[ARI] ✓ Queued translated audio for ${channelInfo.callerName}`);
+
         } catch (error) {
-            console.error(`[ARI] Error playing audio:`, error);
+            console.error(`[ARI] Error playing audio to ${channelInfo.callerName}:`, error);
         }
     }
 
-    disconnect() {
+    /**
+     * Update RTP destinations for all playback handlers in a room
+     * @param {string} roomId - Room ID
+     */
+    async updateRTPDestinationsForRoom(roomId) {
+        // Get all channels in this room
+        const channelsInRoom = Array.from(this.channels.values())
+            .filter(ch => ch.roomId === roomId);
+
+        if (channelsInRoom.length === 0) {
+            console.log(`[ARI] No channels in room ${roomId} to update RTP destinations`);
+            return;
+        }
+
+        console.log(`[ARI] Updating RTP destinations for ${channelsInRoom.length} participants in room ${roomId}`);
+
+        // For each channel, update its playback handler with destinations of OTHER participants
+        for (const channelInfo of channelsInRoom) {
+            const playbackHandler = this.playbackHandlers.get(channelInfo.channel.id);
+            if (!playbackHandler) continue;
+
+            // Get RTP destinations for other participants (not this one)
+            const otherParticipants = channelsInRoom
+                .filter(ch => ch.channel.id !== channelInfo.channel.id)
+                .map(ch => ({
+                    host: '127.0.0.1',  // Localhost for ExternalMedia
+                    port: 10000 + parseInt(ch.channel.id.substring(0, 4), 16) % 50000, // Dynamic port based on channel ID
+                    channelId: ch.channel.id,
+                    callerName: ch.callerName
+                }));
+
+            playbackHandler.updateDestinations(otherParticipants);
+
+            console.log(`[ARI] Updated RTP destinations for ${channelInfo.callerName}: ${otherParticipants.length} destination(s)`);
+        }
+    }
+
+    async disconnect() {
         if (this.ari) {
             console.log('[ARI] Disconnecting from Asterisk...');
+
+            // Clean up all audio receivers
+            for (const [channelId, audioReceiver] of this.audioReceivers) {
+                try {
+                    await audioReceiver.stop();
+                } catch (error) {
+                    console.error(`[ARI] Error cleaning up audio receiver for ${channelId}:`, error);
+                }
+            }
+            this.audioReceivers.clear();
+
+            // Clean up all playback handlers
+            for (const [channelId, playbackHandler] of this.playbackHandlers) {
+                try {
+                    await playbackHandler.cleanup();
+                } catch (error) {
+                    console.error(`[ARI] Error cleaning up playback handler for ${channelId}:`, error);
+                }
+            }
+            this.playbackHandlers.clear();
+
             // Clean up all bridges
             for (const [roomId, room] of this.activeRooms) {
                 room.bridge.destroy().catch(() => {});
             }
+
             this.ari = null;
+            console.log('[ARI] ✓ Disconnected and cleaned up all resources');
         }
     }
 }

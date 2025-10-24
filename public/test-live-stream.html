@@ -321,17 +321,17 @@
 
             socket.on('error', (error) => {
                 log('Socket error: ' + error, 'error');
+            });
 
             // Listen for Deepgram transcriptions
             socket.on("transcriptionPartial", (data) => {
-                addLog("🎤 Partial: " + data.text + " (" + Math.round(data.confidence * 100) + "%)", "info");
+                log("🎤 Partial: " + data.text + (data.confidence ? " (" + Math.round(data.confidence * 100) + "%)" : ""), "info");
                 document.getElementById("transcriptPartial").textContent = data.text;
             });
 
             socket.on("transcriptionFinal", (data) => {
-                addLog("✅ FINAL: " + data.text + " (" + Math.round(data.confidence * 100) + "%)", "success");
+                log("✅ FINAL: " + data.text + " (" + Math.round(data.confidence * 100) + "%)", "success");
                 document.getElementById("transcriptFinal").textContent = data.text;
-            });
             });
         }
 

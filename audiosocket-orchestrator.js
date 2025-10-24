@@ -109,6 +109,10 @@ class AudioSocketOrchestrator extends EventEmitter {
         const connectionId = `tcp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const clientIp = socket.remoteAddress;
 
+        // CRITICAL FIX: Disable socket timeout (default is 2 minutes)
+        // This prevents automatic disconnection during long calls
+        socket.setTimeout(0);
+
         console.log(`[AudioSocket/TCP] ✓ New connection: ${connectionId} from ${clientIp}`);
 
         const connectionInfo = {
@@ -350,7 +354,8 @@ class AudioSocketOrchestrator extends EventEmitter {
         if (conn.audioFramesReceived <= 5) {
             console.log(`[AudioSocket/TEST] Echoing frame #${conn.audioFramesReceived} back to Asterisk`);
         }
-        // DISABLED:         this.sendAudio(conn.id, frameData);
+        // DISABLED: Send audio back to maintain bidirectional connection (required by AudioSocket protocol)
+        // this.sendAudio(conn.id, frameData);
 
         // Create frame object
         const frame = {

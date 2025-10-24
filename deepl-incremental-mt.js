@@ -10,7 +10,7 @@
  * Based on HAsterisk_HumeEVI_Spec.md specifications
  */
 
-const fetch = require('node-fetch');
+const axios = require('axios');
 const { EventEmitter } = require('events');
 
 // Context size for maintaining translation coherence
@@ -131,8 +131,8 @@ class DeepLIncrementalMT extends EventEmitter {
             // Note: This is a workaround - adjust based on API capabilities
 
             // Call DeepL API
-            const translation = await this.callDeepLAPI(requestBody);
-
+            const data = await this.callDeepLAPI(requestBody);
+            const translation = data.translations[0].text;
             const latencyMs = Date.now() - startTime;
 
             // Update context if stable
@@ -203,28 +203,15 @@ class DeepLIncrementalMT extends EventEmitter {
 
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
-                const response = await fetch(url, {
-                    method: 'POST',
+                const response = await axios.post(url, requestBody, {
                     headers: {
                         'Authorization': `DeepL-Auth-Key ${this.apiKey}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(requestBody),
-                    timeout: 5000  // 5 second timeout
+                    timeout: 5000
                 });
 
-                if (!response.ok) {
-                    throw new Error(`DeepL API error: ${response.status} ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                if (!data.translations || data.translations.length === 0) {
-                    throw new Error('No translation returned from DeepL');
-                }
-
-                return data.translations[0].text;
-
+                return response.data;
             } catch (error) {
                 if (attempt === retries) {
                     throw error;

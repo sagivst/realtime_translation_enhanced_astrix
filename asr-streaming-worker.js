@@ -15,7 +15,7 @@ const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 
 const SAMPLE_RATE = 8000;  // 8kHz - AudioSocket default
 const ENCODING = 'linear16';
-const AUDIO_GAIN_FACTOR = 1;  // NO GAIN - send raw audio as-is to Deepgram
+const AUDIO_GAIN_FACTOR = 1.0;  // NO GAIN - Asterisk VOLUME(RX)=20 already amplifies
 
 /**
  * Apply audio gain to boost quiet audio
@@ -56,9 +56,9 @@ function applyAudioGain(audioBuffer, gainFactor = AUDIO_GAIN_FACTOR) {
         amplifiedBuffer.writeInt16LE(sample, i);
     }
 
-    // Debug logging every 100th frame (~2 seconds at 50fps)
-    if (Math.random() < 0.01) {  // Log ~1% of frames
-        console.log(`[ASR Gain] Before: [${minBefore}, ${maxBefore}] → After: [${minAfter}, ${maxAfter}] (${clippedCount} clipped)`);
+    // Debug logging every 50th frame (~1 second at 50fps)
+    if (Math.random() < 0.02) {  // Log ~2% of frames for better visibility
+        console.log(`[ASR Gain] Before: [${minBefore}, ${maxBefore}] → After: [${minAfter}, ${maxAfter}] (${clippedCount} clipped, gain=${gainFactor}x)`);
     }
 
     return amplifiedBuffer;
@@ -86,11 +86,12 @@ class ASRStreamingWorker extends EventEmitter {
             sample_rate: SAMPLE_RATE,
             channels: 1,
             interim_results: true,
-            utterance_end_ms: options.utteranceEndMs || 2000,  // Longer utterances
+            utterance_end_ms: options.utteranceEndMs || 3000,  // Longer utterances (3 seconds)
             vad_events: false,  // Don't emit VAD events
-            endpointing: 2000,  // Wait 2 seconds of silence before ending utterance
+            endpointing: false,  // Disable automatic endpointing to prevent premature closure
             punctuate: true,
             smart_format: true,
+            filler_words: false,  // Reduce processing overhead
             ...options.deepgramOptions
         };
 
@@ -102,6 +103,7 @@ class ASRStreamingWorker extends EventEmitter {
         this.connected = false;
         this.reconnecting = false;
         this.sessionId = null;
+        this.keepaliveInterval = null;  // Keepalive timer to prevent connection timeout
 
         // Statistics
         this.stats = {
@@ -155,6 +157,9 @@ class ASRStreamingWorker extends EventEmitter {
 
             this.connected = true;
             this.sessionId = `asr_${Date.now()}`;
+
+            // Start keepalive to prevent connection timeout (every 8 seconds)
+            this.startKeepalive();
 
             console.log(`[ASR] ✓ Connected (session: ${this.sessionId})`);
             this.emit('connected', { sessionId: this.sessionId });
@@ -239,7 +244,7 @@ class ASRStreamingWorker extends EventEmitter {
         const speechFinal = data.speech_final || false;
 
         let type;
-        if (isFinal && speechFinal) {
+        if (isFinal || speechFinal) {
             type = 'final';
             this.stats.finalsReceived++;
         } else if (speechFinal) {
@@ -299,6 +304,10 @@ class ASRStreamingWorker extends EventEmitter {
      */
     handleClose() {
         console.log('[ASR] Connection closed');
+
+        // Stop keepalive on unexpected close
+        this.stopKeepalive();
+
         this.connected = false;
         this.emit('disconnected');
 
@@ -369,6 +378,15 @@ class ASRStreamingWorker extends EventEmitter {
                 }
             }
 
+            // DEBUG: Log raw audio samples occasionally
+            if (this.stats.segmentsProcessed % 50 === 0) {
+                const samples = [];
+                for (let i = 0; i < Math.min(10, audioBuffer.length); i += 2) {
+                    samples.push(audioBuffer.readInt16LE(i));
+                }
+                console.log(`[ASR Audio] Raw samples (first 10): [${samples.join(', ')}] (buffer size: ${audioBuffer.length} bytes)`);
+            }
+
             // Apply audio gain to boost quiet audio (fixes low volume issue)
             const amplifiedAudio = applyAudioGain(audioBuffer);
 
@@ -432,6 +450,9 @@ class ASRStreamingWorker extends EventEmitter {
 
         console.log('[ASR] Disconnecting...');
 
+        // Stop keepalive
+        this.stopKeepalive();
+
         try {
             if (this.connection) {
                 this.connection.finish();
@@ -446,6 +467,48 @@ class ASRStreamingWorker extends EventEmitter {
 
         console.log('[ASR] ✓ Disconnected');
         this.emit('disconnected');
+    }
+
+    /**
+     * Start keepalive to prevent connection timeout
+     * Deepgram closes connection after ~10 seconds of no activity
+     */
+    startKeepalive() {
+        // Clear existing keepalive if any
+        this.stopKeepalive();
+
+        // Send keepalive every 5 seconds using SDK's keepAlive method
+        this.keepaliveInterval = setInterval(() => {
+            if (this.connected && this.connection) {
+                try {
+                    // Use SDK's keepAlive method (sends proper KeepAlive message)
+                    if (typeof this.connection.keepAlive === 'function') {
+                        this.connection.keepAlive();
+                        console.log('[ASR] ⏱ Keepalive sent (SDK method)');
+                    } else {
+                        // Fallback: send small audio buffer
+                        const keepalive = Buffer.alloc(160); // 10ms of silence at 8kHz
+                        this.connection.send(keepalive);
+                        console.log('[ASR] ⏱ Keepalive sent (audio buffer)');
+                    }
+                } catch (err) {
+                    console.error('[ASR] Keepalive error:', err.message);
+                }
+            }
+        }, 5000); // 5 seconds
+
+        console.log('[ASR] ✓ Keepalive started (5s interval)');
+    }
+
+    /**
+     * Stop keepalive timer
+     */
+    stopKeepalive() {
+        if (this.keepaliveInterval) {
+            clearInterval(this.keepaliveInterval);
+            this.keepaliveInterval = null;
+            console.log('[ASR] ✓ Keepalive stopped');
+        }
     }
 
     /**

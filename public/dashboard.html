@@ -1172,6 +1172,44 @@
                     <audio id="outgoingAudioPlayer" autoplay style="display:none;"></audio>
                 </div>
 
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="color: #aaa; font-size: 0.85em;">🌐 Translated Text (LIFO):</div>
+                                <div id="ttsEmotionBadge" style="display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75em; font-weight: bold; background: #444; color: #888;">
+                                    😐 Neutral
+                                </div>
+                                <div id="humeServiceStatus" style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 10px; font-size: 0.7em; background: #1a1a1a; border: 1px solid #333;">
+                                    <div id="humeServicePulse" style="width: 6px; height: 6px; border-radius: 50%; background: #666;"></div>
+                                    <span id="humeServiceText" style="color: #666;">Hume: Waiting</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="clearTranslations()" style="font-size: 0.8em; padding: 4px 8px;">🗑️ Clear</button>
+                        </div>
+                        <div class="translation-window" id="translationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; min-height: 150px; max-height: 300px; overflow-y: auto; border-left: 3px solid #a78bfa; font-family: monospace;">
+                            <div class="translation-empty" id="translationEmpty" style="color: #666; text-align: center; padding: 20px;">
+                                🎙️ Waiting for translations...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Translations:</div>
+                            <div id="elevenlabsTranslationCount" style="color: #a78bfa; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Avg Latency:</div>
+                            <div id="elevenlabsAvgLatency" style="color: #10b981; font-weight: bold; margin-top: 3px;">- ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Languages:</div>
+                            <div id="elevenlabsLanguages" style="color: #a78bfa; font-weight: bold; margin-top: 3px;">en → ja</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="margin-top: 15px; padding: 12px; background: #0f1419; border-radius: 6px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <span style="color: #aaa; font-size: 0.9em;">Translation Pipeline:</span>
@@ -1186,6 +1224,75 @@
                         <span>ASR</span>
                         <span>MT</span>
                         <span>TTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Hume AI (Emotion Detection) -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #51cf66;">😊</div>
+                        <span>5. Hume AI (Emotion Detection)</span>
+                    </div>
+                    <span class="status-badge" id="humeAIStatus">⏸ Idle</span>
+                </div>
+
+                <!-- Emotion Metrics -->
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: #aaa; font-size: 0.85em; margin-bottom: 10px;">😊 Real-Time Emotion Metrics:</div>
+
+                        <!-- Arousal -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Arousal:</span>
+                                <span id="humeArousal" style="color: #51cf66; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeArousalBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #51cf66, #4dabf7); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Valence -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Valence:</span>
+                                <span id="humeValence" style="color: #4dabf7; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeValenceBar" style="width: 50%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #4dabf7, #51cf66); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Energy -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Energy:</span>
+                                <span id="humeEnergy" style="color: #a78bfa; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeEnergyBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a78bfa, #ff6b6b); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Last Update:</div>
+                            <div id="humeLastUpdate" style="color: #667eea; font-weight: bold; margin-top: 3px;">Never</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Detection Count:</div>
+                            <div id="humeDetectionCount" style="color: #51cf66; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(81, 207, 102, 0.1); border-radius: 4px; border-left: 3px solid #51cf66;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div id="humeActivityIndicator" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></div>
+                        <span id="humeActivityText" style="color: #aaa; font-size: 0.9em;">Waiting for Hume AI connection...</span>
                     </div>
                 </div>
             </div>
@@ -1539,7 +1646,7 @@
             });
 
             socket.on('emotion_detected', (data) => {
-                updateEmotion(data);
+                updateHumeEmotions(data);
             });
 
             socket.on('latency_measurement', (data) => {
@@ -1592,6 +1699,11 @@
 
             // TRANSLATED AUDIO - Receive translated audio from ElevenLabs
             socket.on('translatedAudio', handleTranslatedAudio);
+
+            // Listen for Hume→ElevenLabs status updates
+            socket.on('hume_to_elevenlabs', (data) => {
+                updateHumeToElevenLabsStatus(data);
+            });
         }
 
         // Refresh dashboard data
@@ -1892,6 +2004,22 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             transcriptCount = 0;
         }
 
+        function clearTranslations() {
+            const window = document.getElementById('translationWindow');
+            const empty = document.getElementById('translationEmpty');
+            window.innerHTML = '';
+            if (empty) {
+                empty.style.display = 'block';
+                empty.textContent = '🎙️ Translations cleared. Waiting for new translations...';
+                window.appendChild(empty);
+            }
+            if (typeof translationCount !== 'undefined') {
+                translationCount = 0;
+            }
+            const countEl = document.getElementById('elevenlabsTranslationCount');
+            if (countEl) countEl.textContent = '0';
+        }
+
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -1909,6 +2037,194 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
         let callStartTime = null;
         let callDurationInterval = null;
         let audioStreamBuffer = []; // Buffer for incoming audio chunks
+        let outgoingNextPlayTime = 0; // For Card 4 - ElevenLabs translated audio
+
+        // Handle translated audio from ElevenLabs TTS - Card 4
+        function handleTranslatedAudio(data) {
+            console.log('[Translated Audio] Received:', {
+                translation: data.translation,
+                original: data.original,
+                audioSize: data.audio ? data.audio.length : 0,
+                sampleRate: data.sampleRate,
+                duration: data.duration
+            });
+
+            // Initialize Web Audio API context if not already created
+            if (!outgoingAudioContext) {
+                outgoingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: data.sampleRate || 8000
+                });
+                outgoingNextPlayTime = outgoingAudioContext.currentTime;
+                console.log('[Translated Audio] Web Audio Context initialized at', data.sampleRate, 'Hz');
+                console.log('[Translated Audio] AudioContext state:', outgoingAudioContext.state);
+            }
+
+            // Resume AudioContext if suspended (browser autoplay policy)
+            if (outgoingAudioContext.state === 'suspended') {
+                outgoingAudioContext.resume().then(() => {
+                    console.log('[Translated Audio] AudioContext resumed - audio should now play');
+                }).catch(err => {
+                    console.error('[Translated Audio] Failed to resume AudioContext:', err);
+                });
+            }
+
+            // Update UI indicators
+            const outgoingIndicator = document.getElementById('outgoingAudioIndicator');
+            const outgoingStatus = document.getElementById('outgoingAudioStatus');
+            
+            if (outgoingIndicator) {
+                outgoingIndicator.classList.add('active');
+            }
+            if (outgoingStatus) {
+                outgoingStatus.textContent = 'Playing translated audio (' + data.translation.substring(0, 30) + '...)';
+            }
+            // Also update the status badge in card header
+            const translatedStatusBadge = document.getElementById("translatedStreamStatus");
+            if (translatedStatusBadge) {
+                translatedStatusBadge.className = "status-badge status-operational";
+                translatedStatusBadge.textContent = "🔊 PLAYING";
+            }
+
+            // Add translated text to the translation window (LIFO)
+            const translationWindow = document.getElementById('translationWindow');
+            const translationEmpty = document.getElementById('translationEmpty');
+
+            if (translationWindow) {
+                // Hide empty state if visible
+                if (translationEmpty) {
+                    translationEmpty.style.display = 'none';
+                }
+
+                // Create translation entry
+                const translationEntry = document.createElement('div');
+                translationEntry.style.cssText = 'padding: 8px; margin-bottom: 8px; background: rgba(167, 139, 250, 0.1); border-left: 3px solid #a78bfa; border-radius: 4px;';
+
+                // Original text
+                const originalDiv = document.createElement('div');
+                originalDiv.style.cssText = 'color: #888; font-size: 0.85em; margin-bottom: 4px;';
+                originalDiv.textContent = '▶ ' + data.original;
+                translationEntry.appendChild(originalDiv);
+
+                // Translated text
+                const translatedDiv = document.createElement('div');
+                translatedDiv.style.cssText = 'color: #a78bfa; font-weight: bold;';
+                translatedDiv.textContent = '🌐 ' + data.translation;
+                translationEntry.appendChild(translatedDiv);
+
+                // Timestamp
+                const timestampDiv = document.createElement('div');
+                timestampDiv.style.cssText = 'color: #666; font-size: 0.75em; margin-top: 4px;';
+                timestampDiv.textContent = new Date().toLocaleTimeString();
+                translationEntry.appendChild(timestampDiv);
+
+                // Insert at the top (LIFO)
+                translationWindow.insertBefore(translationEntry, translationWindow.firstChild);
+
+                // Keep only last 20 translations
+                while (translationWindow.children.length > 20) {
+                    translationWindow.removeChild(translationWindow.lastChild);
+                }
+
+                // Update translation count
+                if (!window.translationCount) window.translationCount = 0;
+                window.translationCount++;
+                const countEl = document.getElementById('elevenlabsTranslationCount');
+                if (countEl) countEl.textContent = window.translationCount;
+            }
+
+            // Decode base64 audio to Int16Array
+            try {
+                // Decode base64 to binary string
+                const binaryString = atob(data.audio);
+
+                // Create ArrayBuffer from binary string
+                const arrayBuffer = new ArrayBuffer(binaryString.length);
+                const uint8View = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < binaryString.length; i++) {
+                    uint8View[i] = binaryString.charCodeAt(i);
+                }
+
+                // Create Int16Array from ArrayBuffer
+                const samples = new Int16Array(arrayBuffer);
+                console.log('[Translated Audio] Decoded', samples.length, 'samples, range:',
+                    Math.min(...samples), 'to', Math.max(...samples));
+
+                // Visualize waveform for Card 4 (Translated Voice OUT)
+                const outgoingCanvas = document.getElementById('outgoingAudioViz');
+                if (outgoingCanvas) {
+                    const ctx = outgoingCanvas.getContext('2d');
+                    const width = outgoingCanvas.width;
+                    const height = outgoingCanvas.height;
+
+                    // Clear canvas
+                    ctx.fillStyle = '#0f1419';
+                    ctx.fillRect(0, 0, width, height);
+
+                    // Draw waveform
+                    ctx.strokeStyle = '#10b981';  // Green for translated audio
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+
+                    const step = Math.max(1, Math.floor(samples.length / width));
+                    for (let i = 0; i < width; i++) {
+                        const sampleIndex = i * step;
+                        const sample = samples[sampleIndex] || 0;
+                        const amplitude = Math.abs(sample / 32768.0);
+                        const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                        if (i === 0) {
+                            ctx.moveTo(i, y);
+                        } else {
+                            ctx.lineTo(i, y);
+                        }
+                    }
+                    ctx.stroke();
+
+                    console.log('[Translated Audio] Waveform visualized');
+                }
+
+                // Convert Int16 PCM (-32768 to 32767) to Float32 (-1.0 to 1.0)
+                const float32Samples = new Float32Array(samples.length);
+                for (let i = 0; i < samples.length; i++) {
+                    float32Samples[i] = samples[i] / 32768.0;
+                }
+
+                // Only schedule audio playback if NOT muted
+                if (!outgoingMuted) {
+                    // Play MP3 directly using HTML5 Audio
+                    const audio = new Audio();
+                    audio.src = "data:audio/mpeg;base64," + data.audio;
+                    
+                    // Apply volume control
+                    const volumeSlider = document.getElementById("outgoingVolume");
+                    audio.volume = volumeSlider ? (volumeSlider.value / 100) : 0.8;
+                    
+                    // Play the audio
+                    audio.play().then(() => {
+                        console.log("[Translated Audio] MP3 playback started");
+                    }).catch(err => {
+                        console.error("[Translated Audio] Playback failed:", err);
+                    });
+
+                    // Reset UI indicator when audio ends
+                    audio.onended = () => {
+                        if (outgoingIndicator) outgoingIndicator.classList.remove("active");
+                        const translatedStatusBadge = document.getElementById("translatedStreamStatus");
+                        if (translatedStatusBadge) {
+                            translatedStatusBadge.className = "status-badge status-idle";
+                            translatedStatusBadge.textContent = "⏸ IDLE";
+                        }
+                    };
+                } else {
+                    console.log("[Translated Audio] Muted - skipping audio playback");
+                }
+
+            } catch (err) {
+                console.error('[Translated Audio] Error processing audio:', err);
+                console.error('[Translated Audio] Stack:', err.stack);
+            }
+        }
+
         let isAudioPlaying = false;
         let nextPlayTime = 0;
 
@@ -2011,6 +2327,26 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                     console.log('[Incoming Audio] Waveform visualized');
                 }
 
+                // Visualize waveform for Card 5 (Hume AI Emotion Detection)
+                visualizeHumeAudio(samples);
+
+                // Update Hume AI activity indicator
+                const humeIndicator = document.getElementById('humeAudioIndicator');
+                const humeStatus = document.getElementById('humeAudioStatus');
+                const humeActivityIndicator = document.getElementById('humeActivityIndicator');
+                const humeActivityText = document.getElementById('humeActivityText');
+
+                if (humeIndicator) humeIndicator.classList.add('active');
+                if (humeStatus) humeStatus.textContent = 'Receiving audio stream (same as Deepgram)';
+                if (humeActivityIndicator) {
+                    humeActivityIndicator.style.background = '#4dabf7';
+                    humeActivityIndicator.style.boxShadow = '0 0 10px #4dabf7';
+                }
+                if (humeActivityText) {
+                    humeActivityText.textContent = 'Audio stream active...';
+                    humeActivityText.style.color = '#4dabf7';
+                }
+
                 // Only schedule audio playback if NOT muted (skip buffering when muted)
                 if (!incomingMuted) {
                     // Create AudioBuffer
@@ -2058,150 +2394,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
         function initAudioVisualizers() {
 
         // Handle translated audio from pipeline (ElevenLabs TTS output)
-        let outgoingNextPlayTime = 0;
-
-        function handleTranslatedAudio(data) {
-            console.log('[Translated Audio] Received:', {
-                translation: data.translation,
-                original: data.original,
-                audioSize: data.audio ? data.audio.length : 0,
-                sampleRate: data.sampleRate,
-                duration: data.duration
-            });
-
-            // Initialize Web Audio API context if not already created
-            if (!outgoingAudioContext) {
-                outgoingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: data.sampleRate || 8000
-                });
-                outgoingNextPlayTime = outgoingAudioContext.currentTime;
-                console.log('[Translated Audio] Web Audio Context initialized at', data.sampleRate, 'Hz');
-            }
-
-            // Update UI indicators
-            const outgoingIndicator = document.getElementById('outgoingAudioIndicator');
-            const outgoingStatus = document.getElementById('outgoingAudioStatus');
-            
-            if (outgoingIndicator) {
-                outgoingIndicator.classList.add('active');
-            }
-            if (outgoingStatus) {
-                outgoingStatus.textContent = 'Playing translated audio (' + data.translation.substring(0, 30) + '...)';
-            }
-            // Also update the status badge in card header
-            const translatedStatusBadge = document.getElementById("translatedStreamStatus");
-            if (translatedStatusBadge) {
-                translatedStatusBadge.className = "status-badge status-operational";
-                translatedStatusBadge.textContent = "🔊 PLAYING";
-            }
-
-            // Decode base64 audio to Int16Array
-            try {
-                // Decode base64 to binary string
-                const binaryString = atob(data.audio);
-
-                // Create ArrayBuffer from binary string
-                const arrayBuffer = new ArrayBuffer(binaryString.length);
-                const uint8View = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < binaryString.length; i++) {
-                    uint8View[i] = binaryString.charCodeAt(i);
-                }
-
-                // Create Int16Array from ArrayBuffer
-                const samples = new Int16Array(arrayBuffer);
-                console.log('[Translated Audio] Decoded', samples.length, 'samples, range:',
-                    Math.min(...samples), 'to', Math.max(...samples));
-
-                // Visualize waveform for Card 4 (Translated Voice OUT)
-                const outgoingCanvas = document.getElementById('outgoingAudioViz');
-                if (outgoingCanvas) {
-                    const ctx = outgoingCanvas.getContext('2d');
-                    const width = outgoingCanvas.width;
-                    const height = outgoingCanvas.height;
-
-                    // Clear canvas
-                    ctx.fillStyle = '#0f1419';
-                    ctx.fillRect(0, 0, width, height);
-
-                    // Draw waveform
-                    ctx.strokeStyle = '#10b981';  // Green for translated audio
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-
-                    const step = Math.max(1, Math.floor(samples.length / width));
-                    for (let i = 0; i < width; i++) {
-                        const sampleIndex = i * step;
-                        const sample = samples[sampleIndex] || 0;
-                        const amplitude = Math.abs(sample / 32768.0);
-                        const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
-
-                        if (i === 0) {
-                            ctx.moveTo(i, y);
-                        } else {
-                            ctx.lineTo(i, y);
-                        }
-                    }
-                    ctx.stroke();
-
-                    console.log('[Translated Audio] Waveform visualized');
-                }
-
-                // Convert Int16 PCM (-32768 to 32767) to Float32 (-1.0 to 1.0)
-                const float32Samples = new Float32Array(samples.length);
-                for (let i = 0; i < samples.length; i++) {
-                    float32Samples[i] = samples[i] / 32768.0;
-                }
-
-                // Only schedule audio playback if NOT muted
-                if (!outgoingMuted) {
-                    // Create AudioBuffer
-                    const audioBuffer = outgoingAudioContext.createBuffer(
-                        data.channels || 1,
-                        float32Samples.length,
-                        data.sampleRate || 8000
-                    );
-
-                    // Copy samples to buffer
-                    audioBuffer.getChannelData(0).set(float32Samples);
-
-                    // Schedule for playback
-                    const source = outgoingAudioContext.createBufferSource();
-                    source.buffer = audioBuffer;
-
-                    // Apply volume control
-                    const gainNode = outgoingAudioContext.createGain();
-                    const volumeSlider = document.getElementById('outgoingVolume');
-                    const volumeLevel = volumeSlider ? (volumeSlider.value / 100) : 0.8;
-                    gainNode.gain.value = volumeLevel;
-
-                    // Connect: source → gain → destination
-                    source.connect(gainNode);
-                    gainNode.connect(outgoingAudioContext.destination);
-
-                    // Schedule playback with proper timing to avoid gaps
-                    const playTime = Math.max(outgoingNextPlayTime, outgoingAudioContext.currentTime);
-                    source.start(playTime);
-
-                    // Update next play time (duration = samples / sampleRate)
-                    const duration = audioBuffer.length / audioBuffer.sampleRate;
-                    outgoingNextPlayTime = playTime + duration;
-
-                    console.log('[Translated Audio] Scheduled playback at', playTime.toFixed(3),
-                        's, duration:', duration.toFixed(3), 's, next:', outgoingNextPlayTime.toFixed(3), 's');
-
-                    // Reset UI indicator after playback
-                    setTimeout(function() {
-                        if (outgoingIndicator) outgoingIndicator.classList.remove('active');
-                    }, duration * 1000);
-                } else {
-                    console.log('[Translated Audio] Muted - skipping audio playback');
-                }
-
-            } catch (err) {
-                console.error('[Translated Audio] Error processing audio:', err);
-                console.error('[Translated Audio] Stack:', err.stack);
-            }
-        }
+            // handleTranslatedAudio moved to global scope for Card 4
 
             // Incoming audio visualizer
             const incomingCanvas = document.getElementById('incomingAudioViz');
@@ -2478,6 +2671,189 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
 
             const btn = document.getElementById('outgoingMuteBtn');
             btn.textContent = outgoingMuted ? '🔊 Unmute' : '🔇 Mute';
+        }
+
+        // ============ HUME AI EMOTION DETECTION ============
+
+        let humeMuted = false;
+        let humeDetectionCount = 0;
+
+        function muteHumeAudio() {
+            humeMuted = !humeMuted;
+            const btn = document.getElementById('humeMuteBtn');
+            btn.textContent = humeMuted ? '🔊 Unmute' : '🔇 Mute';
+
+            console.log('[Hume AI]', humeMuted ? 'Muted' : 'Unmuted');
+        }
+
+        // Handle emotion detection from Hume AI
+        function updateHumeEmotions(data) {
+            console.log('[Hume AI] Emotion detected:', data);
+
+            // Update status
+            const statusBadge = document.getElementById('humeAIStatus');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge status-operational';
+                statusBadge.textContent = '🟢 ACTIVE';
+            }
+
+            // Update activity indicator
+            const activityIndicator = document.getElementById('humeActivityIndicator');
+            const activityText = document.getElementById('humeActivityText');
+            if (activityIndicator) {
+                activityIndicator.style.background = '#51cf66';
+                activityIndicator.style.boxShadow = '0 0 10px #51cf66';
+            }
+            if (activityText) {
+                activityText.textContent = 'Processing audio...';
+                activityText.style.color = '#51cf66';
+            }
+
+            // Update emotion metrics
+            if (data.arousal !== undefined) {
+                const arousalValue = parseFloat(data.arousal);
+                document.getElementById('humeArousal').textContent = arousalValue.toFixed(2);
+                document.getElementById('humeArousalBar').style.width = (arousalValue * 100) + '%';
+            }
+
+            if (data.valence !== undefined) {
+                const valenceValue = parseFloat(data.valence);
+                // Valence ranges from -1 to 1, so we normalize to 0-100%
+                const valencePercent = ((valenceValue + 1) / 2) * 100;
+                document.getElementById('humeValence').textContent = valenceValue.toFixed(2);
+                document.getElementById('humeValenceBar').style.width = valencePercent + '%';
+            }
+
+            if (data.energy !== undefined) {
+                const energyValue = parseFloat(data.energy);
+                document.getElementById('humeEnergy').textContent = energyValue.toFixed(2);
+                document.getElementById('humeEnergyBar').style.width = (energyValue * 100) + '%';
+            }
+
+            // Update timestamp
+            const now = new Date();
+            document.getElementById('humeLastUpdate').textContent = now.toLocaleTimeString();
+
+            // Update detection count
+            humeDetectionCount++;
+            document.getElementById('humeDetectionCount').textContent = humeDetectionCount;
+
+            // Update Hume service live status indicator
+            updateHumeServiceStatus(true);
+
+            // Classify emotion and update ElevenLabs TTS emotion badge
+            if (data.arousal !== undefined && data.valence !== undefined) {
+                const arousal = parseFloat(data.arousal);
+                const valence = parseFloat(data.valence);
+
+                let emotion = 'neutral';
+                let emoji = '😐';
+                let bgColor = '#444';
+                let textColor = '#aaa';
+
+                // Match style-mapper.js classification logic
+                if (arousal > 0.6 && valence > 0.6) {
+                    // High arousal + high valence = Joy
+                    emotion = 'joy';
+                    emoji = '😊';
+                    bgColor = '#10b981';
+                    textColor = '#fff';
+                } else if (arousal > 0.65 && valence < 0.45) {
+                    // High arousal + low valence = Anger
+                    emotion = 'anger';
+                    emoji = '😠';
+                    bgColor = '#ef4444';
+                    textColor = '#fff';
+                } else if (arousal < 0.4 && valence < 0.45) {
+                    // Low arousal + low valence = Sadness
+                    emotion = 'sadness';
+                    emoji = '😢';
+                    bgColor = '#3b82f6';
+                    textColor = '#fff';
+                } else if (arousal >= 0.4 && arousal <= 0.6 && valence >= 0.5 && valence <= 0.65) {
+                    // Medium arousal + medium-high valence = Empathy
+                    emotion = 'empathy';
+                    emoji = '🤗';
+                    bgColor = '#f59e0b';
+                    textColor = '#fff';
+                }
+
+                // Update ElevenLabs emotion badge
+                const ttsBadge = document.getElementById('ttsEmotionBadge');
+                if (ttsBadge) {
+                    ttsBadge.textContent = `${emoji} ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}`;
+                    ttsBadge.style.background = bgColor;
+                    ttsBadge.style.color = textColor;
+                    ttsBadge.style.transition = 'all 0.3s ease';
+                }
+
+                console.log(`[TTS Emotion] Classified as ${emotion} (arousal: ${arousal.toFixed(2)}, valence: ${valence.toFixed(2)})`);
+            }
+        }
+
+        // Update Hume→ElevenLabs live status indicator
+        function updateHumeToElevenLabsStatus(data) {
+            const statusEl = document.getElementById('humeServiceStatus');
+            const pulseEl = document.getElementById('humeServicePulse');
+            const textEl = document.getElementById('humeServiceText');
+
+            if (!statusEl || !pulseEl || !textEl) return;
+
+            if (data.active) {
+                // ElevenLabs is receiving FRESH Hume data
+                pulseEl.style.background = '#10b981';
+                pulseEl.style.boxShadow = '0 0 8px #10b981';
+                pulseEl.style.animation = 'pulse 1.5s ease-in-out infinite';
+                textEl.style.color = '#10b981';
+                textEl.textContent = `Hume → ElevenLabs (${data.emotionAge}ms)`;
+                statusEl.style.borderColor = '#10b98144';
+
+                console.log('[Hume→ElevenLabs] ACTIVE - Fresh emotion data applied to TTS:', data.voiceSettings);
+            } else {
+                // ElevenLabs is using STALE or no Hume data
+                pulseEl.style.background = '#f59e0b';
+                pulseEl.style.boxShadow = '0 0 6px #f59e0b';
+                pulseEl.style.animation = 'none';
+                textEl.style.color = '#f59e0b';
+                textEl.textContent = data.emotionAge ? `Hume: Stale (${data.emotionAge}ms)` : 'Hume: No data';
+                statusEl.style.borderColor = '#f59e0b44';
+
+                console.log('[Hume→ElevenLabs] STALE - Using neutral fallback');
+            }
+        }
+
+        // Visualize audio for Hume AI (same as Deepgram's fork)
+        function visualizeHumeAudio(samples) {
+            const canvas = document.getElementById('humeAudioViz');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#0f1419';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw waveform
+            ctx.strokeStyle = '#51cf66';  // Green for Hume AI
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const step = Math.max(1, Math.floor(samples.length / width));
+            for (let i = 0; i < width; i++) {
+                const sampleIndex = i * step;
+                const sample = samples[sampleIndex] || 0;
+                const amplitude = Math.abs(sample / 32768.0);
+                const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                if (i === 0) {
+                    ctx.moveTo(i, y);
+                } else {
+                    ctx.lineTo(i, y);
+                }
+            }
+            ctx.stroke();
         }
 
         // ============ PARTICIPANT MANAGEMENT ============

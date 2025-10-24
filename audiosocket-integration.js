@@ -307,7 +307,7 @@ try {
         if (io) {
             console.log('[Pipeline] 📤 Sending translated audio to browser...');
             io.emit('translatedAudio', {
-                audio: pcm16Buffer.toString('base64'),  // Send as base64 string (more efficient than array)
+                buffer: pcm16Buffer,  // Send as Buffer (like audioStream does)
                 sampleRate: 16000,  // 16kHz PCM from ElevenLabs
                 channels: 1,
                 bitDepth: 16,

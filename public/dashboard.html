@@ -2224,20 +2224,28 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                 if (countEl) countEl.textContent = window.translationCount;
             }
 
-            // Decode base64 audio to Int16Array
+            // Decode audio buffer (same as incoming audioStream)
             try {
-                // Decode base64 to binary string
-                const binaryString = atob(data.audio);
+                let samples;
 
-                // Create ArrayBuffer from binary string
-                const arrayBuffer = new ArrayBuffer(binaryString.length);
-                const uint8View = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < binaryString.length; i++) {
-                    uint8View[i] = binaryString.charCodeAt(i);
+                // Check if data.buffer is ArrayBuffer (binary from Socket.IO)
+                if (data.buffer instanceof ArrayBuffer) {
+                    samples = new Int16Array(data.buffer);
+                    console.log('[Translated Audio] Received ArrayBuffer, decoded', samples.length, 'samples');
+                } else if (typeof data.buffer === 'string') {
+                    // Fallback: base64 string
+                    const binaryString = atob(data.buffer);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    samples = new Int16Array(bytes.buffer);
+                    console.log('[Translated Audio] Decoded base64, got', samples.length, 'samples');
+                } else {
+                    console.error('[Translated Audio] Unknown buffer type:', typeof data.buffer);
+                    return;
                 }
-
-                // Create Int16Array from ArrayBuffer
-                const samples = new Int16Array(arrayBuffer);
                 console.log('[Translated Audio] Decoded', samples.length, 'samples, range:',
                     Math.min(...samples), 'to', Math.max(...samples));
 

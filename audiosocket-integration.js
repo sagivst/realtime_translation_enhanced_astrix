@@ -260,7 +260,7 @@ try {
                     similarity_boost: 0.75,
                     use_speaker_boost: true
                 },
-                output_format: 'pcm_16000'  // ← KEY: Request PCM 16kHz directly!
+                output_format: 'mp3_44100_128'  // MP3 format
             },
             {
                 headers: {
@@ -307,11 +307,11 @@ try {
         if (io) {
             console.log('[Pipeline] 📤 Sending translated audio to browser...');
             io.emit('translatedAudio', {
-                buffer: pcm16Buffer,  // Send as Buffer (like audioStream does)
-                sampleRate: 16000,  // 16kHz PCM from ElevenLabs
+                audio: pcm16Buffer.toString("base64"),  // Send MP3 as base64
+                sampleRate: 44100,  // 44.1kHz MP3 from ElevenLabs
                 channels: 1,
                 bitDepth: 16,
-                format: 'pcm',
+                format: "mp3",
                 translation: translationResult.text,
                 original: originalText,
                 duration: (pcm16Buffer.length / 2 / 16000).toFixed(2),

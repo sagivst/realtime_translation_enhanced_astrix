@@ -1113,7 +1113,6 @@
                             <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="0">
                             <span id="incomingVolumeLabel">0%</span>
                         </div>
-                        
                     </div>
                     <audio id="incomingAudioPlayer" autoplay style="display:none;"></audio>
                 </div>
@@ -1221,7 +1220,6 @@
                             <input type="range" class="volume-slider" id="outgoingVolume" min="0" max="100" value="0">
                             <span id="outgoingVolumeLabel">0%</span>
                         </div>
-                        
                     </div>
                     <audio id="outgoingAudioPlayer" autoplay style="display:none;"></audio>
                 </div>
@@ -2730,7 +2728,6 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
         let incomingMuted = true;
         let outgoingMuted = false;
 
-/*
         function muteIncoming() {
             incomingMuted = !incomingMuted;
             const player = document.getElementById('incomingAudioPlayer');
@@ -2745,8 +2742,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                 if (incomingAudioContext.state === 'suspended') {
                     incomingAudioContext.resume().then(() => {
                         console.log('[Incoming Audio] AudioContext resumed on unmute');
-                    }
-        */);
+                    });
                 }
                 // Reset nextPlayTime to current time to avoid playing old buffered audio
                 nextPlayTime = incomingAudioContext.currentTime;
@@ -2754,7 +2750,6 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             }
         }
 
-/*
         function muteOutgoing() {
             outgoingMuted = !outgoingMuted;
             const player = document.getElementById('outgoingAudioPlayer');
@@ -2763,7 +2758,6 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             const btn = document.getElementById('outgoingMuteBtn');
             btn.textContent = outgoingMuted ? '🔊 Unmute' : '🔇 Mute';
         }
-        */
 
         // ============ HUME AI EMOTION DETECTION ============
 

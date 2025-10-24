@@ -93,6 +93,13 @@ const participants = new Map();
 // Store user profiles for HMLCP
 const userProfiles = new Map(); // key: userId_language, value: { profile, uloLayer }
 
+// QA Settings: Global language configuration
+global.qaConfig = {
+  sourceLang: 'en',
+  targetLang: 'en',
+  qaMode: true
+};
+
 // Store streaming Deepgram connections per socket
 const streamingConnections = new Map(); // key: socket.id, value: { connection, customVocab }
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
@@ -165,13 +172,33 @@ async function translateText(text, sourceLang, targetLang) {
     return `[Translation: ${text}]`;
   }
 
-  if (!text || text.trim() === '' || sourceLang === targetLang) {
+  if (!text || text.trim() === '') {
+    return text;
+  }
+
+  // QA Mode: Override languages with qaConfig if QA mode is enabled
+  if (global.qaConfig && (global.qaConfig.sourceLang || global.qaConfig.targetLang)) {
+    const originalSource = sourceLang;
+    const originalTarget = targetLang;
+    
+    // Override with QA config languages
+    sourceLang = global.qaConfig.sourceLang || sourceLang;
+    targetLang = global.qaConfig.targetLang || targetLang;
+    
+    console.log(`[QA Config] Language override: ${originalSource} → ${originalTarget} becomes ${sourceLang} → ${targetLang}`);
+  }
+
+  // Skip translation if source === target (applies to both QA mode and normal mode)
+  if (sourceLang === targetLang) {
+    console.log(`[Translation] Bypassed: ${sourceLang} → ${targetLang} (same language)`);
     return text;
   }
 
   try {
     const sourceCode = languageMap[sourceLang]?.deepl || 'en-US';
     const targetCode = languageMap[targetLang]?.deepl || 'en-US';
+
+    console.log(`[Translation] ${sourceLang} → ${targetLang}: "${text.substring(0, 50)}..."`);
 
     const result = await translator.translateText(
       text,
@@ -185,8 +212,6 @@ async function translateText(text, sourceLang, targetLang) {
     return text;
   }
 }
-
-// Azure TTS function
 async function synthesizeSpeech(text, language) {
   if (!azureSpeechKey || !azureSpeechRegion) {
     console.warn('Azure Speech not configured');
@@ -824,6 +849,26 @@ io.on('connection', (socket) => {
   });
 
   // Handle disconnect
+
+  // QA Settings: Handle language configuration from dashboard
+  socket.on('qa-language-config', (config) => {
+    const { sourceLang, targetLang, qaMode } = config;
+
+    // Update global QA configuration
+    global.qaConfig.sourceLang = sourceLang;
+    global.qaConfig.targetLang = targetLang;
+    global.qaConfig.qaMode = qaMode;
+
+    console.log(`[QA Config] Updated: ${sourceLang} → ${targetLang} (QA Mode: ${qaMode})`);
+
+    // Broadcast to all connected clients
+    io.emit('qa-config-updated', {
+      sourceLang,
+      targetLang,
+      qaMode
+    });
+  });
+
   socket.on('disconnect', () => {
     const participant = participants.get(socket.id);
 

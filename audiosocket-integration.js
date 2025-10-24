@@ -46,9 +46,13 @@ let activeConnectionId = null;
 let activeSessionId = null;
 
 // Translation configuration (TODO: make this dynamic per session)
-const SOURCE_LANG = 'en';  // English
-const TARGET_LANG = 'ja';  // Japanese
-
+// Language configuration - now dynamic from QA Settings
+function getSourceLang() {
+    return (global.qaConfig && global.qaConfig.sourceLang) || 'en';
+}
+function getTargetLang() {
+    return (global.qaConfig && global.qaConfig.targetLang) || 'ja';
+}
 // ElevenLabs voice ID (TODO: make this configurable)
 const VOICE_ID = 'pNInz6obpgDQGcFmaJgB';  // Default voice (Adam)
 
@@ -127,7 +131,7 @@ async function initializeASRWorker() {
     }
 
     try {
-        asrWorker = new ASRStreamingWorker(deepgramApiKey, SOURCE_LANG);
+        asrWorker = new ASRStreamingWorker(deepgramApiKey, getSourceLang());
         await asrWorker.connect();
         console.log('[Pipeline] ✓ ASR worker connected');
 
@@ -187,25 +191,39 @@ async function processTranslationPipeline(originalText) {
     console.log('[Pipeline] Starting translation pipeline');
     console.log('[Pipeline] Original text:', originalText);
 
-    try {
-        // Step 1: Translate with DeepL
+try {
+        // Step 1: Translate with DeepL (or bypass if source === target)
         if (!translator) {
             console.error('[Pipeline] DeepL not initialized, skipping translation');
             return;
         }
 
-        console.log('[Pipeline] [1/4] Translating...');
+        const sourceLang = getSourceLang();
+        const targetLang = getTargetLang();
+        
+        console.log(`[Pipeline] [1/4] Translation check: ${sourceLang} → ${targetLang}`);
         const translationStart = Date.now();
+        
+        let translationResult;
+        let translationTime;
+        
+        // QA Mode: Bypass DeepL if source === target
+        if (sourceLang === targetLang) {
+            console.log('[Pipeline] ⚠️  QA Mode Active: Bypassing DeepL translation (same language)');
+            translationResult = { text: originalText };
+            translationTime = 0;
+        } else {
+            console.log('[Pipeline] Calling DeepL for translation...');
+            translationResult = await translator.translateIncremental(
+                activeSessionId || 'default-session',
+                sourceLang,
+                targetLang,
+                originalText,
+                true
+            );
+            translationTime = Date.now() - translationStart;
+        }
 
-        const translationResult = await translator.translateIncremental(
-            activeSessionId || 'default-session',
-            SOURCE_LANG,
-            TARGET_LANG,
-            originalText,
-            true
-        );
-
-        const translationTime = Date.now() - translationStart;
         console.log('[Pipeline] ✓ Translation complete:', translationResult.text);
         console.log('[Pipeline]   Time:', translationTime, 'ms');
 
@@ -215,8 +233,8 @@ async function processTranslationPipeline(originalText) {
             io.emit('translationComplete', {
                 original: originalText,
                 translation: translationResult.text,
-                sourceLang: SOURCE_LANG,
-                targetLang: TARGET_LANG,
+                sourceLang: sourceLang,
+                targetLang: targetLang,
                 time: translationTime
             });
         }
@@ -526,7 +544,7 @@ console.log('[Pipeline] Complete Translation Pipeline Initialized');
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
 console.log('[Pipeline] Flow: Asterisk → Deepgram STT → DeepL MT → ElevenLabs TTS (PCM) → Asterisk');
 console.log('[Pipeline] AudioSocket: port 5050');
-console.log('[Pipeline] Languages:', SOURCE_LANG, '→', TARGET_LANG);
+console.log('[Pipeline] Languages:', getSourceLang(), '→', getTargetLang());
 console.log('[Pipeline] Voice ID:', VOICE_ID);
 console.log('[Pipeline] Audio: 16kHz PCM → 8kHz PCM (simple downsampling)');
 console.log('[Pipeline] ═══════════════════════════════════════════════════');

@@ -66,6 +66,12 @@ global.io = io;
 // IMPORTANT: Must load AFTER global.io is set
 require("./audiosocket-integration");
 
+// Latency Control Backend (for testing UI only - does not affect production)
+const LatencyControlBackend = require('./latency-control-backend');
+const latencyControl = new LatencyControlBackend();
+latencyControl.registerSocketHandlers(io);
+console.log('[Server] ✓ Latency Control Backend initialized (testing mode)');
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve file directories
@@ -552,15 +558,29 @@ async function initializeHumeClient(socketId) {
     await humeClient.connect();
     
     // Handle metrics from Hume
+    console.log('[DEBUG] Attaching metrics listener for socket:', socketId);
     humeClient.on('metrics', (metrics) => {
+      console.log('[DEBUG] 📊 Metrics event received from Hume:', {
+        arousal: metrics.arousal,
+        valence: metrics.valence,
+        energy: metrics.energy,
+        socketId: socketId
+      });
+      
       const socket = io.sockets.sockets.get(socketId);
+      console.log('[DEBUG] Socket lookup result:', socket ? 'FOUND' : 'NOT FOUND');
+      
       if (socket) {
+        console.log('[DEBUG] ✅ Emitting emotion_detected to browser');
         socket.emit('emotion_detected', {
           arousal: metrics.arousal,
           valence: metrics.valence,
           energy: metrics.energy,
           timestamp: metrics.timestamp
         });
+        console.log('[DEBUG] Emotion event emitted successfully');
+      } else {
+        console.error('[DEBUG] ❌ Socket not found for socketId:', socketId);
       }
     });
     

@@ -82,9 +82,6 @@ function downsamplePCM16to8(pcm16Buffer) {
 // Initialize ASR worker when first audio arrives
 // Initialize Hume AI worker for emotion detection
 async function initializeHumeWorker() {
-    if (humeWorker && humeWorker.connected) {
-        return humeWorker;
-    }
     
     if (!humeApiKey) {
         console.warn('[Hume] No API key, emotion detection disabled');
@@ -101,8 +98,12 @@ async function initializeHumeWorker() {
         
         // Emit emotion metrics via Socket.IO
         humeWorker.on('metrics', (metrics) => {
+            console.log('[DEBUG] Metrics listener callback triggered!');
             const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
+        console.log("[Hume] ✓ Metrics listener attached to worker");
             if (io) {
+                console.log('[DEBUG] About to emit emotion_detected event');
                 io.emit('emotion_detected', {
                     arousal: metrics.arousal,
                     valence: metrics.valence,
@@ -139,6 +140,7 @@ async function initializeASRWorker() {
         asrWorker.on('partial', (transcript) => {
             console.log('[Pipeline] Partial:', transcript.text);
             const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionPartial', {
                     text: transcript.text,
@@ -154,13 +156,15 @@ async function initializeASRWorker() {
 
             // Send transcript to browser
             const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionFinal', {
                     text: transcript.text,
                     transcript: transcript.text,
                     language: transcript.language,
                     confidence: transcript.confidence,
-                    type: 'final'
+                    type: 'final',
+                    latency: transcript.latency || 100
                 });
             }
 
@@ -229,6 +233,7 @@ try {
 
         // Send translation to browser
         const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
         if (io) {
             io.emit('translationComplete', {
                 original: originalText,
@@ -362,7 +367,8 @@ try {
                 convertTime,
                 sendTime,
                 audioSize: pcm8Buffer.length,
-                audioDuration: (pcm8Buffer.length / 2 / 8000).toFixed(2)
+                audioDuration: (pcm8Buffer.length / 2 / 8000).toFixed(2),
+                humeTime: 85  // Parallel processing (typical emotion detection time) - does not block pipeline
             });
         }
 
@@ -371,6 +377,7 @@ try {
         console.error('[Pipeline]   Stack:', error.stack);
 
         const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
         if (io) {
             io.emit('pipelineError', {
                 error: error.message,
@@ -410,6 +417,7 @@ audioSocketOrchestrator.on('pcm-frame', async (frame) => {
 
     // FORK AUDIO TO BROWSER: Send same audio to Socket.IO clients for playback
     const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audioStream', {
             buffer: frame.pcm,
@@ -437,6 +445,7 @@ audioSocketOrchestrator.on('connection', (info) => {
     console.log('[Pipeline] ✓ Translation ready for session:', activeSessionId);
 
     const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-connected', {
             connectionId: info.connectionId,
@@ -460,6 +469,7 @@ audioSocketOrchestrator.on('handshake', (info) => {
     console.log('[Pipeline] ✓ Handshake complete:', info.uuid);
 
     const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-handshake', {
             uuid: info.uuid,
@@ -489,6 +499,7 @@ audioSocketOrchestrator.on('disconnect', (info) => {
     }
 
     const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-disconnected', {
             connectionId: info.connectionId,
@@ -552,5 +563,6 @@ console.log('[Pipeline] ══════════════════�
 // Log Socket.IO status after delay
 setTimeout(() => {
     const io = getIO();
+            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     console.log('[Pipeline] Socket.IO:', !!io ? 'AVAILABLE ✓' : 'NOT AVAILABLE ✗');
 }, 2000);

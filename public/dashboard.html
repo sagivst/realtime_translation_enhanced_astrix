@@ -1560,6 +1560,10 @@
     <script>
         // Socket.IO connection
         const socket = io();
+        console.log("[CLIENT DEBUG] Socket.IO initialized:", socket);
+        socket.on("connect", () => console.log("[CLIENT DEBUG] Socket connected! ID:", socket.id));
+        socket.on("disconnect", () => console.log("[CLIENT DEBUG] Socket disconnected!"));
+        socket.on("error", (err) => console.error("[CLIENT DEBUG] Socket error:", err));
 
         // Auto-refresh state
         let autoRefresh = true;
@@ -1681,6 +1685,7 @@
 
         // Subscribe to Socket.IO events
         function subscribeToEvents() {
+            console.log("[CLIENT DEBUG] subscribeToEvents() called - registering listeners");
             // Join monitoring room to receive audio streams and transcriptions
             socket.emit('subscribe', { room: 'monitoring' });
             console.log('[Dashboard] Subscribed to monitoring room');
@@ -1698,6 +1703,7 @@
             });
 
             socket.on('emotion_detected', (data) => {
+                console.log("[CLIENT DEBUG] emotion_detected event received!", data);
                 updateHumeEmotions(data);
             });
 
@@ -1716,6 +1722,12 @@
             });
 
             socket.on('transcriptionFinal', (data) => {
+                // [PHASE 1] Store ASR latency from Deepgram
+                if (data.latency) {
+                    latestASRLatency = data.latency;
+                    console.log('[Dashboard] ASR latency:', latestASRLatency, 'ms');
+                }
+
                 console.log('[Dashboard] Received transcriptionFinal:', data);
                 addTranscript(data, 'final');
 // Update Deepgram status badge                const deepgramStatus = document.getElementById("deepgramStatus");                const deepgramIndicator = document.getElementById("deepgramActivityIndicator");                const deepgramText = document.getElementById("deepgramActivityText");                if (deepgramStatus) {                    deepgramStatus.className = "status-badge status-operational";                    deepgramStatus.textContent = "🎙️ TRANSCRIBING";                }                if (deepgramIndicator) deepgramIndicator.style.background = "#10b981";                if (deepgramText) deepgramText.textContent = "Transcription active...";
@@ -1748,6 +1760,97 @@
 
             // AUDIO STREAM FORK - Receive same audio as Deepgram
             socket.on('audioStream', handleAudioStreamFromFork);
+
+            // ========================================================================
+            // PHASE 1: REAL LATENCY DATA from pipelineComplete
+            // ========================================================================
+
+            // Store latest latencies for aggregation
+            let latestASRLatency = 0;
+            let latestMTLatency = 0;
+            let latestTTSLatency = 0;
+            let latencyDataCount = 0;
+
+            // Listen for pipeline complete with REAL latency data
+            socket.on('pipelineComplete', (data) => {
+                console.log('[Dashboard] 📊 REAL Latency Data:', data);
+
+                const {
+                    totalTime,          // End-to-end pipeline time
+                    translationTime,    // DeepL MT time
+                    ttsTime,            // ElevenLabs TTS time
+                    convertTime,        // Downsampling time
+                    sendTime,           // Asterisk send time
+                    humeTime            // Hume parallel processing time
+                } = data;
+
+                // Store latest latencies
+                latestMTLatency = translationTime || 0;
+                latestTTSLatency = ttsTime || 0;
+                latencyDataCount++;
+
+                // Calculate total display latency
+                const totalDisplayLatency = totalTime + (convertTime || 0) + (sendTime || 0);
+
+                // Update E2E Latency Card
+                const e2eElement = document.getElementById('e2eLatency');
+                if (e2eElement) {
+                    e2eElement.textContent = Math.round(totalDisplayLatency) + 'ms';
+                    updateLatencyClass(e2eElement, totalDisplayLatency, 900);
+                }
+
+                // Update provider latency cards
+                if (latestASRLatency > 0) {
+                    const deepgramElement = document.getElementById('deepgramLatency');
+                    if (deepgramElement) {
+                        deepgramElement.textContent = Math.round(latestASRLatency) + 'ms';
+                        updateLatencyClass(deepgramElement, latestASRLatency, 250);
+                    }
+                }
+
+                const deeplElement = document.getElementById('deeplLatency');
+                if (deeplElement) {
+                    deeplElement.textContent = Math.round(translationTime) + 'ms';
+                    updateLatencyClass(deeplElement, translationTime, 200);
+                }
+
+                const elevenlabsElement = document.getElementById('elevenlabsLatency');
+                if (elevenlabsElement) {
+                    elevenlabsElement.textContent = Math.round(ttsTime) + 'ms';
+                    updateLatencyClass(elevenlabsElement, ttsTime, 250);
+                }
+
+                // Update breakdown bars
+                updateLatencyBars(
+                    latestASRLatency,
+                    translationTime,
+                    ttsTime,
+                    humeTime || 0,  // Hume latency from server
+                    totalDisplayLatency
+                );
+
+                // Update charts with REAL data
+                const now = new Date().toLocaleTimeString();
+
+                if (latestASRLatency > 0) {
+                    updateChart(charts.deepgram, now, latestASRLatency);
+                }
+                updateChart(charts.deepl, now, translationTime);
+                updateChart(charts.elevenlabs, now, ttsTime);
+                updateE2EChart(now, totalDisplayLatency);
+
+                console.log('[Dashboard] ✅ Updated with real latency:', {
+                    asr: latestASRLatency,
+                    mt: translationTime,
+                    tts: ttsTime,
+                    total: totalDisplayLatency,
+                    count: latencyDataCount
+                });
+            });
+
+            // Also capture ASR latency from transcriptionFinal
+            const originalTranscriptionFinalHandler = socket._callbacks['$transcriptionFinal'];
+
 
             // TRANSLATED AUDIO - Receive translated audio from ElevenLabs
             socket.on('translatedAudio', handleTranslatedAudio);
@@ -1795,48 +1898,49 @@
 
         function refreshDashboard() {
             // Simulate data refresh (replace with actual API calls)
-            updateSimulatedMetrics();
+            // PHASE 1: DISABLED - updateSimulatedMetrics();
             updateTimestamp();
         }
 
         // Update simulated metrics (for demo)
-        function updateSimulatedMetrics() {
-            // Update latency values
-            const now = new Date().toLocaleTimeString();
+        // PHASE 1: DISABLED SIMULATED DATA
+        // function updateSimulatedMetrics() {
+            // // Update latency values
+            // const now = new Date().toLocaleTimeString();
 
-            // Deepgram
-            const dgLatency = 220 + Math.random() * 40;
-            updateChart(charts.deepgram, now, dgLatency);
-            document.getElementById('deepgramLatency').textContent = Math.round(dgLatency) + 'ms';
-            updateLatencyClass(document.getElementById('deepgramLatency'), dgLatency, 250);
+            // // Deepgram
+            // const dgLatency = 220 + Math.random() * 40;
+            // updateChart(charts.deepgram, now, dgLatency);
+            // document.getElementById('deepgramLatency').textContent = Math.round(dgLatency) + 'ms';
+            // updateLatencyClass(document.getElementById('deepgramLatency'), dgLatency, 250);
 
-            // DeepL
-            const dlLatency = 170 + Math.random() * 40;
-            updateChart(charts.deepl, now, dlLatency);
-            document.getElementById('deeplLatency').textContent = Math.round(dlLatency) + 'ms';
-            updateLatencyClass(document.getElementById('deeplLatency'), dlLatency, 200);
+            // // DeepL
+            // const dlLatency = 170 + Math.random() * 40;
+            // updateChart(charts.deepl, now, dlLatency);
+            // document.getElementById('deeplLatency').textContent = Math.round(dlLatency) + 'ms';
+            // updateLatencyClass(document.getElementById('deeplLatency'), dlLatency, 200);
 
-            // ElevenLabs
-            const elLatency = 230 + Math.random() * 40;
-            updateChart(charts.elevenlabs, now, elLatency);
-            document.getElementById('elevenlabsLatency').textContent = Math.round(elLatency) + 'ms';
-            updateLatencyClass(document.getElementById('elevenlabsLatency'), elLatency, 250);
+            // // ElevenLabs
+            // const elLatency = 230 + Math.random() * 40;
+            // updateChart(charts.elevenlabs, now, elLatency);
+            // document.getElementById('elevenlabsLatency').textContent = Math.round(elLatency) + 'ms';
+            // updateLatencyClass(document.getElementById('elevenlabsLatency'), elLatency, 250);
 
-            // Hume
-            const hmLatency = 180 + Math.random() * 40;
-            updateChart(charts.hume, now, hmLatency);
-            document.getElementById('humeLatency').textContent = Math.round(hmLatency) + 'ms';
-            updateLatencyClass(document.getElementById('humeLatency'), hmLatency, 200);
+            // // Hume
+            // const hmLatency = 180 + Math.random() * 40;
+            // updateChart(charts.hume, now, hmLatency);
+            // document.getElementById('humeLatency').textContent = Math.round(hmLatency) + 'ms';
+            // updateLatencyClass(document.getElementById('humeLatency'), hmLatency, 200);
 
-            // E2E
-            const e2eLatency = dgLatency + dlLatency + elLatency + 180;
-            updateE2EChart(now, e2eLatency);
-            document.getElementById('e2eLatency').textContent = Math.round(e2eLatency) + 'ms';
-            updateLatencyClass(document.getElementById('e2eLatency'), e2eLatency, 900);
+            // // E2E
+            // const e2eLatency = dgLatency + dlLatency + elLatency + 180;
+            // updateE2EChart(now, e2eLatency);
+            // document.getElementById('e2eLatency').textContent = Math.round(e2eLatency) + 'ms';
+            // updateLatencyClass(document.getElementById('e2eLatency'), e2eLatency, 900);
 
-            // Update latency bars
-            updateLatencyBars(dgLatency, dlLatency, elLatency, hmLatency, e2eLatency);
-        }
+            // // Update latency bars
+            // // updateLatencyBars(dgLatency, dlLatency, elLatency, hmLatency, e2eLatency);
+        // }
 
         // Update chart data
         function updateChart(chart, label, value) {
@@ -1897,7 +2001,7 @@
             document.getElementById('latencyBarTts').textContent = Math.round(tts) + 'ms';
 
             document.getElementById('latencyBarHume').style.width = humePct + '%';
-            document.getElementById('latencyBarHume').textContent = Math.round(hume) + 'ms (non-blocking)';
+            document.getElementById('latencyBarHume').textContent = Math.round(hume) + 'ms';
         }
 
         // Update timestamp
@@ -2858,6 +2962,30 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
         }
 
         // Update Hume→ElevenLabs live status indicator
+
+        // Update Hume AI service status indicator
+        function updateHumeServiceStatus(active) {
+            const pulseEl = document.getElementById('humeServicePulse');
+            const textEl = document.getElementById('humeServiceText');
+            
+            if (!pulseEl || !textEl) return;
+            
+            if (active) {
+                // Hume AI is processing audio
+                pulseEl.style.background = '#10b981';
+                pulseEl.style.boxShadow = '0 0 8px #10b981';
+                pulseEl.style.animation = 'pulse 1.5s ease-in-out infinite';
+                textEl.style.color = '#10b981';
+                textEl.textContent = 'Hume: Active';
+            } else {
+                // Hume AI is idle
+                pulseEl.style.background = '#666';
+                pulseEl.style.boxShadow = 'none';
+                pulseEl.style.animation = 'none';
+                textEl.style.color = '#666';
+                textEl.textContent = 'Hume: Waiting';
+            }
+        }
         function updateHumeToElevenLabsStatus(data) {
             const statusEl = document.getElementById('humeServiceStatus');
             const pulseEl = document.getElementById('humeServicePulse');

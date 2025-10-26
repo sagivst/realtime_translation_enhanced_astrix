@@ -298,6 +298,8 @@ async function initializeASRWorker() {
             console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionPartial', {
+                    connectionId: activeConnectionId,
+                    uuid: activeSessionId,
                     text: transcript.text,
                     language: transcript.language,
                     type: 'partial'
@@ -315,6 +317,8 @@ async function initializeASRWorker() {
             console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionFinal', {
+                    connectionId: activeConnectionId,
+                    uuid: activeSessionId,
                     text: transcript.text,
                     transcript: transcript.text,
                     language: transcript.language,
@@ -394,6 +398,8 @@ try {
             console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
         if (io) {
             io.emit('translationComplete', {
+            connectionId: activeConnectionId,
+            uuid: activeSessionId,
                 original: originalText,
                 translation: translationResult.text,
                 sourceLang: sourceLang,

@@ -1,6 +1,8 @@
 /**
  * Hume AI Streaming Client - Lightweight real-time emotion detection
  * Provides: Arousal, Valence, Energy metrics for dashboard monitoring
+ *
+ * UPDATED: Using header authentication for Creator plan compatibility
  */
 
 const WebSocket = require('ws');
@@ -32,17 +34,24 @@ class HumeStreamingClient extends EventEmitter {
     async connect() {
         return new Promise((resolve, reject) => {
             try {
-                // Hume AI WebSocket endpoint for streaming prosody
-                const wsUrl = `wss://api.hume.ai/v0/stream/models?apikey=${this.apiKey}`;
+                // Hume AI WebSocket endpoint - NO API KEY IN URL
+                // Using header authentication for Creator plan compatibility
+                const wsUrl = 'wss://api.hume.ai/v0/stream/models';
 
-                console.log('[Hume] Connecting to Hume AI streaming...');
-                this.ws = new WebSocket(wsUrl);
+                console.log('[Hume] Connecting to Hume AI streaming with header authentication...');
+
+                // Use header authentication (required for Creator plan)
+                this.ws = new WebSocket(wsUrl, {
+                    headers: {
+                        'X-Hume-Api-Key': this.apiKey
+                    }
+                });
 
                 this.ws.on('open', () => {
-                    console.log('[Hume] ✓ Connected to Hume AI');
+                    console.log('[Hume] ✓ Connected to Hume AI (Creator plan)');
                     this.connected = true;
 
-                    // Send configuration - FIXED: removed duplicate prosody field
+                    // Send configuration
                     const config = {
                         models: this.config.models,
                         raw_text: false

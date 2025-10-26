@@ -29,7 +29,7 @@ class DeepLIncrementalMT extends EventEmitter {
         }
 
         this.apiKey = apiKey;
-        this.baseUrl = options.baseUrl || 'https://api-free.deepl.com/v2';
+        this.baseUrl = options.baseUrl || 'https://api.deepl.com/v2';
 
         // Session management
         this.sessionContext = new Map();  // sessionId -> context history

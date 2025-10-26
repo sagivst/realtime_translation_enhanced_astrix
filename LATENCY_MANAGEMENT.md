@@ -165,6 +165,45 @@ humeTime: 85  // Parallel processing (typical emotion detection time) - does not
 **Why Fixed Value?**
 Hume AI processes audio in parallel with the translation pipeline. Since it doesn't block the main flow, we use a representative value (85ms) to show that emotion detection is happening, without implying it adds latency to the system.
 
+### 5. Network Latency Tracking (Between Services)
+
+**Purpose**: Measure the time elapsed between the end of one service and the start of the next service, revealing network and local processing overhead.
+
+**Measurement Points:**
+
+#### 5.1 ASR → MT Network Latency
+**Calculation**: `translationStart - asrEndTime`
+**What it measures**: Time between ASR final transcript received and DeepL API call initiated
+**Typical value**: 1-3ms
+**Code location**: `audiosocket-integration.js:211`
+
+#### 5.2 MT → TTS Network Latency
+**Calculation**: `ttsStart - (translationStart + translationTime)`
+**What it measures**: Time between DeepL response received and ElevenLabs API call initiated
+**Typical value**: 2-5ms
+**Code location**: `audiosocket-integration.js:257`
+
+#### 5.3 TTS → Downsample Network Latency
+**Calculation**: `convertStart - (ttsStart + ttsTime)`
+**What it measures**: Time between ElevenLabs response received and downsampling started
+**Typical value**: 1-2ms
+**Code location**: `audiosocket-integration.js:306`
+
+#### 5.4 Downsample → Send Network Latency
+**Calculation**: `downsampleToSendNetwork - (convertStart + convertTime)`
+**What it measures**: Time between downsampling complete and Asterisk send initiated
+**Typical value**: 1-2ms
+**Code location**: `audiosocket-integration.js:341`
+
+**Key Insights:**
+- **Normal Range**: 5-12ms total network overhead
+- **High Values (>20ms)**: Indicates server CPU overload or event loop blocking
+- **Purpose**: Helps distinguish between API latency and local processing delays
+
+**Dashboard Display:**
+Network latencies appear as gray bars (↓) between each processing step, clearly showing where time is spent in transitions.
+
+
 ---
 
 ## Data Flow

@@ -7,12 +7,54 @@
 // Load environment variables FIRST
 require('dotenv').config();
 
+// ============================================================================
+// Comfort Noise Config Update Handler
+// ============================================================================
+function applyComfortNoiseConfig() {
+    console.log('[audiosocket] applyComfortNoiseConfig() called');
+    console.log('[audiosocket] global.comfortNoiseConfig:', JSON.stringify(global.comfortNoiseConfig));
+
+    if (!global.comfortNoiseConfig) {
+        console.log('[audiosocket] No comfort noise config to apply');
+        return;
+    }
+
+    // Apply to all active audio stream buffers
+    if (global.activeAudioStreamBuffers) {
+        console.log('[audiosocket] Applying to', global.activeAudioStreamBuffers.size, 'active buffers');
+        global.activeAudioStreamBuffers.forEach((buffer, participantId) => {
+            console.log('[audiosocket] Updating buffer for participant:', participantId);
+            buffer.updateComfortNoiseConfig(global.comfortNoiseConfig);
+
+            if (global.comfortNoiseConfig.bufferDelay !== undefined) {
+                console.log('[audiosocket] Setting delay to:', global.comfortNoiseConfig.bufferDelay, 'ms');
+                buffer.setDelay(global.comfortNoiseConfig.bufferDelay);
+            }
+        });
+        console.log('[audiosocket] ✓ Config applied to all active buffers');
+    } else {
+        console.log('[audiosocket] No active buffers - config will apply on next call');
+    }
+}
+
+// Export globally so conference-server can call it
+global.applyComfortNoiseConfig = applyComfortNoiseConfig;
+
+// Track active audio stream buffers
+if (!global.activeAudioStreamBuffers) {
+    global.activeAudioStreamBuffers = new Map();
+}
+
+
+
 const AudioSocketOrchestrator = require('./audiosocket-orchestrator');
 const { ASRStreamingWorker } = require('./asr-streaming-worker');
 const { DeepLIncrementalMT } = require('./deepl-incremental-mt');  // Destructure the export
 const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 
 const HumeStreamingClient = require('./hume-streaming-client');
+const AudioStreamBuffer = require('./audio-stream-buffer');
+const WebSocket = require('ws');
 
 // Get API keys from environment
 const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
@@ -36,6 +78,12 @@ const ttsService = elevenlabsApiKey ? new ElevenLabsTTSService(elevenlabsApiKey)
 // ASR worker for transcription
 let asrWorker = null;
 let humeWorker = null;
+
+// Audio Stream Buffer for comfort noise and delay (per call)
+let audioStreamBuffer = null;
+
+// WebSocket connection to mic endpoint (for injecting audio as microphone input)
+let micWebSocket = null;
 
 // Hume AI audio buffering (accumulate frames for better speech detection)
 let humeAudioBuffer = [];
@@ -79,8 +127,115 @@ function downsamplePCM16to8(pcm16Buffer) {
     return pcm8Buffer;
 }
 
+/**
+ * Send audio to WebSocket mic endpoint in proper frames
+ * WebSocket expects raw PCM binary data in 640-byte frames (16kHz, 20ms)
+ */
+function sendAudioToMicEndpoint(pcmBuffer) {
+    if (!micWebSocket || micWebSocket.readyState !== WebSocket.OPEN) {
+        console.warn('[MicWebSocket] Not connected, cannot send audio');
+        return;
+    }
+
+    const FRAME_SIZE = 640; // 16kHz * 20ms * 2 bytes = 640 bytes per frame
+    const numFrames = Math.floor(pcmBuffer.length / FRAME_SIZE);
+
+    for (let i = 0; i < numFrames; i++) {
+        const frame = pcmBuffer.slice(i * FRAME_SIZE, (i + 1) * FRAME_SIZE);
+        micWebSocket.send(frame);
+    }
+
+    // Send remaining partial frame if any
+    if (pcmBuffer.length % FRAME_SIZE !== 0) {
+        const remainingFrame = pcmBuffer.slice(numFrames * FRAME_SIZE);
+        micWebSocket.send(remainingFrame);
+    }
+}
+
 // Initialize ASR worker when first audio arrives
 // Initialize Hume AI worker for emotion detection
+
+// ============================================================================
+// Initialize Audio Stream Buffer (per call, per language)
+// ============================================================================
+function initializeAudioStreamBuffer(participantId) {
+    if (audioStreamBuffer) {
+        console.log('[Pipeline] AudioStreamBuffer already initialized');
+        return audioStreamBuffer;
+    }
+
+    console.log('[Pipeline] Initializing AudioStreamBuffer for participant:', participantId);
+
+    // Create AudioStreamBuffer with 16kHz (matches WebSocket mic endpoint requirement)
+    audioStreamBuffer = new AudioStreamBuffer({
+        sampleRate: 16000,  // 16kHz to match WebSocket mic endpoint
+        channels: 1,
+        bitDepth: 16,
+        maxBufferSize: 2000  // 2 second max buffer
+    });
+
+    // Enable comfort noise by default
+    const defaultComfortNoiseConfig = {
+        enabled: true,  // Enable by default
+        noiseType: 'white',
+        speechLevel: -30,
+        silenceLevel: -15,
+        vadThreshold: 0.01,
+        fadeInMs: 50,
+        fadeOutMs: 50,
+        bufferDelay: 0
+    };
+
+    // Apply global comfort noise config if available, otherwise use defaults
+    const configToApply = global.comfortNoiseConfig || defaultComfortNoiseConfig;
+    console.log('[Pipeline] Applying comfort noise config:', configToApply);
+    audioStreamBuffer.updateComfortNoiseConfig(configToApply);
+
+    if (configToApply.bufferDelay !== undefined) {
+        audioStreamBuffer.setDelay(configToApply.bufferDelay);
+    }
+
+    // Register in global tracking Map
+    if (global.activeAudioStreamBuffers) {
+        global.activeAudioStreamBuffers.set(participantId, audioStreamBuffer);
+        console.log('[Pipeline] ✓ Registered buffer in global.activeAudioStreamBuffers');
+        console.log('[Pipeline] Active buffers:', global.activeAudioStreamBuffers.size);
+    }
+
+    // Create WebSocket connection to mic endpoint
+    const micEndpointUrl = `ws://127.0.0.1:5051/mic/${participantId}`;
+    console.log('[MicWebSocket] Connecting to:', micEndpointUrl);
+
+    micWebSocket = new WebSocket(micEndpointUrl);
+
+    micWebSocket.on('open', () => {
+        console.log('[MicWebSocket] ✓ Connected to mic endpoint');
+        console.log('[MicWebSocket] Audio will be injected as microphone input');
+    });
+
+    micWebSocket.on('error', (error) => {
+        console.error('[MicWebSocket] ✗ Connection error:', error.message);
+    });
+
+    micWebSocket.on('close', () => {
+        console.log('[MicWebSocket] Disconnected from mic endpoint');
+    });
+
+    // Listen for processed audio from buffer and send to mic endpoint (NOT speaker)
+    audioStreamBuffer.on('audioReady', (audioData) => {
+        // Extract buffer from audioData object {buffer, metadata, actualDelay}
+        const pcmBuffer = audioData.buffer;
+
+        // Send to WebSocket mic endpoint instead of AudioSocket speaker
+        sendAudioToMicEndpoint(pcmBuffer);
+
+        console.log('[Pipeline] ✓ Audio sent to mic channel (16kHz,', pcmBuffer.length, 'bytes)');
+    });
+
+    console.log('[Pipeline] ✓ AudioStreamBuffer initialized (16kHz, comfort noise enabled)');
+    return audioStreamBuffer;
+}
+
 async function initializeHumeWorker() {
     
     if (!humeApiKey) {
@@ -153,6 +308,7 @@ async function initializeASRWorker() {
         // Handle FINAL transcripts (trigger translation pipeline)
         asrWorker.on('final', async (transcript) => {
             console.log('[Pipeline] Final:', transcript.text);
+            const asrEndTime = performance.now();  // Capture ASR end time for network latency measurement
 
             // Send transcript to browser
             const io = getIO();
@@ -171,7 +327,7 @@ async function initializeASRWorker() {
             // ========================================
             // TRANSLATION PIPELINE STARTS HERE
             // ========================================
-            await processTranslationPipeline(transcript.text);
+            await processTranslationPipeline(transcript.text, asrEndTime);
         });
 
         return asrWorker;
@@ -188,8 +344,8 @@ async function initializeASRWorker() {
  * 3. Downsample to PCM 8kHz
  * 4. Send back to Asterisk
  */
-async function processTranslationPipeline(originalText) {
-    const pipelineStart = Date.now();
+async function processTranslationPipeline(originalText, asrEndTime) {
+    const pipelineStart = performance.now();
 
     console.log('[Pipeline] ═══════════════════════════════════════');
     console.log('[Pipeline] Starting translation pipeline');
@@ -206,7 +362,9 @@ try {
         const targetLang = getTargetLang();
         
         console.log(`[Pipeline] [1/4] Translation check: ${sourceLang} → ${targetLang}`);
-        const translationStart = Date.now();
+        const translationStart = performance.now();
+        const asrToMtNetwork = translationStart - asrEndTime;  // Network latency: ASR end → MT start
+        console.log(`[TIMING-VERIFY] ASR ended at ${asrEndTime}, MT started at ${translationStart}, Network: ${asrToMtNetwork}ms`);
         
         let translationResult;
         let translationTime;
@@ -251,7 +409,9 @@ try {
         }
 
         console.log('[Pipeline] [2/4] Synthesizing speech (PCM 16kHz)...');
-        const ttsStart = Date.now();
+        const ttsStart = performance.now();
+        const mtToTtsNetwork = ttsStart - (translationStart + translationTime);  // Network latency: MT end → TTS start
+        console.log(`[TIMING-VERIFY] MT: ${translationStart} + ${translationTime} = ${translationStart + translationTime}, TTS started at ${ttsStart}, Network: ${mtToTtsNetwork}ms`);
 
         // Override the synthesize method to use PCM output
         const axios = require('axios');
@@ -277,7 +437,7 @@ try {
         );
 
         const pcm16Buffer = Buffer.from(response.data);
-        const ttsTime = Date.now() - ttsStart;
+        const ttsTime = performance.now() - ttsStart;
 
         console.log('[Pipeline] ✓ TTS complete');
         console.log('[Pipeline]   Audio size:', pcm16Buffer.length, 'bytes');
@@ -296,17 +456,17 @@ try {
             console.error('[Pipeline] Failed to save recording:', err.message);
         }
 
-        // Step 3: Downsample from 16kHz to 8kHz
-        console.log('[Pipeline] [3/4] Downsampling to 8kHz...');
-        const convertStart = Date.now();
+        // Step 3: Skip downsampling - use 16kHz directly for mic endpoint
+        console.log('[Pipeline] [3/4] Using 16kHz PCM directly (no downsampling needed)');
+        const convertStart = performance.now();
 
-        const pcm8Buffer = downsamplePCM16to8(pcm16Buffer);
+        const ttsToBufferNetwork = convertStart - (ttsStart + ttsTime);  // Network latency: TTS end → Buffer start
+        console.log(`[TIMING-VERIFY] TTS: ${ttsStart} + ${ttsTime} = ${ttsStart + ttsTime}, Buffer started at ${convertStart}, Network: ${ttsToBufferNetwork}ms`);
 
-        const convertTime = Date.now() - convertStart;
-        console.log('[Pipeline] ✓ Downsampling complete');
-        console.log('[Pipeline]   PCM 8kHz size:', pcm8Buffer.length, 'bytes');
-        console.log('[Pipeline]   Audio duration:', (pcm8Buffer.length / 2 / 8000).toFixed(2), 'seconds');
-        console.log('[Pipeline]   Time:', convertTime, 'ms');
+        const convertTime = 0; // No conversion needed
+        console.log('[Pipeline] ✓ Audio ready for buffer (16kHz)');
+        console.log('[Pipeline]   PCM 16kHz size:', pcm16Buffer.length, 'bytes');
+        console.log('[Pipeline]   Audio duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
 
         // Send translated audio to browser for playback (16kHz for better quality)
         if (io) {
@@ -325,36 +485,44 @@ try {
             console.log('[Pipeline] ✓ Sent audio to browser:', pcm16Buffer.length, 'bytes');
         }
 
-        // Step 4: Send PCM audio back to Asterisk via AudioSocket
+        // Step 4: Send PCM audio to mic endpoint via AudioStreamBuffer
         if (!activeConnectionId) {
             console.error('[Pipeline] No active AudioSocket connection');
             return;
         }
 
-        console.log('[Pipeline] [4/4] Sending audio to Asterisk...');
-        const sendStart = Date.now();
+        console.log('[Pipeline] [4/4] Sending audio through AudioStreamBuffer to mic endpoint...');
+        const sendStart = performance.now();
 
-        const sent = audioSocketOrchestrator.sendAudio(activeConnectionId, pcm8Buffer);
+        const bufferToSendNetwork = sendStart - convertStart;  // Network latency: Buffer start → Send start
+        console.log(`[TIMING-VERIFY] Buffer: ${convertStart}, Send started at ${sendStart}, Network: ${bufferToSendNetwork}ms`);
 
-        const sendTime = Date.now() - sendStart;
-
-        if (sent) {
-            console.log('[Pipeline] ✓ Audio sent to Asterisk');
-            console.log('[Pipeline]   Time:', sendTime, 'ms');
+        // Route through AudioStreamBuffer for comfort noise and delay
+        if (audioStreamBuffer) {
+            console.log('[Pipeline] Routing 16kHz audio through AudioStreamBuffer');
+            audioStreamBuffer.addAudioChunk(pcm16Buffer);  // Send 16kHz buffer directly
+            console.log('[Pipeline] ✓ Audio queued in buffer (will be sent to mic endpoint)');
         } else {
-            console.error('[Pipeline] ✗ Failed to send audio to Asterisk');
+            console.warn('[Pipeline] No AudioStreamBuffer - audio cannot be sent to mic endpoint!');
         }
 
+        const sendTime = performance.now() - sendStart;
+        console.log('[Pipeline] ✓ Audio processing time:', sendTime, 'ms');
+
         // Calculate total pipeline time
-        const totalTime = Date.now() - pipelineStart;
+        const totalTime = performance.now() - pipelineStart;
         console.log('[Pipeline] ═══════════════════════════════════════');
         console.log('[Pipeline] Pipeline complete!');
         console.log('[Pipeline] Total time:', totalTime, 'ms');
         console.log('[Pipeline]   - Translation:', translationTime, 'ms');
         console.log('[Pipeline]   - TTS (PCM):', ttsTime, 'ms');
-        console.log('[Pipeline]   - Downsample:', convertTime, 'ms');
+        console.log('[Pipeline]   - Buffer:', convertTime, 'ms');
         console.log('[Pipeline]   - Send:', sendTime, 'ms');
         console.log('[Pipeline] ═══════════════════════════════════════');
+        console.log('[Pipeline]   - Network (ASR→MT):', asrToMtNetwork, 'ms');
+        console.log('[Pipeline]   - Network (MT→TTS):', mtToTtsNetwork, 'ms');
+        console.log('[Pipeline]   - Network (TTS→Buffer):', ttsToBufferNetwork, 'ms');
+        console.log('[Pipeline]   - Network (Buffer→Send):', bufferToSendNetwork, 'ms');
 
         // Send pipeline stats to browser
         if (io) {
@@ -366,9 +534,13 @@ try {
                 ttsTime,
                 convertTime,
                 sendTime,
-                audioSize: pcm8Buffer.length,
-                audioDuration: (pcm8Buffer.length / 2 / 8000).toFixed(2),
-                humeTime: 85  // Parallel processing (typical emotion detection time) - does not block pipeline
+                audioSize: pcm16Buffer.length,
+                audioDuration: (pcm16Buffer.length / 2 / 16000).toFixed(2),
+                humeTime: 85,  // Parallel processing (typical emotion detection time) - does not block pipeline
+                asrToMtNetwork,               // Network latency: ASR → MT
+                mtToTtsNetwork,               // Network latency: MT → TTS
+                ttsToBufferNetwork,           // Network latency: TTS → Buffer
+                bufferToSendNetwork           // Network latency: Buffer → Send
             });
         }
 
@@ -441,6 +613,9 @@ audioSocketOrchestrator.on('connection', (info) => {
 
     console.log('[Pipeline] ✓ Asterisk connected:', info.connectionId);
 
+    // Initialize AudioStreamBuffer for this call
+    initializeAudioStreamBuffer(info.connectionId);
+
     // Translation session initialized (DeepL doesn't need explicit session creation)
     console.log('[Pipeline] ✓ Translation ready for session:', activeSessionId);
 
@@ -490,6 +665,28 @@ audioSocketOrchestrator.on('disconnect', (info) => {
     // Clean up session
     if (activeConnectionId === info.connectionId || activeConnectionId === info.uuid) {
         activeConnectionId = null;
+
+        // Clean up WebSocket mic connection
+        if (micWebSocket) {
+            console.log('[MicWebSocket] Closing connection...');
+            micWebSocket.close();
+            micWebSocket = null;
+            console.log('[MicWebSocket] ✓ Connection closed');
+        }
+
+        // Clean up AudioStreamBuffer
+        if (audioStreamBuffer) {
+            console.log('[Pipeline] Cleaning up AudioStreamBuffer');
+
+            // Remove from global tracking
+            if (global.activeAudioStreamBuffers) {
+                global.activeAudioStreamBuffers.delete(info.connectionId);
+                global.activeAudioStreamBuffers.delete(info.uuid);
+                console.log('[Pipeline] ✓ Removed buffer from tracking. Active buffers:', global.activeAudioStreamBuffers.size);
+            }
+
+            audioStreamBuffer = null;
+        }
 
         // Clean up session
         console.log('[Pipeline] ✓ Session ended:', activeSessionId);
@@ -553,11 +750,13 @@ process.on('SIGINT', () => {
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
 console.log('[Pipeline] Complete Translation Pipeline Initialized');
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
-console.log('[Pipeline] Flow: Asterisk → Deepgram STT → DeepL MT → ElevenLabs TTS (PCM) → Asterisk');
-console.log('[Pipeline] AudioSocket: port 5050');
+console.log('[Pipeline] Flow: Asterisk → Deepgram STT → DeepL MT → ElevenLabs TTS (PCM 16kHz) → AudioStreamBuffer → WebSocket Mic Endpoint');
+console.log('[Pipeline] AudioSocket: port 5050 (receives audio FROM caller mic)');
+console.log('[Pipeline] WebSocket Mic: port 5051 (sends audio TO caller mic as input)');
 console.log('[Pipeline] Languages:', getSourceLang(), '→', getTargetLang());
 console.log('[Pipeline] Voice ID:', VOICE_ID);
-console.log('[Pipeline] Audio: 16kHz PCM → 8kHz PCM (simple downsampling)');
+console.log('[Pipeline] Audio: 16kHz PCM (with comfort noise) → Mic endpoint');
+console.log('[Pipeline] Comfort Noise: ENABLED by default');
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
 
 // Log Socket.IO status after delay

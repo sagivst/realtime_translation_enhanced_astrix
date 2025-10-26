@@ -369,6 +369,15 @@
             background: #51cf66;
         }
 
+        .latency-network {
+            background: #607D8B;
+        }
+
+        .network-latency-item {
+            opacity: 0.8;
+        }
+
+
         .quota-card {
             background: #16213e;
             border-radius: 8px;
@@ -860,6 +869,53 @@
             color: #eee;
             font-weight: bold;
         }
+
+        /* Toggle Switch for Comfort Noise */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #dc3545;
+            transition: 0.4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #51cf66;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
     </style>
 </head>
 <body>
@@ -1069,6 +1125,99 @@
                 </div>
             </div>
         </div>
+
+
+            <!-- Comfort Noise Control Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #667eea;">🔊</div>
+                        <div>
+                            <div>Comfort Noise & Sync</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Audio Stream Buffer Control</div>
+                        </div>
+                    </div>
+                    <span class="status-badge" id="comfortNoiseStatus" style="background: #dc3545;">✗ Disabled</span>
+                </div>
+
+                <!-- Enable/Disable Toggle -->
+                <div class="metric-row">
+                    <span class="metric-label">Comfort Noise</span>
+                    <div style="flex: 1; text-align: right;">
+                        <label class="switch">
+                            <input type="checkbox" id="comfortNoiseEnabled" onchange="updateComfortNoiseConfig()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Noise Type -->
+                <div class="metric-row">
+                    <span class="metric-label">Noise Type</span>
+                    <div style="flex: 1; text-align: right;">
+                        <select id="comfortNoiseType" class="qa-dropdown" onchange="updateComfortNoiseConfig()">
+                            <option value="pink" selected>Pink Noise</option>
+                            <option value="brown">Brown Noise</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Speech Level -->
+                <div class="metric-row">
+                    <span class="metric-label">Speech Level</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="comfortSpeechLevel" min="-60" max="-10" value="-30" step="1"
+                               style="flex: 1;" oninput="updateComfortNoiseConfig()">
+                        <span id="comfortSpeechLevelValue" style="min-width: 50px; text-align: right; color: #51cf66;">-30 dB</span>
+                    </div>
+                </div>
+
+                <!-- Silence Level -->
+                <div class="metric-row">
+                    <span class="metric-label">Silence Level</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="comfortSilenceLevel" min="-40" max="0" value="-15" step="1"
+                               style="flex: 1;" oninput="updateComfortNoiseConfig()">
+                        <span id="comfortSilenceLevelValue" style="min-width: 50px; text-align: right; color: #fcc419;">-15 dB</span>
+                    </div>
+                </div>
+
+                <!-- Fade Duration -->
+                <div class="metric-row">
+                    <span class="metric-label">Fade Duration</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="comfortFadeDuration" min="10" max="200" value="50" step="10"
+                               style="flex: 1;" oninput="updateComfortNoiseConfig()">
+                        <span id="comfortFadeDurationValue" style="min-width: 50px; text-align: right; color: #74c0fc;">50 ms</span>
+                    </div>
+                </div>
+
+                <!-- Buffer Delay (Manual, until Dispatcher is ready) -->
+                <div class="metric-row">
+                    <span class="metric-label">Buffer Delay</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="comfortBufferDelay" min="0" max="2000" value="0" step="50"
+                               style="flex: 1;" oninput="updateComfortNoiseConfig()">
+                        <span id="comfortBufferDelayValue" style="min-width: 50px; text-align: right; color: #a78bfa;">0 ms</span>
+                    </div>
+                </div>
+
+                <!-- VAD Threshold -->
+                <div class="metric-row">
+                    <span class="metric-label">VAD Threshold</span>
+                    <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="comfortVadThreshold" min="0.001" max="0.1" value="0.01" step="0.001"
+                               style="flex: 1;" oninput="updateComfortNoiseConfig()">
+                        <span id="comfortVadThresholdValue" style="min-width: 50px; text-align: right; color: #ff6b6b;">0.010</span>
+                    </div>
+                </div>
+
+                <!-- Info Box -->
+                <div style="margin-top: 15px; padding: 12px; background: #0f1419; border-radius: 8px; font-size: 0.85em; color: #aaa;">
+                    <strong style="color: #667eea;">ℹ️ About:</strong> Comfort noise fills audio gaps with smooth fading.
+                    Buffer delay syncs channels (controlled by future Dispatcher). VAD detects speech presence.
+                </div>
+            </div>
 
         <!-- AUDIO PIPELINE SECTION -->
         <h2 style="color: #667eea; margin: 30px 0 20px 0; font-size: 1.5em;">📡 Live Audio Pipeline</h2>
@@ -1391,10 +1540,22 @@
                         <div class="latency-bar latency-asr" id="latencyBarAsr" style="width: 27%;">240ms</div>
                     </div>
                 </div>
+                <div class="latency-item network-latency-item">
+                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (ASR→MT)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-network" id="latencyBarAsrMt" style="width: 1%;">0ms</div>
+                    </div>
+                </div>
                 <div class="latency-item">
                     <span style="width: 100px;">MT (DeepL)</span>
                     <div class="latency-bar-container">
                         <div class="latency-bar latency-mt" id="latencyBarMt" style="width: 21%;">190ms</div>
+                    </div>
+                </div>
+                <div class="latency-item network-latency-item">
+                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (MT→TTS)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-network" id="latencyBarMtTts" style="width: 1%;">0ms</div>
                     </div>
                 </div>
                 <div class="latency-item">
@@ -1403,10 +1564,16 @@
                         <div class="latency-bar latency-tts" id="latencyBarTts" style="width: 27%;">245ms</div>
                     </div>
                 </div>
-                <div class="latency-item">
-                    <span style="width: 100px;">Network</span>
+                <div class="latency-item network-latency-item">
+                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (TTS→DS)</span>
                     <div class="latency-bar-container">
-                        <div class="latency-bar" style="background: #667eea; width: 20%;">180ms</div>
+                        <div class="latency-bar latency-network" id="latencyBarTtsDs" style="width: 1%;">0ms</div>
+                    </div>
+                </div>
+                <div class="latency-item network-latency-item">
+                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (DS→Send)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-network" id="latencyBarDsSend" style="width: 1%;">0ms</div>
                     </div>
                 </div>
                 <div class="latency-item">
@@ -1781,7 +1948,11 @@
                     ttsTime,            // ElevenLabs TTS time
                     convertTime,        // Downsampling time
                     sendTime,           // Asterisk send time
-                    humeTime            // Hume parallel processing time
+                    humeTime,           // Hume parallel processing time
+                    asrToMtNetwork,
+                    mtToTtsNetwork,
+                    ttsToDownsampleNetwork,
+                    downsampleToSendNetwork
                 } = data;
 
                 // Store latest latencies
@@ -1828,6 +1999,37 @@
                     humeTime || 0,  // Hume latency from server
                     totalDisplayLatency
                 );
+
+
+                // UPDATE NETWORK LATENCY BARS
+                if (typeof asrToMtNetwork !== "undefined" && asrToMtNetwork !== null) {
+                    const bar = document.getElementById("latencyBarAsrMt");
+                    if (bar) {
+                        bar.style.width = Math.min((asrToMtNetwork / 900) * 100, 100) + "%";
+                        bar.textContent = asrToMtNetwork.toFixed(1) + "ms";
+                    }
+                }
+                if (typeof mtToTtsNetwork !== "undefined" && mtToTtsNetwork !== null) {
+                    const bar = document.getElementById("latencyBarMtTts");
+                    if (bar) {
+                        bar.style.width = Math.min((mtToTtsNetwork / 900) * 100, 100) + "%";
+                        bar.textContent = mtToTtsNetwork.toFixed(1) + "ms";
+                    }
+                }
+                if (typeof ttsToDownsampleNetwork !== "undefined" && ttsToDownsampleNetwork !== null) {
+                    const bar = document.getElementById("latencyBarTtsDs");
+                    if (bar) {
+                        bar.style.width = Math.min((ttsToDownsampleNetwork / 900) * 100, 100) + "%";
+                        bar.textContent = ttsToDownsampleNetwork.toFixed(1) + "ms";
+                    }
+                }
+                if (typeof downsampleToSendNetwork !== "undefined" && downsampleToSendNetwork !== null) {
+                    const bar = document.getElementById("latencyBarDsSend");
+                    if (bar) {
+                        bar.style.width = Math.min((downsampleToSendNetwork / 900) * 100, 100) + "%";
+                        bar.textContent = downsampleToSendNetwork.toFixed(1) + "ms";
+                    }
+                }
 
                 // Update charts with REAL data
                 const now = new Date().toLocaleTimeString();
@@ -1892,6 +2094,18 @@
         }
 
         // Initialize QA settings on page load
+        socket.on('latencyUpdate', (data) => {
+            console.log('[Dashboard] Latency update:', data);
+            updateLatencyDisplay(data);
+
+            // Update measured latency and recalculate total delay
+            if (data.translation !== undefined) {
+                currentMeasuredLatency = data.translation;
+                document.getElementById('measuredLatency').textContent = data.translation;
+                updateBufferDelay();
+            }
+        });
+
         socket.on('connect', () => {
             updateQASettings();
         });
@@ -3220,6 +3434,109 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             initAudioVisualizers();
             refreshRecordings();
         });
-    </script>
+    
+        // ============================================
+        // COMFORT NOISE CONTROL
+        // ============================================
+
+        // Flag to prevent feedback loop
+        let isUpdatingFromServer = false;
+
+        // Update display values only (no server communication)
+        function updateComfortNoiseDisplay() {
+            const enabled = document.getElementById('comfortNoiseEnabled').checked;
+            const speechLevel = parseInt(document.getElementById('comfortSpeechLevel').value);
+            const silenceLevel = parseInt(document.getElementById('comfortSilenceLevel').value);
+            const fadeDuration = parseInt(document.getElementById('comfortFadeDuration').value);
+            const bufferDelay = parseInt(document.getElementById('comfortBufferDelay').value);
+            const vadThreshold = parseFloat(document.getElementById('comfortVadThreshold').value);
+
+            // Update display values
+            document.getElementById('comfortSpeechLevelValue').textContent = speechLevel + ' dB';
+            document.getElementById('comfortSilenceLevelValue').textContent = silenceLevel + ' dB';
+            document.getElementById('comfortFadeDurationValue').textContent = fadeDuration + ' ms';
+            document.getElementById('comfortBufferDelayValue').textContent = bufferDelay + ' ms';
+            document.getElementById('comfortVadThresholdValue').textContent = vadThreshold.toFixed(3);
+
+            // Update status badge
+            const statusBadge = document.getElementById('comfortNoiseStatus');
+            if (enabled) {
+                statusBadge.textContent = '✓ Enabled';
+                statusBadge.style.background = '#51cf66';
+            } else {
+                statusBadge.textContent = '✗ Disabled';
+                statusBadge.style.background = '#dc3545';
+            }
+        }
+
+        // Send config to server (called by user interaction)
+        function updateComfortNoiseConfig() {
+            // Prevent feedback loop
+            if (isUpdatingFromServer) {
+                return;
+            }
+
+            const enabled = document.getElementById('comfortNoiseEnabled').checked;
+            const noiseType = document.getElementById('comfortNoiseType').value;
+            const speechLevel = parseInt(document.getElementById('comfortSpeechLevel').value);
+            const silenceLevel = parseInt(document.getElementById('comfortSilenceLevel').value);
+            const fadeDuration = parseInt(document.getElementById('comfortFadeDuration').value);
+            const bufferDelay = parseInt(document.getElementById('comfortBufferDelay').value);
+            const vadThreshold = parseFloat(document.getElementById('comfortVadThreshold').value);
+
+            // Update display first
+            updateComfortNoiseDisplay();
+
+            const config = {
+                enabled: enabled,
+                noiseType: noiseType,
+                speechLevel: speechLevel,
+                silenceLevel: silenceLevel,
+                fadeInMs: fadeDuration,
+                fadeOutMs: fadeDuration,
+                vadThreshold: vadThreshold,
+                bufferDelay: bufferDelay
+            };
+
+            console.log('[ComfortNoise] Config updated:', config);
+
+            // Send to server
+            if (socket && socket.connected) {
+                socket.emit('updateComfortNoise', config);
+                console.log('[ComfortNoise] ✓ Sent to server');
+            } else {
+                console.warn('[ComfortNoise] Socket not connected');
+            }
+        }
+
+        // Listen for config updates from server
+        socket.on('comfortNoiseConfig', (config) => {
+            console.log('[ComfortNoise] Received config from server:', config);
+
+            // Set flag to prevent feedback loop
+            isUpdatingFromServer = true;
+
+            // Update UI to match server config
+            document.getElementById('comfortNoiseEnabled').checked = config.enabled;
+            document.getElementById('comfortNoiseType').value = config.noiseType;
+            document.getElementById('comfortSpeechLevel').value = config.speechLevel;
+            document.getElementById('comfortSilenceLevel').value = config.silenceLevel;
+            document.getElementById('comfortFadeDuration').value = config.fadeInMs;
+            document.getElementById('comfortVadThreshold').value = config.vadThreshold;
+            if (config.bufferDelay !== undefined) {
+                document.getElementById('comfortBufferDelay').value = config.bufferDelay;
+            }
+
+            // Update display values (no server send)
+            updateComfortNoiseDisplay();
+
+            // Clear flag after a short delay
+            setTimeout(() => {
+                isUpdatingFromServer = false;
+            }, 100);
+        });
+
+
+</script>
 </body>
 </html>

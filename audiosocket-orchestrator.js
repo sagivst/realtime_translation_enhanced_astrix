@@ -81,9 +81,9 @@ class AudioSocketOrchestrator extends EventEmitter {
         });
 
         // Create WebSocket server attached to HTTP server
+        // NOTE: No path restriction - we validate manually in handleWebSocketConnection
         this.wsServer = new WebSocket.Server({
-            server: this.httpServer,
-            path: '/mic'  // Match pattern: /mic/<PARTICIPANT_ID>/slin16
+            server: this.httpServer
         });
 
         this.wsServer.on('connection', (ws, req) => {
@@ -93,7 +93,7 @@ class AudioSocketOrchestrator extends EventEmitter {
         this.httpServer.listen(this.wsPort, () => {
             console.log(`[WebSocket] ✓ WebSocket server listening on port ${this.wsPort}`);
             console.log(`[WebSocket] Protocol: Raw PCM16 over WebSocket (extension 7000)`);
-            console.log(`[WebSocket] URL pattern: ws://127.0.0.1:${this.wsPort}/mic/<PARTICIPANT_ID>/slin16`);
+            console.log(`[WebSocket] URL pattern: ws://127.0.0.1:${this.wsPort}/mic/<PARTICIPANT_ID>`);
         });
 
         this.httpServer.on('error', (error) => {
@@ -162,8 +162,15 @@ class AudioSocketOrchestrator extends EventEmitter {
      * Handle WebSocket connection (extension 7000)
      */
     handleWebSocketConnection(ws, req) {
+        // Validate path starts with /mic/
+        if (!req.url || !req.url.startsWith('/mic/')) {
+            console.warn(`[WebSocket] Invalid path: ${req.url} (expected /mic/<participant_id>)`);
+            ws.close(1008, 'Invalid path. Expected /mic/<participant_id>');
+            return;
+        }
+
         // Parse URL to extract participant ID
-        // URL format: /mic/<PARTICIPANT_ID>/slin16
+        // URL format: /mic/<PARTICIPANT_ID> or /mic/<PARTICIPANT_ID>/slin16
         const urlParts = req.url.split('/').filter(p => p);
         const participantId = urlParts[1] || `participant_${Date.now()}`;
 

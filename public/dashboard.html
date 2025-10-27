@@ -502,6 +502,29 @@
             to { transform: rotate(360deg); }
         }
 
+        .qa-dropdown {
+            background: #2a3f5f;
+            color: #eee;
+            border: 1px solid #3a5f8f;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s ease;
+            min-width: 140px;
+        }
+
+        .qa-dropdown:hover {
+            background: #3a5f8f;
+            border-color: #667eea;
+        }
+
+        .qa-dropdown:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
         .timestamp {
             color: #aaa;
             font-size: 0.85em;
@@ -1010,6 +1033,256 @@
                     <canvas id="humeChart"></canvas>
                 </div>
             </div>
+
+            <!-- QA Settings Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-system">⚙️</div>
+                        <div>
+                            <div>QA Settings</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Translation Configuration</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="qaStatus">✓ Active</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Source Language</span>
+                    <div style="flex: 1; text-align: right;">
+                        <select id="qaSourceLang" class="qa-dropdown" onchange="updateQASettings()">
+                            <option value="en" selected>English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="ko">Korean</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ru">Russian</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Target Language</span>
+                    <div style="flex: 1; text-align: right;">
+                        <select id="qaTargetLang" class="qa-dropdown" onchange="updateQASettings()">
+                            <option value="en" selected>English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="ko">Korean</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ru">Russian</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Translation Mode</span>
+                    <span class="metric-value" id="qaTranslationMode" style="font-size: 0.9em; color: #fcc419;">⚠️ QA Mode (No Translation)</span>
+                </div>
+
+                <!-- Latency Correction Settings -->
+                <div style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 3px solid #667eea;">
+                    <div style="font-weight: bold; margin-bottom: 12px; color: #667eea; display: flex; align-items: center; gap: 8px;">
+                        <span>⏱️ Latency Correction (ms)</span>
+                        <span style="font-size: 0.7em; color: #aaa; font-weight: normal;">All values positive</span>
+                    </div>
+
+                    <!-- Per-Language Latency Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 10px;">
+                        <!-- English -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇬🇧 EN:</label>
+                            <input type="number" id="qaLatency_en" min="0" max="5000" step="10" value="0"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+
+                        <!-- Hebrew -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇮🇱 HE:</label>
+                            <input type="number" id="qaLatency_he" min="0" max="5000" step="10" value="150"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+
+                        <!-- Japanese -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇯🇵 JA:</label>
+                            <input type="number" id="qaLatency_ja" min="0" max="5000" step="10" value="250"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+
+                        <!-- Spanish -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇪🇸 ES:</label>
+                            <input type="number" id="qaLatency_es" min="0" max="5000" step="10" value="100"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+
+                        <!-- French -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇫🇷 FR:</label>
+                            <input type="number" id="qaLatency_fr" min="0" max="5000" step="10" value="100"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+
+                        <!-- German -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: #aaa; font-size: 0.85em; min-width: 60px;">🇩🇪 DE:</label>
+                            <input type="number" id="qaLatency_de" min="0" max="5000" step="10" value="120"
+                                   class="latency-input" onchange="updateLatencySettings()"
+                                   style="width: 80px; padding: 4px 8px; background: #0f1419; border: 1px solid #2a3f5f; border-radius: 4px; color: #eee; font-size: 0.85em;">
+                            <span style="color: #666; font-size: 0.75em;">ms</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div style="display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a3f5f;">
+                        <button onclick="resetAllLatencies()" class="btn btn-secondary" style="flex: 1; font-size: 0.8em; padding: 6px 10px;">
+                            🔄 Reset All
+                        </button>
+                        <button onclick="applyLatencyPreset('low')" class="btn btn-secondary" style="flex: 1; font-size: 0.8em; padding: 6px 10px;">
+                            ⚡ Low (50ms)
+                        </button>
+                        <button onclick="applyLatencyPreset('medium')" class="btn btn-secondary" style="flex: 1; font-size: 0.8em; padding: 6px 10px;">
+                            🎯 Med (200ms)
+                        </button>
+                        <button onclick="applyLatencyPreset('high')" class="btn btn-secondary" style="flex: 1; font-size: 0.8em; padding: 6px 10px;">
+                            🐢 High (500ms)
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 10px; font-size: 0.75em; color: #666; text-align: center;">
+                        💡 Positive values add delay for synchronization
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; padding: 12px; background: #0f1419; border-radius: 8px; font-size: 0.85em; color: #aaa;">
+                    <strong style="color: #fcc419;">ℹ️ QA Mode:</strong> When source and target are the same, DeepL translation is bypassed for testing purposes.
+                </div>
+            </div>
+        </div>
+
+        <!-- LATENCY CONTROL SECTION -->
+        <h2 style="color: #a78bfa; margin: 30px 0 20px 0; font-size: 1.5em;">⏱️ Latency Control & Testing</h2>
+
+        <div class="grid">
+            <!-- Latency Control Card -->
+            <div class="card" style="grid-column: span 2;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #a78bfa;">⏱️</div>
+                        <div>
+                            <div>SyncBuffer Status</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Real-Time Audio Alignment</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="syncBufferStatus">✓ Active</span>
+                </div>
+
+                <!-- SyncBuffer Metrics -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <div style="text-align: center; padding: 12px; background: rgba(167, 139, 250, 0.1); border-radius: 6px;">
+                        <div style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">Reference Latency</div>
+                        <div id="syncBufferRefLatency" style="font-size: 1.5em; font-weight: bold; color: #a78bfa;">0 ms</div>
+                    </div>
+                    <div style="text-align: center; padding: 12px; background: rgba(81, 207, 102, 0.1); border-radius: 6px;">
+                        <div style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">Active Languages</div>
+                        <div id="syncBufferActiveLanguages" style="font-size: 1.5em; font-weight: bold; color: #51cf66;">0</div>
+                    </div>
+                    <div style="text-align: center; padding: 12px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;">
+                        <div style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">Frames Buffered</div>
+                        <div id="syncBufferFramesBuffered" style="font-size: 1.5em; font-weight: bold; color: #667eea;">0</div>
+                    </div>
+                    <div style="text-align: center; padding: 12px; background: rgba(252, 196, 25, 0.1); border-radius: 6px;">
+                        <div style="font-size: 0.75em; color: #aaa; margin-bottom: 5px;">Avg Hold Time</div>
+                        <div id="syncBufferAvgHold" style="font-size: 1.5em; font-weight: bold; color: #fcc419;">0 ms</div>
+                    </div>
+                </div>
+
+                <!-- Active Language Streams -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-weight: bold; margin-bottom: 10px; color: #a78bfa;">📊 Active Language Streams:</div>
+                    <div id="activeLanguageStreams" style="padding: 15px; background: #0f1419; border-radius: 6px; min-height: 60px;">
+                        <div style="color: #666; text-align: center; padding: 10px;">
+                            No active streams. Start a test below to see alignment in action.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Test Controls -->
+                <div style="padding: 15px; background: rgba(167, 139, 250, 0.05); border-radius: 8px; border: 1px solid #a78bfa;">
+                    <div style="font-weight: bold; margin-bottom: 12px; color: #a78bfa;">🧪 Test Audio Alignment:</div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <!-- Simulate Stream Buttons -->
+                        <button onclick="simulateStream('en')" class="btn" style="background: #667eea; padding: 10px;">
+                            🇬🇧 Simulate EN Stream
+                        </button>
+                        <button onclick="simulateStream('he')" class="btn" style="background: #667eea; padding: 10px;">
+                            🇮🇱 Simulate HE Stream
+                        </button>
+                        <button onclick="simulateStream('ja')" class="btn" style="background: #667eea; padding: 10px;">
+                            🇯🇵 Simulate JA Stream
+                        </button>
+                        <button onclick="simulateStream('es')" class="btn" style="background: #667eea; padding: 10px;">
+                            🇪🇸 Simulate ES Stream
+                        </button>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="simulateMultiLanguageConference()" class="btn" style="background: #51cf66; flex: 1; padding: 12px;">
+                            🌐 Simulate 3-Language Conference (EN+HE+JA)
+                        </button>
+                        <button onclick="stopAllSimulations()" class="btn btn-secondary" style="flex: 1; padding: 12px;">
+                            ⏹️ Stop All Simulations
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 12px; padding: 10px; background: #0f1419; border-radius: 6px; font-size: 0.85em; color: #aaa;">
+                        💡 <strong>How it works:</strong> Simulations register language streams with SyncBuffer and show how frames are held/aligned based on your latency settings above.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alignment Timeline Visualization -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #10b981;">📈</div>
+                        <span>Alignment Timeline</span>
+                    </div>
+                </div>
+
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px;">
+                    <canvas id="alignmentTimelineChart" width="400" height="250"></canvas>
+                </div>
+
+                <div style="margin-top: 15px; padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 6px; font-size: 0.85em;">
+                    <div style="color: #10b981; font-weight: bold; margin-bottom: 5px;">Alignment Formula:</div>
+                    <div style="color: #aaa; font-family: monospace; font-size: 0.8em;">
+                        holdTime = refLatency - pipelineLatency<br>
+                        finalPlayback = pipelineLatency + holdTime
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; font-size: 0.75em; color: #666; text-align: center;">
+                    All streams aligned to slowest translation
+                </div>
+            </div>
         </div>
 
         <!-- AUDIO PIPELINE SECTION -->
@@ -1215,6 +1488,77 @@
                         <span>ASR</span>
                         <span>MT</span>
                         <span>TTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Hume AI (Emotion Detection) -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #51cf66;">😊</div>
+                        <span>5. Hume AI (Emotion Detection)</span>
+                    </div>
+                    <span class="status-badge" id="humeAIStatus">⏸ Idle</span>
+                </div>
+
+                <!-- Audio visualization removed - Hume AI analyzes audio but does not output audio -->
+
+                <!-- Emotion Metrics -->
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: #aaa; font-size: 0.85em; margin-bottom: 10px;">😊 Real-Time Emotion Metrics:</div>
+
+                        <!-- Arousal -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Arousal:</span>
+                                <span id="humeArousal" style="color: #51cf66; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeArousalBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #51cf66, #4dabf7); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Valence -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Valence:</span>
+                                <span id="humeValence" style="color: #4dabf7; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeValenceBar" style="width: 50%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #4dabf7, #51cf66); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Energy -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Energy:</span>
+                                <span id="humeEnergy" style="color: #a78bfa; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeEnergyBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a78bfa, #ff6b6b); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Last Update:</div>
+                            <div id="humeLastUpdate" style="color: #667eea; font-weight: bold; margin-top: 3px;">Never</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Detection Count:</div>
+                            <div id="humeDetectionCount" style="color: #51cf66; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(81, 207, 102, 0.1); border-radius: 4px; border-left: 3px solid #51cf66;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div id="humeActivityIndicator" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></div>
+                        <span id="humeActivityText" style="color: #aaa; font-size: 0.9em;">Waiting for audio stream...</span>
                     </div>
                 </div>
             </div>
@@ -1568,7 +1912,7 @@
             });
 
             socket.on('emotion_detected', (data) => {
-                updateEmotion(data);
+                updateHumeEmotions(data);
             });
 
             socket.on('latency_measurement', (data) => {
@@ -1622,6 +1966,117 @@
             // TRANSLATED AUDIO - Receive translated audio from ElevenLabs
             socket.on('translatedAudio', handleTranslatedAudio);
         }
+
+        // QA Settings: Update language configuration
+        function updateQASettings() {
+            const sourceLang = document.getElementById('qaSourceLang').value;
+            const targetLang = document.getElementById('qaTargetLang').value;
+            const modeElement = document.getElementById('qaTranslationMode');
+
+            // Update UI to show current mode
+            if (sourceLang === targetLang) {
+                modeElement.innerHTML = '⚠️ QA Mode (No Translation)';
+                modeElement.style.color = '#fcc419';
+            } else {
+                modeElement.innerHTML = '✓ Translation Enabled';
+                modeElement.style.color = '#51cf66';
+            }
+
+            // Emit configuration to server
+            socket.emit('qa-language-config', {
+                sourceLang: sourceLang,
+                targetLang: targetLang,
+                qaMode: sourceLang === targetLang
+            });
+
+            console.log(`[QA Settings] Updated: ${sourceLang} → ${targetLang} (QA Mode: ${sourceLang === targetLang})`);
+        }
+
+        // Latency Settings: Update per-language latency corrections
+        function updateLatencySettings() {
+            const languages = ['en', 'he', 'ja', 'es', 'fr', 'de'];
+            const latencyConfig = {};
+
+            // Collect all latency values
+            languages.forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) {
+                    const value = parseInt(input.value) || 0;
+                    // Ensure positive values only
+                    const correctedValue = Math.max(0, value);
+                    if (correctedValue !== value) {
+                        input.value = correctedValue;
+                    }
+                    latencyConfig[lang] = correctedValue;
+                }
+            });
+
+            // Emit to server
+            socket.emit('qa-latency-config', latencyConfig);
+
+            console.log('[QA Latency] Updated:', latencyConfig);
+        }
+
+        // Reset all latencies to 0
+        function resetAllLatencies() {
+            const languages = ['en', 'he', 'ja', 'es', 'fr', 'de'];
+            languages.forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) {
+                    input.value = 0;
+                }
+            });
+            updateLatencySettings();
+            console.log('[QA Latency] All latencies reset to 0ms');
+        }
+
+        // Apply latency preset to all languages
+        function applyLatencyPreset(preset) {
+            const languages = ['en', 'he', 'ja', 'es', 'fr', 'de'];
+            let value = 0;
+
+            switch(preset) {
+                case 'low':
+                    value = 50;
+                    break;
+                case 'medium':
+                    value = 200;
+                    break;
+                case 'high':
+                    value = 500;
+                    break;
+                default:
+                    value = 0;
+            }
+
+            languages.forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) {
+                    input.value = value;
+                }
+            });
+
+            updateLatencySettings();
+            console.log(`[QA Latency] Applied ${preset} preset: ${value}ms to all languages`);
+        }
+
+        // Listen for latency config updates from server
+        socket.on('qa-latency-updated', (config) => {
+            console.log('[QA Latency] Server update:', config);
+            // Update UI with server values if needed
+            Object.keys(config).forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input && config[lang] !== undefined) {
+                    input.value = config[lang];
+                }
+            });
+        });
+
+        // Initialize QA settings on page load
+        socket.on('connect', () => {
+            updateQASettings();
+            updateLatencySettings();
+        });
 
         // Refresh dashboard data
         function refreshDashboard() {
@@ -2244,6 +2699,26 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                     console.log('[Incoming Audio] Waveform visualized');
                 }
 
+                // Visualize waveform for Card 5 (Hume AI Emotion Detection)
+                visualizeHumeAudio(samples);
+
+                // Update Hume AI activity indicator
+                const humeIndicator = document.getElementById('humeAudioIndicator');
+                const humeStatus = document.getElementById('humeAudioStatus');
+                const humeActivityIndicator = document.getElementById('humeActivityIndicator');
+                const humeActivityText = document.getElementById('humeActivityText');
+
+                if (humeIndicator) humeIndicator.classList.add('active');
+                if (humeStatus) humeStatus.textContent = 'Receiving audio stream (same as Deepgram)';
+                if (humeActivityIndicator) {
+                    humeActivityIndicator.style.background = '#4dabf7';
+                    humeActivityIndicator.style.boxShadow = '0 0 10px #4dabf7';
+                }
+                if (humeActivityText) {
+                    humeActivityText.textContent = 'Audio stream active...';
+                    humeActivityText.style.color = '#4dabf7';
+                }
+
                 // Only schedule audio playback if NOT muted (skip buffering when muted)
                 if (!incomingMuted) {
                     // Create AudioBuffer
@@ -2570,6 +3045,106 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             btn.textContent = outgoingMuted ? '🔊 Unmute' : '🔇 Mute';
         }
 
+        // ============ HUME AI EMOTION DETECTION ============
+
+        let humeMuted = false;
+        let humeDetectionCount = 0;
+
+        function muteHumeAudio() {
+            humeMuted = !humeMuted;
+            const btn = document.getElementById('humeMuteBtn');
+            btn.textContent = humeMuted ? '🔊 Unmute' : '🔇 Mute';
+
+            console.log('[Hume AI]', humeMuted ? 'Muted' : 'Unmuted');
+        }
+
+        // Handle emotion detection from Hume AI
+        function updateHumeEmotions(data) {
+            console.log('[Hume AI] Emotion detected:', data);
+
+            // Update status
+            const statusBadge = document.getElementById('humeAIStatus');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge status-operational';
+                statusBadge.textContent = '🟢 ACTIVE';
+            }
+
+            // Update activity indicator
+            const activityIndicator = document.getElementById('humeActivityIndicator');
+            const activityText = document.getElementById('humeActivityText');
+            if (activityIndicator) {
+                activityIndicator.style.background = '#51cf66';
+                activityIndicator.style.boxShadow = '0 0 10px #51cf66';
+            }
+            if (activityText) {
+                activityText.textContent = 'Processing audio...';
+                activityText.style.color = '#51cf66';
+            }
+
+            // Update emotion metrics
+            if (data.arousal !== undefined) {
+                const arousalValue = parseFloat(data.arousal);
+                document.getElementById('humeArousal').textContent = arousalValue.toFixed(2);
+                document.getElementById('humeArousalBar').style.width = (arousalValue * 100) + '%';
+            }
+
+            if (data.valence !== undefined) {
+                const valenceValue = parseFloat(data.valence);
+                // Valence ranges from -1 to 1, so we normalize to 0-100%
+                const valencePercent = ((valenceValue + 1) / 2) * 100;
+                document.getElementById('humeValence').textContent = valenceValue.toFixed(2);
+                document.getElementById('humeValenceBar').style.width = valencePercent + '%';
+            }
+
+            if (data.energy !== undefined) {
+                const energyValue = parseFloat(data.energy);
+                document.getElementById('humeEnergy').textContent = energyValue.toFixed(2);
+                document.getElementById('humeEnergyBar').style.width = (energyValue * 100) + '%';
+            }
+
+            // Update timestamp
+            const now = new Date();
+            document.getElementById('humeLastUpdate').textContent = now.toLocaleTimeString();
+
+            // Update detection count
+            humeDetectionCount++;
+            document.getElementById('humeDetectionCount').textContent = humeDetectionCount;
+        }
+
+        // Visualize audio for Hume AI (same as Deepgram's fork)
+        function visualizeHumeAudio(samples) {
+            const canvas = document.getElementById('humeAudioViz');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#0f1419';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw waveform
+            ctx.strokeStyle = '#51cf66';  // Green for Hume AI
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const step = Math.max(1, Math.floor(samples.length / width));
+            for (let i = 0; i < width; i++) {
+                const sampleIndex = i * step;
+                const sample = samples[sampleIndex] || 0;
+                const amplitude = Math.abs(sample / 32768.0);
+                const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                if (i === 0) {
+                    ctx.moveTo(i, y);
+                } else {
+                    ctx.lineTo(i, y);
+                }
+            }
+            ctx.stroke();
+        }
+
         // ============ PARTICIPANT MANAGEMENT ============
 
         let participants = new Map();
@@ -2734,11 +3309,246 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             }
         }
 
+        // ==================== LATENCY CONTROL & TESTING ====================
+
+        // Active simulations tracking
+        const activeSimulations = new Map();
+        let alignmentChart = null;
+
+        // Simulate a single language stream
+        function simulateStream(languageCode) {
+            console.log(`[Test] Starting simulation for ${languageCode}`);
+
+            // Emit to server to register stream
+            socket.emit('test-register-stream', {
+                languageCode,
+                channelId: `test-${languageCode}-${Date.now()}`,
+                userId: `test-user-${languageCode}`
+            });
+
+            // Track locally
+            activeSimulations.set(languageCode, {
+                startTime: Date.now(),
+                languageCode,
+                framesGenerated: 0
+            });
+
+            updateActiveStreamsDisplay();
+            console.log(`[Test] ✓ Simulation started for ${languageCode}`);
+        }
+
+        // Simulate 3-language conference (from docs example)
+        function simulateMultiLanguageConference() {
+            console.log('[Test] Starting 3-language conference simulation (EN+HE+JA)');
+
+            // Simulate all three languages
+            simulateStream('en');
+            setTimeout(() => simulateStream('he'), 500);
+            setTimeout(() => simulateStream('ja'), 1000);
+
+            console.log('[Test] ✓ Multi-language conference simulation started');
+        }
+
+        // Stop all simulations
+        function stopAllSimulations() {
+            console.log('[Test] Stopping all simulations');
+
+            activeSimulations.forEach((sim, lang) => {
+                socket.emit('test-unregister-stream', { languageCode: lang });
+            });
+
+            activeSimulations.clear();
+            updateActiveStreamsDisplay();
+            updateAlignmentChart();
+
+            console.log('[Test] ✓ All simulations stopped');
+        }
+
+        // Update active streams display
+        function updateActiveStreamsDisplay() {
+            const container = document.getElementById('activeLanguageStreams');
+
+            if (activeSimulations.size === 0) {
+                container.innerHTML = `
+                    <div style="color: #666; text-align: center; padding: 10px;">
+                        No active streams. Start a test below to see alignment in action.
+                    </div>
+                `;
+                return;
+            }
+
+            const languageNames = {
+                en: { name: 'English', flag: '🇬🇧', default: 0 },
+                he: { name: 'Hebrew', flag: '🇮🇱', default: 150 },
+                ja: { name: 'Japanese', flag: '🇯🇵', default: 250 },
+                es: { name: 'Spanish', flag: '🇪🇸', default: 100 },
+                fr: { name: 'French', flag: '🇫🇷', default: 100 },
+                de: { name: 'German', flag: '🇩🇪', default: 120 }
+            };
+
+            let html = '<div style="display: grid; gap: 8px;">';
+
+            activeSimulations.forEach((sim, lang) => {
+                const info = languageNames[lang] || { name: lang.toUpperCase(), flag: '🌐', default: 0 };
+                const latencyInput = document.getElementById(`qaLatency_${lang}`);
+                const currentLatency = latencyInput ? parseInt(latencyInput.value) : info.default;
+                const runtime = ((Date.now() - sim.startTime) / 1000).toFixed(1);
+
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(167, 139, 250, 0.1); border-radius: 4px; border-left: 3px solid #a78bfa;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.5em;">${info.flag}</span>
+                            <div>
+                                <div style="font-weight: bold; color: #a78bfa;">${info.name}</div>
+                                <div style="font-size: 0.75em; color: #666;">Runtime: ${runtime}s</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.2em; font-weight: bold; color: #fcc419;">${currentLatency} ms</div>
+                            <div style="font-size: 0.7em; color: #666;">hold time</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            updateAlignmentChart();
+        }
+
+        // Update alignment timeline chart
+        function updateAlignmentChart() {
+            const canvas = document.getElementById('alignmentTimelineChart');
+            const ctx = canvas.getContext('2d');
+
+            if (activeSimulations.size === 0) {
+                // Clear chart
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#666';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No active streams', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            // Destroy existing chart if it exists
+            if (alignmentChart) {
+                alignmentChart.destroy();
+            }
+
+            const languageNames = {
+                en: { name: 'English', color: '#667eea' },
+                he: { name: 'Hebrew', color: '#a78bfa' },
+                ja: { name: 'Japanese', color: '#10b981' },
+                es: { name: 'Spanish', color: '#fcc419' },
+                fr: { name: 'French', color: '#51cf66' },
+                de: { name: 'German', color: '#ff6b6b' }
+            };
+
+            const labels = [];
+            const holdTimes = [];
+            const colors = [];
+
+            activeSimulations.forEach((sim, lang) => {
+                const info = languageNames[lang] || { name: lang.toUpperCase(), color: '#999' };
+                const latencyInput = document.getElementById(`qaLatency_${lang}`);
+                const currentLatency = latencyInput ? parseInt(latencyInput.value) : 0;
+
+                labels.push(info.name);
+                holdTimes.push(currentLatency);
+                colors.push(info.color);
+            });
+
+            alignmentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hold Time (ms)',
+                        data: holdTimes,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Hold: ${context.parsed.y}ms`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Hold Time (ms)',
+                                color: '#aaa'
+                            },
+                            ticks: {
+                                color: '#aaa'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#aaa'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Listen for SyncBuffer status updates from server
+        socket.on('syncbuffer-status', (status) => {
+            console.log('[SyncBuffer] Status update:', status);
+
+            // Update metrics display
+            document.getElementById('syncBufferRefLatency').textContent = `${status.refLatency || 0} ms`;
+            document.getElementById('syncBufferActiveLanguages').textContent = status.activeLanguages || 0;
+            document.getElementById('syncBufferFramesBuffered').textContent = status.metrics?.totalBufferedFrames || 0;
+            document.getElementById('syncBufferAvgHold').textContent = `${Math.round(status.metrics?.averageHoldTime || 0)} ms`;
+
+            // Update status badge
+            const badge = document.getElementById('syncBufferStatus');
+            if (status.isRunning) {
+                badge.className = 'status-badge status-operational';
+                badge.textContent = '✓ Active';
+            } else {
+                badge.className = 'status-badge status-down';
+                badge.textContent = '✗ Inactive';
+            }
+        });
+
+        // Request SyncBuffer status periodically
+        setInterval(() => {
+            socket.emit('get-syncbuffer-status');
+        }, 2000); // Every 2 seconds
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
             initDashboard();
             initAudioVisualizers();
             refreshRecordings();
+
+            // Request initial SyncBuffer status
+            socket.emit('get-syncbuffer-status');
         });
     </script>
 </body>

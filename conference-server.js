@@ -105,6 +105,32 @@ const participants = new Map();
 // Store user profiles for HMLCP
 const userProfiles = new Map(); // key: userId_language, value: { profile, uloLayer }
 
+// QA Settings: Global language configuration
+const qaConfig = {
+  sourceLang: 'en',
+  targetLang: 'en',
+  qaMode: true, // true when source === target (bypass translation)
+  latencyOverrides: {
+    // Default per-language latency corrections (ms, always positive)
+    // Based on typical translation pipeline characteristics
+    en: 0,     // English (baseline)
+    he: 150,   // Hebrew
+    ja: 250,   // Japanese (often slower due to character complexity)
+    es: 100,   // Spanish
+    fr: 100,   // French
+    de: 120    // German
+  }
+};
+
+// Initialize SyncBuffer for audio alignment
+const SyncBuffer = require('./src/sync/sync-buffer');
+const syncBuffer = new SyncBuffer({
+  frameSize: 20,
+  sampleRate: 16000,
+  maxBufferMs: 5000,
+  safetyMarginMs: 50
+});
+
 // Store utterance buffers for streaming chunking
 // key: utteranceId, value: { chunks: [{text, confidence, timestamp}], socketId, startTime, language }
 const utteranceBuffers = new Map();
@@ -296,13 +322,26 @@ async function translateText(text, sourceLang, targetLang) {
     return `[Translation: ${text}]`;
   }
 
-  if (!text || text.trim() === '' || sourceLang === targetLang) {
+  if (!text || text.trim() === '') {
+    return text;
+  }
+
+  // QA Mode: If QA mode is enabled and languages match, bypass translation
+  if (qaConfig.qaMode && qaConfig.sourceLang === qaConfig.targetLang) {
+    console.log(`[QA Mode] Translation bypassed: ${qaConfig.sourceLang} → ${qaConfig.targetLang}`);
+    return text;
+  }
+
+  // Normal mode: Skip translation if source === target
+  if (sourceLang === targetLang) {
     return text;
   }
 
   try {
     const sourceCode = languageMap[sourceLang]?.deepl || 'en-US';
     const targetCode = languageMap[targetLang]?.deepl || 'en-US';
+
+    console.log(`[Translation] ${sourceLang} → ${targetLang}: "${text.substring(0, 50)}..."`);
 
     const result = await translator.translateText(
       text,
@@ -1011,6 +1050,109 @@ io.on('connection', (socket) => {
     }
   });
 
+  // QA Settings: Handle language configuration from dashboard
+  socket.on('qa-language-config', (config) => {
+    const { sourceLang, targetLang, qaMode } = config;
+
+    // Update global QA configuration
+    qaConfig.sourceLang = sourceLang;
+    qaConfig.targetLang = targetLang;
+    qaConfig.qaMode = qaMode;
+
+    console.log(`[QA Config] Updated: ${sourceLang} → ${targetLang} (QA Mode: ${qaMode})`);
+
+    // Broadcast to all connected clients
+    io.emit('qa-config-updated', {
+      sourceLang,
+      targetLang,
+      qaMode
+    });
+  });
+
+  // QA Settings: Handle per-language latency configuration
+  socket.on('qa-latency-config', (latencyConfig) => {
+    console.log('[QA Latency] Received configuration:', latencyConfig);
+
+    // Validate all values are positive
+    const validatedConfig = {};
+    Object.keys(latencyConfig).forEach(lang => {
+      const value = parseInt(latencyConfig[lang]) || 0;
+      validatedConfig[lang] = Math.max(0, value); // Ensure positive
+    });
+
+    // Update global QA configuration
+    qaConfig.latencyOverrides = validatedConfig;
+
+    // Update SyncBuffer with new overrides
+    Object.keys(validatedConfig).forEach(lang => {
+      const latencyMs = validatedConfig[lang];
+      if (latencyMs > 0) {
+        syncBuffer.setQALatencyOverride(lang, latencyMs);
+        console.log(`[QA Latency] Set override: ${lang} = ${latencyMs}ms`);
+      } else {
+        syncBuffer.clearQALatencyOverride(lang);
+        console.log(`[QA Latency] Cleared override: ${lang}`);
+      }
+    });
+
+    console.log('[QA Latency] Configuration applied:', validatedConfig);
+
+    // Broadcast to all connected clients
+    io.emit('qa-latency-updated', validatedConfig);
+
+    // Log SyncBuffer status
+    const syncStatus = syncBuffer.getStatus();
+    console.log('[QA Latency] SyncBuffer status:', {
+      refLatency: syncStatus.refLatency,
+      qaOverrides: syncStatus.qaOverrides,
+      activeLanguages: syncStatus.activeLanguages
+    });
+  });
+
+  // Test System: Register stream for testing
+  socket.on('test-register-stream', (data) => {
+    const { languageCode, channelId, userId } = data;
+    console.log(`[Test] Registering test stream: ${languageCode}`);
+
+    try {
+      syncBuffer.registerLanguage(languageCode, {
+        channelId,
+        userId,
+        isTest: true
+      });
+      console.log(`[Test] ✓ Stream registered: ${languageCode}`);
+    } catch (error) {
+      console.error(`[Test] Error registering stream:`, error);
+    }
+  });
+
+  // Test System: Unregister stream
+  socket.on('test-unregister-stream', (data) => {
+    const { languageCode } = data;
+    console.log(`[Test] Unregistering test stream: ${languageCode}`);
+
+    try {
+      syncBuffer.unregisterLanguage(languageCode);
+      console.log(`[Test] ✓ Stream unregistered: ${languageCode}`);
+    } catch (error) {
+      console.error(`[Test] Error unregistering stream:`, error);
+    }
+  });
+
+  // Get SyncBuffer status
+  socket.on('get-syncbuffer-status', () => {
+    try {
+      const status = syncBuffer.getStatus();
+      socket.emit('syncbuffer-status', status);
+    } catch (error) {
+      console.error('[SyncBuffer] Error getting status:', error);
+      socket.emit('syncbuffer-status', {
+        isRunning: false,
+        error: error.message
+      });
+    }
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     const participant = participants.get(socket.id);
@@ -1276,6 +1418,21 @@ server.listen(PORT, HOST, () => {
   console.log('  - Deepgram STT:', deepgramApiKey ? '✓' : '✗ (not configured)');
   console.log('  - DeepL Translation:', deeplApiKey ? '✓' : '✗ (not configured)');
   console.log('  - ElevenLabs TTS:', elevenlabsApiKey ? '✓' : '✗ (not configured)');
+
+  // Initialize SyncBuffer for audio alignment
+  syncBuffer.initialize().then(() => {
+    // Apply default latency overrides
+    Object.keys(qaConfig.latencyOverrides).forEach(lang => {
+      const latencyMs = qaConfig.latencyOverrides[lang];
+      if (latencyMs > 0) {
+        syncBuffer.setQALatencyOverride(lang, latencyMs);
+      }
+    });
+    console.log('  - SyncBuffer (Audio Alignment): ✓');
+    console.log('    Default latencies:', qaConfig.latencyOverrides);
+  }).catch(err => {
+    console.error('  - SyncBuffer (Audio Alignment): ✗', err.message);
+  });
 
   if (protocol === 'https') {
     console.log('\n✓ HTTPS enabled - Microphone will work on remote devices!');

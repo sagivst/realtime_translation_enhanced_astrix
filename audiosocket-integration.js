@@ -2,6 +2,7 @@
 // Complete AudioSocket Pipeline: STT → Translation → TTS (OPTIMIZED)
 // Asterisk → Deepgram → DeepL → ElevenLabs (PCM) → Asterisk
 // Uses PCM output from ElevenLabs (16kHz) with simple downsampling to 8kHz
+// REFACTORED FOR DUAL-PROCESS SUPPORT (7000 and 7001)
 // ============================================================================
 
 // Load environment variables FIRST
@@ -69,29 +70,90 @@ console.log('[Pipeline] ElevenLabs:', elevenlabsApiKey ? '✓' : '✗');
 console.log('[Pipeline] Hume AI:', humeApiKey ? '✓' : '✗');
 
 // Initialize AudioSocket orchestrator (listens on port 5050 for Asterisk)
-const audioSocketOrchestrator = new AudioSocketOrchestrator(5050);
+// Dual AudioSocket orchestrators
+const audioSocketOrchestrator5050 = new AudioSocketOrchestrator(5050, 5051);  // Extension 7000
+const audioSocketOrchestrator5052 = new AudioSocketOrchestrator(5052, 5053);  // Extension 7001
+const audioSocketOrchestrator = audioSocketOrchestrator5050;  // Backward compatibility
 
-// Initialize translation services
+// Initialize translation services (shared across all calls)
 const translator = deeplApiKey ? new DeepLIncrementalMT(deeplApiKey) : null;
 const ttsService = elevenlabsApiKey ? new ElevenLabsTTSService(elevenlabsApiKey) : null;
 
-// ASR worker for transcription
-let asrWorker = null;
-let humeWorker = null;
+// ============================================================================
+// MULTI-PROCESS SESSION MANAGEMENT
+// Each call (7000-xxx, 7001-xxx) gets its own session with dedicated workers
+// ============================================================================
+const activeSessions = new Map();
 
-// Audio Stream Buffer for comfort noise and delay (per call)
-let audioStreamBuffer = null;
+/**
+ * Parse extension number from UUID
+ * Format: "7000-xxxxx" or "7001-xxxxx"
+ * Returns: "7000" or "7001"
+ */
+function getExtensionFromUUID(uuid) {
+    if (!uuid) return null;
+    // Handle simple string IDs: "7000" or "7001" (from AudioSocket parameter)
+    if (uuid === "7000" || uuid === "7001") {
+        return uuid;
+    }
+    // Handle prefixed IDs: "7000xxx..." or "7001xxx..."
+    if (uuid.startsWith("7000")) return "7000";
+    if (uuid.startsWith("7001")) return "7001";
+    // Fallback: return null if no match
+    return null;
+}
 
-// WebSocket connection to mic endpoint (for injecting audio as microphone input)
-let micWebSocket = null;
+/**
+ * Get or create session for a given UUID
+ */
+function getSession(uuid) {
+    if (!activeSessions.has(uuid)) {
+        console.log('[Pipeline] Creating new session for:', uuid);
+        const extension = getExtensionFromUUID(uuid);
+        activeSessions.set(uuid, {
+            uuid: uuid,
+            extension: extension,
+            asrWorker: null,
+            humeWorker: null,
+            audioStreamBuffer: null,
+            micWebSocket: null,
+            humeAudioBuffer: [],
+            created: Date.now()
+        });
+    }
+    return activeSessions.get(uuid);
+}
 
-// Hume AI audio buffering (accumulate frames for better speech detection)
-let humeAudioBuffer = [];
-const HUME_BUFFER_SIZE = 50; // 50 frames = 1 second at 20ms per frame
+/**
+ * Remove session
+ */
+function removeSession(uuid) {
+    const session = activeSessions.get(uuid);
+    if (session) {
+        // Clean up resources
+        if (session.micWebSocket) {
+            session.micWebSocket.close();
+        }
+        if (session.asrWorker) {
+            session.asrWorker.disconnect();
+        }
+        if (session.humeWorker) {
+            session.humeWorker.disconnect();
+        }
+        if (session.audioStreamBuffer && global.activeAudioStreamBuffers) {
+            global.activeAudioStreamBuffers.delete(uuid);
+        }
 
-// Track active connection
-let activeConnectionId = null;
-let activeSessionId = null;
+        activeSessions.delete(uuid);
+        console.log('[Pipeline] ✓ Session removed:', uuid, '| Active sessions:', activeSessions.size);
+    }
+}
+
+// ElevenLabs voice ID (TODO: make this configurable)
+const VOICE_ID = 'pNInz6obpgDQGcFmaJgB';  // Default voice (Adam)
+
+// Get Socket.IO instance from global (set by conference-server.js)
+const getIO = () => global.io;
 
 // Translation configuration (TODO: make this dynamic per session)
 // Language configuration - now dynamic from QA Settings
@@ -101,11 +163,6 @@ function getSourceLang() {
 function getTargetLang() {
     return (global.qaConfig && global.qaConfig.targetLang) || 'ja';
 }
-// ElevenLabs voice ID (TODO: make this configurable)
-const VOICE_ID = 'pNInz6obpgDQGcFmaJgB';  // Default voice (Adam)
-
-// Get Socket.IO instance from global (set by conference-server.js)
-const getIO = () => global.io;
 
 /**
  * Downsample PCM audio from 16kHz to 8kHz
@@ -131,7 +188,7 @@ function downsamplePCM16to8(pcm16Buffer) {
  * Send audio to WebSocket mic endpoint in proper frames
  * WebSocket expects raw PCM binary data in 640-byte frames (16kHz, 20ms)
  */
-function sendAudioToMicEndpoint(pcmBuffer) {
+function sendAudioToMicEndpoint(micWebSocket, pcmBuffer) {
     if (!micWebSocket || micWebSocket.readyState !== WebSocket.OPEN) {
         console.warn('[MicWebSocket] Not connected, cannot send audio');
         return;
@@ -152,22 +209,21 @@ function sendAudioToMicEndpoint(pcmBuffer) {
     }
 }
 
-// Initialize ASR worker when first audio arrives
-// Initialize Hume AI worker for emotion detection
-
 // ============================================================================
 // Initialize Audio Stream Buffer (per call, per language)
 // ============================================================================
-function initializeAudioStreamBuffer(participantId) {
-    if (audioStreamBuffer) {
-        console.log('[Pipeline] AudioStreamBuffer already initialized');
-        return audioStreamBuffer;
+function initializeAudioStreamBuffer(uuid) {
+    const session = getSession(uuid);
+
+    if (session.audioStreamBuffer) {
+        console.log('[Pipeline] AudioStreamBuffer already initialized for', uuid);
+        return session.audioStreamBuffer;
     }
 
-    console.log('[Pipeline] Initializing AudioStreamBuffer for participant:', participantId);
+    console.log('[Pipeline] Initializing AudioStreamBuffer for:', uuid);
 
     // Create AudioStreamBuffer with 16kHz (matches WebSocket mic endpoint requirement)
-    audioStreamBuffer = new AudioStreamBuffer({
+    session.audioStreamBuffer = new AudioStreamBuffer({
         sampleRate: 16000,  // 16kHz to match WebSocket mic endpoint
         channels: 1,
         bitDepth: 16,
@@ -189,77 +245,81 @@ function initializeAudioStreamBuffer(participantId) {
     // Apply global comfort noise config if available, otherwise use defaults
     const configToApply = global.comfortNoiseConfig || defaultComfortNoiseConfig;
     console.log('[Pipeline] Applying comfort noise config:', configToApply);
-    audioStreamBuffer.updateComfortNoiseConfig(configToApply);
+    session.audioStreamBuffer.updateComfortNoiseConfig(configToApply);
 
     if (configToApply.bufferDelay !== undefined) {
-        audioStreamBuffer.setDelay(configToApply.bufferDelay);
+        session.audioStreamBuffer.setDelay(configToApply.bufferDelay);
     }
 
     // Register in global tracking Map
     if (global.activeAudioStreamBuffers) {
-        global.activeAudioStreamBuffers.set(participantId, audioStreamBuffer);
+        global.activeAudioStreamBuffers.set(uuid, session.audioStreamBuffer);
         console.log('[Pipeline] ✓ Registered buffer in global.activeAudioStreamBuffers');
         console.log('[Pipeline] Active buffers:', global.activeAudioStreamBuffers.size);
     }
 
     // Create WebSocket connection to mic endpoint
-    const micEndpointUrl = `ws://127.0.0.1:5051/mic/${participantId}`;
+    const micEndpointUrl = `ws://127.0.0.1:5051/mic/${uuid}`;
     console.log('[MicWebSocket] Connecting to:', micEndpointUrl);
 
-    micWebSocket = new WebSocket(micEndpointUrl);
+    session.micWebSocket = new WebSocket(micEndpointUrl);
 
-    micWebSocket.on('open', () => {
-        console.log('[MicWebSocket] ✓ Connected to mic endpoint');
+    session.micWebSocket.on('open', () => {
+        console.log('[MicWebSocket] ✓ Connected to mic endpoint for', uuid);
         console.log('[MicWebSocket] Audio will be injected as microphone input');
     });
 
-    micWebSocket.on('error', (error) => {
-        console.error('[MicWebSocket] ✗ Connection error:', error.message);
+    session.micWebSocket.on('error', (error) => {
+        console.error('[MicWebSocket] ✗ Connection error for', uuid, ':', error.message);
     });
 
-    micWebSocket.on('close', () => {
-        console.log('[MicWebSocket] Disconnected from mic endpoint');
+    session.micWebSocket.on('close', () => {
+        console.log('[MicWebSocket] Disconnected from mic endpoint for', uuid);
     });
 
     // Listen for processed audio from buffer and send to mic endpoint (NOT speaker)
-    audioStreamBuffer.on('audioReady', (audioData) => {
+    session.audioStreamBuffer.on('audioReady', (audioData) => {
         // Extract buffer from audioData object {buffer, metadata, actualDelay}
         const pcmBuffer = audioData.buffer;
 
         // Send to WebSocket mic endpoint instead of AudioSocket speaker
-        sendAudioToMicEndpoint(pcmBuffer);
+        sendAudioToMicEndpoint(session.micWebSocket, pcmBuffer);
 
-        console.log('[Pipeline] ✓ Audio sent to mic channel (16kHz,', pcmBuffer.length, 'bytes)');
+        console.log('[Pipeline] ✓ Audio sent to mic channel for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
     });
 
-    console.log('[Pipeline] ✓ AudioStreamBuffer initialized (16kHz, comfort noise enabled)');
-    return audioStreamBuffer;
+    console.log('[Pipeline] ✓ AudioStreamBuffer initialized for', uuid, '(16kHz, comfort noise enabled)');
+    return session.audioStreamBuffer;
 }
 
-async function initializeHumeWorker() {
-    
+async function initializeHumeWorker(uuid) {
+    const session = getSession(uuid);
+
+    if (session.humeWorker) {
+        console.log('[Pipeline] Hume worker already initialized for', uuid);
+        return session.humeWorker;
+    }
+
     if (!humeApiKey) {
         console.warn('[Hume] No API key, emotion detection disabled');
         return null;
     }
-    
+
     try {
-        humeWorker = new HumeStreamingClient(humeApiKey, {
+        session.humeWorker = new HumeStreamingClient(humeApiKey, {
             sampleRate: 8000,
             channels: 1
         });
-        await humeWorker.connect();
-        console.log('[Hume] ✓ Emotion detection worker connected');
-        
-        // Emit emotion metrics via Socket.IO
-        humeWorker.on('metrics', (metrics) => {
-            console.log('[DEBUG] Metrics listener callback triggered!');
+        await session.humeWorker.connect();
+        console.log('[Hume] ✓ Emotion detection worker connected for', uuid);
+
+        // Emit emotion metrics via Socket.IO (with extension filter)
+        session.humeWorker.on('metrics', (metrics) => {
             const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
-        console.log("[Hume] ✓ Metrics listener attached to worker");
             if (io) {
-                console.log('[DEBUG] About to emit emotion_detected event');
                 io.emit('emotion_detected', {
+                    extension: session.extension,
+                    uuid: uuid,
                     arousal: metrics.arousal,
                     valence: metrics.valence,
                     energy: metrics.energy,
@@ -267,18 +327,21 @@ async function initializeHumeWorker() {
                 });
             }
         });
-        
-        return humeWorker;
+
+        return session.humeWorker;
     } catch (error) {
-        console.error('[Hume] Error initializing worker:', error.message);
+        console.error('[Hume] Error initializing worker for', uuid, ':', error.message);
         return null;
     }
 }
 
 
-async function initializeASRWorker() {
-    if (asrWorker && asrWorker.connected) {
-        return asrWorker;
+async function initializeASRWorker(uuid) {
+    const session = getSession(uuid);
+
+    if (session.asrWorker && session.asrWorker.connected) {
+        console.log('[Pipeline] ASR worker already connected for', uuid);
+        return session.asrWorker;
     }
 
     if (!deepgramApiKey) {
@@ -287,19 +350,19 @@ async function initializeASRWorker() {
     }
 
     try {
-        asrWorker = new ASRStreamingWorker(deepgramApiKey, getSourceLang());
-        await asrWorker.connect();
-        console.log('[Pipeline] ✓ ASR worker connected');
+        session.asrWorker = new ASRStreamingWorker(deepgramApiKey, getSourceLang());
+        await session.asrWorker.connect();
+        console.log('[Pipeline] ✓ ASR worker connected for', uuid);
 
         // Handle PARTIAL transcripts (real-time feedback)
-        asrWorker.on('partial', (transcript) => {
-            console.log('[Pipeline] Partial:', transcript.text);
+        session.asrWorker.on('partial', (transcript) => {
+            console.log('[Pipeline]', uuid, 'Partial:', transcript.text);
             const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionPartial', {
-                    connectionId: activeConnectionId,
-                    uuid: activeSessionId,
+                    extension: session.extension,
+                    connectionId: uuid,
+                    uuid: uuid,
                     text: transcript.text,
                     language: transcript.language,
                     type: 'partial'
@@ -308,17 +371,17 @@ async function initializeASRWorker() {
         });
 
         // Handle FINAL transcripts (trigger translation pipeline)
-        asrWorker.on('final', async (transcript) => {
-            console.log('[Pipeline] Final:', transcript.text);
+        session.asrWorker.on('final', async (transcript) => {
+            console.log('[Pipeline]', uuid, 'Final:', transcript.text);
             const asrEndTime = performance.now();  // Capture ASR end time for network latency measurement
 
             // Send transcript to browser
             const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
             if (io) {
                 io.emit('transcriptionFinal', {
-                    connectionId: activeConnectionId,
-                    uuid: activeSessionId,
+                    extension: session.extension,
+                    connectionId: uuid,
+                    uuid: uuid,
                     text: transcript.text,
                     transcript: transcript.text,
                     language: transcript.language,
@@ -331,12 +394,12 @@ async function initializeASRWorker() {
             // ========================================
             // TRANSLATION PIPELINE STARTS HERE
             // ========================================
-            await processTranslationPipeline(transcript.text, asrEndTime);
+            await processTranslationPipeline(uuid, transcript.text, asrEndTime);
         });
 
-        return asrWorker;
+        return session.asrWorker;
     } catch (err) {
-        console.error('[Pipeline] ASR initialization failed:', err.message);
+        console.error('[Pipeline] ASR initialization failed for', uuid, ':', err.message);
         return null;
     }
 }
@@ -348,40 +411,41 @@ async function initializeASRWorker() {
  * 3. Downsample to PCM 8kHz
  * 4. Send back to Asterisk
  */
-async function processTranslationPipeline(originalText, asrEndTime) {
+async function processTranslationPipeline(uuid, originalText, asrEndTime) {
+    const session = getSession(uuid);
     const pipelineStart = performance.now();
 
-    console.log('[Pipeline] ═══════════════════════════════════════');
-    console.log('[Pipeline] Starting translation pipeline');
-    console.log('[Pipeline] Original text:', originalText);
+    console.log('[Pipeline]', uuid, '═══════════════════════════════════════');
+    console.log('[Pipeline]', uuid, 'Starting translation pipeline');
+    console.log('[Pipeline]', uuid, 'Original text:', originalText);
 
 try {
         // Step 1: Translate with DeepL (or bypass if source === target)
         if (!translator) {
-            console.error('[Pipeline] DeepL not initialized, skipping translation');
+            console.error('[Pipeline]', uuid, 'DeepL not initialized, skipping translation');
             return;
         }
 
         const sourceLang = getSourceLang();
         const targetLang = getTargetLang();
-        
-        console.log(`[Pipeline] [1/4] Translation check: ${sourceLang} → ${targetLang}`);
+
+        console.log(`[Pipeline] ${uuid} [1/4] Translation check: ${sourceLang} → ${targetLang}`);
         const translationStart = performance.now();
         const asrToMtNetwork = translationStart - asrEndTime;  // Network latency: ASR end → MT start
-        console.log(`[TIMING-VERIFY] ASR ended at ${asrEndTime}, MT started at ${translationStart}, Network: ${asrToMtNetwork}ms`);
-        
+        console.log(`[TIMING-VERIFY] ${uuid} ASR ended at ${asrEndTime}, MT started at ${translationStart}, Network: ${asrToMtNetwork}ms`);
+
         let translationResult;
         let translationTime;
-        
+
         // QA Mode: Bypass DeepL if source === target
         if (sourceLang === targetLang) {
-            console.log('[Pipeline] ⚠️  QA Mode Active: Bypassing DeepL translation (same language)');
+            console.log('[Pipeline]', uuid, '⚠️  QA Mode Active: Bypassing DeepL translation (same language)');
             translationResult = { text: originalText };
             translationTime = 0;
         } else {
-            console.log('[Pipeline] Calling DeepL for translation...');
+            console.log('[Pipeline]', uuid, 'Calling DeepL for translation...');
             translationResult = await translator.translateIncremental(
-                activeSessionId || 'default-session',
+                uuid, // Use full UUID as session ID
                 sourceLang,
                 targetLang,
                 originalText,
@@ -390,16 +454,16 @@ try {
             translationTime = Date.now() - translationStart;
         }
 
-        console.log('[Pipeline] ✓ Translation complete:', translationResult.text);
-        console.log('[Pipeline]   Time:', translationTime, 'ms');
+        console.log('[Pipeline]', uuid, '✓ Translation complete:', translationResult.text);
+        console.log('[Pipeline]', uuid, '  Time:', translationTime, 'ms');
 
         // Send translation to browser
         const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
         if (io) {
             io.emit('translationComplete', {
-            connectionId: activeConnectionId,
-            uuid: activeSessionId,
+                extension: session.extension,
+                connectionId: uuid,
+                uuid: uuid,
                 original: originalText,
                 translation: translationResult.text,
                 sourceLang: sourceLang,
@@ -410,14 +474,14 @@ try {
 
         // Step 2: Synthesize with ElevenLabs (PCM 16kHz output)
         if (!ttsService) {
-            console.error('[Pipeline] ElevenLabs not initialized, skipping TTS');
+            console.error('[Pipeline]', uuid, 'ElevenLabs not initialized, skipping TTS');
             return;
         }
 
-        console.log('[Pipeline] [2/4] Synthesizing speech (PCM 16kHz)...');
+        console.log('[Pipeline]', uuid, '[2/4] Synthesizing speech (PCM 16kHz)...');
         const ttsStart = performance.now();
         const mtToTtsNetwork = ttsStart - (translationStart + translationTime);  // Network latency: MT end → TTS start
-        console.log(`[TIMING-VERIFY] MT: ${translationStart} + ${translationTime} = ${translationStart + translationTime}, TTS started at ${ttsStart}, Network: ${mtToTtsNetwork}ms`);
+        console.log(`[TIMING-VERIFY] ${uuid} MT: ${translationStart} + ${translationTime} = ${translationStart + translationTime}, TTS started at ${ttsStart}, Network: ${mtToTtsNetwork}ms`);
 
         // Override the synthesize method to use PCM output
         const axios = require('axios');
@@ -445,39 +509,41 @@ try {
         const pcm16Buffer = Buffer.from(response.data);
         const ttsTime = performance.now() - ttsStart;
 
-        console.log('[Pipeline] ✓ TTS complete');
-        console.log('[Pipeline]   Audio size:', pcm16Buffer.length, 'bytes');
-        console.log('[Pipeline]   Format: PCM 16kHz S16LE');
-        console.log('[Pipeline]   Duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
-        console.log('[Pipeline]   Time:', ttsTime, 'ms');
+        console.log('[Pipeline]', uuid, '✓ TTS complete');
+        console.log('[Pipeline]', uuid, '  Audio size:', pcm16Buffer.length, 'bytes');
+        console.log('[Pipeline]', uuid, '  Format: PCM 16kHz S16LE');
+        console.log('[Pipeline]', uuid, '  Duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
+        console.log('[Pipeline]', uuid, '  Time:', ttsTime, 'ms');
 
         // Save ElevenLabs output to file for debugging
         const fs = require('fs');
         const timestamp = Date.now();
-        const recordingPath = `./recordings/elevenlabs-${timestamp}-16khz.pcm`;
+        const recordingPath = `./recordings/elevenlabs-${uuid}-${timestamp}-16khz.pcm`;
         try {
             fs.writeFileSync(recordingPath, pcm16Buffer);
-            console.log('[Pipeline] 💾 Saved ElevenLabs output:', recordingPath);
+            console.log('[Pipeline]', uuid, '💾 Saved ElevenLabs output:', recordingPath);
         } catch (err) {
-            console.error('[Pipeline] Failed to save recording:', err.message);
+            console.error('[Pipeline]', uuid, 'Failed to save recording:', err.message);
         }
 
         // Step 3: Skip downsampling - use 16kHz directly for mic endpoint
-        console.log('[Pipeline] [3/4] Using 16kHz PCM directly (no downsampling needed)');
+        console.log('[Pipeline]', uuid, '[3/4] Using 16kHz PCM directly (no downsampling needed)');
         const convertStart = performance.now();
 
         const ttsToBufferNetwork = convertStart - (ttsStart + ttsTime);  // Network latency: TTS end → Buffer start
-        console.log(`[TIMING-VERIFY] TTS: ${ttsStart} + ${ttsTime} = ${ttsStart + ttsTime}, Buffer started at ${convertStart}, Network: ${ttsToBufferNetwork}ms`);
+        console.log(`[TIMING-VERIFY] ${uuid} TTS: ${ttsStart} + ${ttsTime} = ${ttsStart + ttsTime}, Buffer started at ${convertStart}, Network: ${ttsToBufferNetwork}ms`);
 
         const convertTime = 0; // No conversion needed
-        console.log('[Pipeline] ✓ Audio ready for buffer (16kHz)');
-        console.log('[Pipeline]   PCM 16kHz size:', pcm16Buffer.length, 'bytes');
-        console.log('[Pipeline]   Audio duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
+        console.log('[Pipeline]', uuid, '✓ Audio ready for buffer (16kHz)');
+        console.log('[Pipeline]', uuid, '  PCM 16kHz size:', pcm16Buffer.length, 'bytes');
+        console.log('[Pipeline]', uuid, '  Audio duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
 
         // Send translated audio to browser for playback (16kHz for better quality)
         if (io) {
-            console.log('[Pipeline] 📤 Sending translated audio to browser...');
+            console.log('[Pipeline]', uuid, '📤 Sending translated audio to browser...');
             io.emit('translatedAudio', {
+                extension: session.extension,
+                uuid: uuid,
                 audio: pcm16Buffer.toString("base64"),  // Send as Buffer (same as audioStream)
                 sampleRate: 16000,  // 16kHz PCM from ElevenLabs
                 channels: 1,
@@ -488,51 +554,45 @@ try {
                 duration: (pcm16Buffer.length / 2 / 16000).toFixed(2),
                 timestamp: Date.now()
             });
-            console.log('[Pipeline] ✓ Sent audio to browser:', pcm16Buffer.length, 'bytes');
+            console.log('[Pipeline]', uuid, '✓ Sent audio to browser:', pcm16Buffer.length, 'bytes');
         }
 
         // Step 4: Send PCM audio to mic endpoint via AudioStreamBuffer
-        if (!activeConnectionId) {
-            console.error('[Pipeline] No active AudioSocket connection');
+        if (!session.audioStreamBuffer) {
+            console.error('[Pipeline]', uuid, 'No AudioStreamBuffer for this session');
             return;
         }
 
-        console.log('[Pipeline] [4/4] Sending audio through AudioStreamBuffer to mic endpoint...');
+        console.log('[Pipeline]', uuid, '[4/4] Sending audio through AudioStreamBuffer to mic endpoint...');
         const sendStart = performance.now();
 
         const bufferToSendNetwork = sendStart - convertStart;  // Network latency: Buffer start → Send start
-        console.log(`[TIMING-VERIFY] Buffer: ${convertStart}, Send started at ${sendStart}, Network: ${bufferToSendNetwork}ms`);
+        console.log(`[TIMING-VERIFY] ${uuid} Buffer: ${convertStart}, Send started at ${sendStart}, Network: ${bufferToSendNetwork}ms`);
 
         // Route through AudioStreamBuffer for comfort noise and delay
-        if (audioStreamBuffer) {
-            console.log('[Pipeline] Routing 16kHz audio through AudioStreamBuffer');
-            audioStreamBuffer.addAudioChunk(pcm16Buffer);  // Send 16kHz buffer directly
-            console.log('[Pipeline] ✓ Audio queued in buffer (will be sent to mic endpoint)');
-        } else {
-            console.warn('[Pipeline] No AudioStreamBuffer - audio cannot be sent to mic endpoint!');
-        }
+        console.log('[Pipeline]', uuid, 'Routing 16kHz audio through AudioStreamBuffer');
+        session.audioStreamBuffer.addAudioChunk(pcm16Buffer);  // Send 16kHz buffer directly
+        console.log('[Pipeline]', uuid, '✓ Audio queued in buffer (will be sent to mic endpoint)');
 
         const sendTime = performance.now() - sendStart;
-        console.log('[Pipeline] ✓ Audio processing time:', sendTime, 'ms');
+        console.log('[Pipeline]', uuid, '✓ Audio processing time:', sendTime, 'ms');
 
         // Calculate total pipeline time
         const totalTime = performance.now() - pipelineStart;
-        console.log('[Pipeline] ═══════════════════════════════════════');
-        console.log('[Pipeline] Pipeline complete!');
-        console.log('[Pipeline] Total time:', totalTime, 'ms');
-        console.log('[Pipeline]   - Translation:', translationTime, 'ms');
-        console.log('[Pipeline]   - TTS (PCM):', ttsTime, 'ms');
-        console.log('[Pipeline]   - Buffer:', convertTime, 'ms');
-        console.log('[Pipeline]   - Send:', sendTime, 'ms');
-        console.log('[Pipeline] ═══════════════════════════════════════');
-        console.log('[Pipeline]   - Network (ASR→MT):', asrToMtNetwork, 'ms');
-        console.log('[Pipeline]   - Network (MT→TTS):', mtToTtsNetwork, 'ms');
-        console.log('[Pipeline]   - Network (TTS→Buffer):', ttsToBufferNetwork, 'ms');
-        console.log('[Pipeline]   - Network (Buffer→Send):', bufferToSendNetwork, 'ms');
+        console.log('[Pipeline]', uuid, '═══════════════════════════════════════');
+        console.log('[Pipeline]', uuid, 'Pipeline complete!');
+        console.log('[Pipeline]', uuid, 'Total time:', totalTime, 'ms');
+        console.log('[Pipeline]', uuid, '  - Translation:', translationTime, 'ms');
+        console.log('[Pipeline]', uuid, '  - TTS (PCM):', ttsTime, 'ms');
+        console.log('[Pipeline]', uuid, '  - Buffer:', convertTime, 'ms');
+        console.log('[Pipeline]', uuid, '  - Send:', sendTime, 'ms');
+        console.log('[Pipeline]', uuid, '═══════════════════════════════════════');
 
         // Send pipeline stats to browser
         if (io) {
             io.emit('pipelineComplete', {
+                extension: session.extension,
+                uuid: uuid,
                 original: originalText,
                 translation: translationResult.text,
                 totalTime,
@@ -551,13 +611,14 @@ try {
         }
 
     } catch (error) {
-        console.error('[Pipeline] ✗ Pipeline error:', error.message);
-        console.error('[Pipeline]   Stack:', error.stack);
+        console.error('[Pipeline]', uuid, '✗ Pipeline error:', error.message);
+        console.error('[Pipeline]', uuid, '  Stack:', error.stack);
 
         const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
         if (io) {
             io.emit('pipelineError', {
+                extension: session.extension,
+                uuid: uuid,
                 error: error.message,
                 original: originalText
             });
@@ -565,39 +626,50 @@ try {
     }
 }
 
-// Handle incoming PCM frames from AudioSocket
-audioSocketOrchestrator.on('pcm-frame', async (frame) => {
-    // Initialize ASR worker on first frame
-    if (!asrWorker) {
-        await initializeASRWorker();
-        await initializeHumeWorker();
+// ========================================================================
+// HELPER: Setup event handlers for an orchestrator
+// ========================================================================
+function setupOrchestratorHandlers(orchestrator, orchestratorName) {
+    const HUME_BUFFER_SIZE = 50; // 50 frames = 1 second at 20ms per frame
+
+    // Handle incoming PCM frames from AudioSocket
+    orchestrator.on('pcm-frame', async (frame) => {
+    const uuid = frame.uuid || frame.connectionId;
+    const session = getSession(uuid);
+
+    // Initialize ASR and Hume workers on first frame
+    if (!session.asrWorker) {
+        await initializeASRWorker(uuid);
+        await initializeHumeWorker(uuid);
     }
 
     // Send frame to Deepgram for transcription
-    if (asrWorker && asrWorker.connected) {
-        asrWorker.sendAudio(frame.pcm, {
+    if (session.asrWorker && session.asrWorker.connected) {
+        session.asrWorker.sendAudio(frame.pcm, {
             segmentId: frame.sequenceNumber,
             duration: frame.duration
         });
     }
+
     // Fork audio to Hume AI for emotion detection (buffered for speech detection)
-    if (humeWorker && humeWorker.connected) {
-        humeAudioBuffer.push(frame.pcm);
+    if (session.humeWorker && session.humeWorker.connected) {
+        session.humeAudioBuffer.push(frame.pcm);
 
         // Send buffered audio once we have 1 second (50 frames × 20ms)
-        if (humeAudioBuffer.length >= HUME_BUFFER_SIZE) {
-            const combinedBuffer = Buffer.concat(humeAudioBuffer);
-            humeWorker.sendAudio(combinedBuffer);
-            console.log(`[Hume] Sent ${HUME_BUFFER_SIZE} frames (${combinedBuffer.length} bytes, 1 second buffer)`);
-            humeAudioBuffer = []; // Reset buffer for next batch
+        if (session.humeAudioBuffer.length >= HUME_BUFFER_SIZE) {
+            const combinedBuffer = Buffer.concat(session.humeAudioBuffer);
+            session.humeWorker.sendAudio(combinedBuffer);
+            console.log(`[Hume] ${uuid} Sent ${HUME_BUFFER_SIZE} frames (${combinedBuffer.length} bytes, 1 second buffer)`);
+            session.humeAudioBuffer = []; // Reset buffer for next batch
         }
     }
 
     // FORK AUDIO TO BROWSER: Send same audio to Socket.IO clients for playback
     const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audioStream', {
+            extension: session.extension,
+            uuid: uuid,
             buffer: frame.pcm,
             sequenceNumber: frame.sequenceNumber,
             sampleRate: 8000,
@@ -610,32 +682,43 @@ audioSocketOrchestrator.on('pcm-frame', async (frame) => {
 
 // Log connections
 audioSocketOrchestrator.on('connection', (info) => {
-    if (activeConnectionId && activeConnectionId !== info.connectionId) {
-        console.warn(`[Pipeline] ⚠️ Duplicate connection! Active: ${activeConnectionId}, New: ${info.connectionId}`);
+    const uuid = info.connectionId;
+    
+    // CRITICAL FIX: Skip WebSocket loopback connections
+    if (info.protocol === 'websocket') {
+        console.log('[Pipeline] Skipping WebSocket loopback:', uuid);
+        return;
     }
+    if (info.protocol !== 'tcp') {
+        console.log('[Pipeline] Unknown protocol:', info.protocol);
+        return;
+    }
+    const extension = getExtensionFromUUID(uuid);
 
-    activeConnectionId = info.connectionId;
-    activeSessionId = info.connectionId; // Use connection ID as session ID
+    console.log('[Pipeline] ✓ Asterisk connected:', uuid, '| Extension:', extension);
 
-    console.log('[Pipeline] ✓ Asterisk connected:', info.connectionId);
+    // Create new session
+    const session = getSession(uuid);
 
     // Initialize AudioStreamBuffer for this call
-    initializeAudioStreamBuffer(info.connectionId);
+    initializeAudioStreamBuffer(uuid);
 
     // Translation session initialized (DeepL doesn't need explicit session creation)
-    console.log('[Pipeline] ✓ Translation ready for session:', activeSessionId);
+    console.log('[Pipeline] ✓ Translation ready for session:', uuid);
+    console.log('[Pipeline] Active sessions:', activeSessions.size);
 
     const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-connected', {
-            connectionId: info.connectionId,
-            uuid: info.connectionId,
+            extension: extension,
+            connectionId: uuid,
+            uuid: uuid,
             timestamp: Date.now()
         });
 
         io.emit('audioStreamStart', {
-            connectionId: info.connectionId,
+            extension: extension,
+            connectionId: uuid,
             format: {
                 sampleRate: 8000,
                 channels: 1,
@@ -647,81 +730,70 @@ audioSocketOrchestrator.on('connection', (info) => {
 });
 
 audioSocketOrchestrator.on('handshake', (info) => {
-    console.log('[Pipeline] ✓ Handshake complete:', info.uuid);
+    const uuid = info.uuid || info.connectionId;
+    const extension = getExtensionFromUUID(uuid);
+
+    console.log('[Pipeline] ✓ Handshake complete:', uuid, '| Extension:', extension);
 
     const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-handshake', {
-            uuid: info.uuid,
-            connectionId: info.connectionId || info.uuid,
+            extension: extension,
+            uuid: uuid,
+            connectionId: info.connectionId || uuid,
             timestamp: Date.now()
         });
     }
 });
 
 audioSocketOrchestrator.on('disconnect', (info) => {
+    const uuid = info.uuid || info.connectionId;
+    const extension = getExtensionFromUUID(uuid);
+
     console.log('[Pipeline] Asterisk disconnected:', {
-        connectionId: info.connectionId,
-        uuid: info.uuid,
+        uuid: uuid,
+        extension: extension,
         duration: `${info.duration.toFixed(1)}s`,
         frames: info.framesReceived
     });
 
     // Clean up session
-    if (activeConnectionId === info.connectionId || activeConnectionId === info.uuid) {
-        activeConnectionId = null;
-
-        // Clean up WebSocket mic connection
-        if (micWebSocket) {
-            console.log('[MicWebSocket] Closing connection...');
-            micWebSocket.close();
-            micWebSocket = null;
-            console.log('[MicWebSocket] ✓ Connection closed');
-        }
-
-        // Clean up AudioStreamBuffer
-        if (audioStreamBuffer) {
-            console.log('[Pipeline] Cleaning up AudioStreamBuffer');
-
-            // Remove from global tracking
-            if (global.activeAudioStreamBuffers) {
-                global.activeAudioStreamBuffers.delete(info.connectionId);
-                global.activeAudioStreamBuffers.delete(info.uuid);
-                console.log('[Pipeline] ✓ Removed buffer from tracking. Active buffers:', global.activeAudioStreamBuffers.size);
-            }
-
-            audioStreamBuffer = null;
-        }
-
-        // Clean up session
-        console.log('[Pipeline] ✓ Session ended:', activeSessionId);
-
-        activeSessionId = null;
-        console.log('[Pipeline] Active connection cleared');
-    }
+    removeSession(uuid);
 
     const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     if (io) {
         io.emit('audiosocket-disconnected', {
-            connectionId: info.connectionId,
-            uuid: info.uuid,
+            extension: extension,
+            connectionId: uuid,
+            uuid: uuid,
             duration: info.duration,
             frames: info.framesReceived,
             timestamp: Date.now()
         });
 
         io.emit('audioStreamEnd', {
-            connectionId: info.connectionId || info.uuid,
+            extension: extension,
+            connectionId: uuid,
             duration: info.duration,
             frames: info.framesReceived
         });
     }
-});
+    });
 
-// Start orchestrator
-audioSocketOrchestrator.start();
+    console.log(`[Pipeline] ✓ Event handlers attached to ${orchestratorName}`);
+}
+
+// ========================================================================
+// SETUP BOTH ORCHESTRATORS WITH EVENT HANDLERS
+// ========================================================================
+setupOrchestratorHandlers(audioSocketOrchestrator5050, 'orchestrator5050 (ext 7000, port 5050)');
+setupOrchestratorHandlers(audioSocketOrchestrator5052, 'orchestrator5052 (ext 7001, port 5052)');
+console.log('[Pipeline] ✓ Both orchestrators configured with independent event handlers');
+
+// Start both orchestrators
+audioSocketOrchestrator5050.start();
+audioSocketOrchestrator5052.start();
+console.log("[Pipeline] ✓ Dual AudioSocket orchestrators started on ports 5050 (ext 7000) and 5052 (ext 7001)");
 
 // Make orchestrator available globally
 global.audioSocketOrchestrator = audioSocketOrchestrator;
@@ -731,30 +803,25 @@ process.on('SIGTERM', () => {
     if (audioSocketOrchestrator) {
         audioSocketOrchestrator.stop();
     }
-    if (asrWorker) {
-        asrWorker.disconnect();
-        if (humeWorker) {
-            humeWorker.disconnect();
-            humeWorker = null;
-        }
-    }
+    // Clean up all sessions
+    activeSessions.forEach((session, uuid) => {
+        removeSession(uuid);
+    });
 });
 
 process.on('SIGINT', () => {
     if (audioSocketOrchestrator) {
         audioSocketOrchestrator.stop();
     }
-    if (asrWorker) {
-        asrWorker.disconnect();
-        if (humeWorker) {
-            humeWorker.disconnect();
-            humeWorker = null;
-        }
-    }
+    // Clean up all sessions
+    activeSessions.forEach((session, uuid) => {
+        removeSession(uuid);
+    });
 });
 
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
 console.log('[Pipeline] Complete Translation Pipeline Initialized');
+console.log('[Pipeline] MULTI-PROCESS MODE: Supports 7000 and 7001 simultaneously');
 console.log('[Pipeline] ═══════════════════════════════════════════════════');
 console.log('[Pipeline] Flow: Asterisk → Deepgram STT → DeepL MT → ElevenLabs TTS (PCM 16kHz) → AudioStreamBuffer → WebSocket Mic Endpoint');
 console.log('[Pipeline] AudioSocket: port 5050 (receives audio FROM caller mic)');
@@ -768,6 +835,5 @@ console.log('[Pipeline] ══════════════════�
 // Log Socket.IO status after delay
 setTimeout(() => {
     const io = getIO();
-            console.log('[DEBUG] getIO() returned:', io ? 'VALID' : 'NULL');
     console.log('[Pipeline] Socket.IO:', !!io ? 'AVAILABLE ✓' : 'NOT AVAILABLE ✗');
 }, 2000);

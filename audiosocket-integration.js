@@ -358,35 +358,50 @@ function initializeAudioStreamBuffer(uuid) {
                     pairedExt,
                     e2eLatency
                 );
-                console.log(`[TimingSync] Sent latency ${session.extension}→${pairedExt}: ${e2eLatency}ms`);
+                console.log();
             }
         }
 
-        // Track bridge injection start
-        const bridgeInjectStart = performance.now();
+        // Phase 2: Route audio through timing server for buffering (controlled by env var)
+        const ENABLE_PHASE2 = process.env.TIMING_PHASE2_ENABLED === 'true';
+        
+        if (ENABLE_PHASE2 && global.timingClient && global.timingClient.connected) {
+            // Send audio packet to timing server for buffering and synchronized injection
+            console.log();
+            global.timingClient.sendAudioPacket(
+                String(session.extension),
+                pcmBuffer,
+                Date.now()
+            );
+            console.log('[Pipeline] ✓ Audio sent to timing server for buffering (Phase 2)');
+        } else {
+            // Phase 1: Direct bridge injection (current behavior)
+            // Track bridge injection start
+            const bridgeInjectStart = performance.now();
 
-        // Send to WebSocket mic endpoint (bridge injection)
-        sendAudioToMicEndpoint(session.micWebSocket, pcmBuffer);
+            // Send to WebSocket mic endpoint (bridge injection)
+            sendAudioToMicEndpoint(session.micWebSocket, pcmBuffer);
 
-        // Track bridge injection completion
-        session.bridgeInjectTime = performance.now();
-        const bridgeInjectTime = session.bridgeInjectTime - bridgeInjectStart;
+            // Track bridge injection completion
+            session.bridgeInjectTime = performance.now();
+            const bridgeInjectTime = session.bridgeInjectTime - bridgeInjectStart;
 
-        console.log('[Pipeline] ✓ Audio sent to bridge for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
-        console.log(`[Timing] ${uuid} Bridge injection time: ${bridgeInjectTime}ms`);
+            console.log('[Pipeline] ✓ Audio sent to bridge for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
+            console.log();
 
-        // Calculate LS→Bridge gap
-        if (session.lsExitTime) {
-            const lsToBridgeGap = bridgeInjectStart - session.lsExitTime;
-            console.log(`[Timing] ${uuid} LS→Bridge gap: ${lsToBridgeGap}ms`);
+            // Calculate LS→Bridge gap
+            if (session.lsExitTime) {
+                const lsToBridgeGap = bridgeInjectStart - session.lsExitTime;
+                console.log();
 
-            // Hook: Sync Manager LS→Bridge Gap
-            if (syncManager) {
-                syncManager.onOverheadMeasure({
-                    extension: session.extension,
-                    stage: 'ls_to_bridge',
-                    overhead: lsToBridgeGap
-                });
+                // Hook: Sync Manager LS→Bridge Gap
+                if (syncManager) {
+                    syncManager.onOverheadMeasure({
+                        extension: session.extension,
+                        stage: 'ls_to_bridge',
+                        overhead: lsToBridgeGap
+                    });
+                }
             }
         }
     });

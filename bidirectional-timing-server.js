@@ -136,10 +136,10 @@ class ExtensionPairManager {
 // ============================================================================
 
 class LatencyBuffer {
-    constructor(audioInjector) {
+    constructor(sendMessageCallback) {
         this.buffers = new Map(); // key: extension, value: array of buffered packets
         this.processingTimers = new Map();
-        this.audioInjector = audioInjector;
+        this.sendMessage = sendMessageCallback; // Callback to send INJECT_AUDIO messages
     }
 
     enqueue(extension, packet, delayMs = 0) {
@@ -177,7 +177,15 @@ class LatencyBuffer {
             
             if (now >= item.targetTime) {
                 buffer.shift();
-                this.audioInjector.inject(extension, item.packet);
+
+                // Send INJECT_AUDIO message back to conference server
+                this.sendMessage(extension, {
+                    type: 'INJECT_AUDIO',
+                    toExtension: extension,
+                    audioData: item.packet.toString('base64'),
+                    timestamp: item.timestamp
+                });
+
                 setImmediate(processNext);
             } else {
                 const waitTime = item.targetTime - now;
@@ -326,8 +334,8 @@ class TimingServer {
     constructor(port = 6000) {
         this.port = port;
         this.pairManager = new ExtensionPairManager();
-        this.audioInjector = new AudioInjector();
-        this.latencyBuffer = new LatencyBuffer(this.audioInjector);
+        this.conferenceSocket = null; // Track conference server socket for sending messages back
+        this.latencyBuffer = new LatencyBuffer(this.sendInjectAudio.bind(this));
         this.server = null;
         this.httpServer = null;
     }
@@ -389,8 +397,13 @@ class TimingServer {
 
     handleMessage(socket, data) {
         try {
+            // Track conference server socket for sending messages back
+            if (!this.conferenceSocket) {
+                this.conferenceSocket = socket;
+            }
+
             const msg = JSON.parse(data);
-            
+
             switch (msg.type) {
                 case 'REGISTER_EXTENSION':
                     this.pairManager.registerExtension(msg.extension, msg.uuid);
@@ -458,6 +471,17 @@ class TimingServer {
         if (delayMs > 0) {
             console.log(`[Buffer] ${fromExt}→${toExt} delayed by ${delayMs}ms (sync)`);
         }
+    }
+
+    sendInjectAudio(toExtension, message) {
+        if (!this.conferenceSocket || this.conferenceSocket.destroyed) {
+            console.warn('[Server] Cannot send INJECT_AUDIO: conference server not connected');
+            return;
+        }
+
+        this.conferenceSocket.write(JSON.stringify(message) + '\n');
+        const audioSize = Buffer.from(message.audioData, 'base64').length;
+        console.log(`[Server] → INJECT_AUDIO for ext ${toExtension}, ${audioSize} bytes`);
     }
 
     handleLatencyUpdate(socket, msg) {

@@ -74,9 +74,21 @@ class TimingClient {
             case 'PAIR_REMOVED':
                 console.log(`[TimingClient] Pair removed: ${msg.extension}`);
                 break;
+            case 'INJECT_AUDIO':
+                // Call the registered handler for audio injection
+                if (this.injectAudioHandler) {
+                    this.injectAudioHandler(msg);
+                } else {
+                    console.warn('[TimingClient] INJECT_AUDIO received but no handler registered');
+                }
+                break;
             default:
                 console.log(`[TimingClient] Response:`, msg);
         }
+    }
+
+    setInjectAudioHandler(handler) {
+        this.injectAudioHandler = handler;
     }
 
     send(message) {

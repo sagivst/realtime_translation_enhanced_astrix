@@ -47,7 +47,6 @@ if (!global.activeAudioStreamBuffers) {
 }
 
 
-
 const AudioSocketOrchestrator = require('./audiosocket-orchestrator');
 const { ASRStreamingWorker } = require('./asr-streaming-worker');
 const { DeepLIncrementalMT } = require('./deepl-incremental-mt');  // Destructure the export
@@ -57,6 +56,7 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const AudioStreamBuffer = require('./audio-stream-buffer');
 const LatencySyncManager = require("./latency-sync-manager");
 const WebSocket = require('ws');
+const TimingClient = require("./timing-client");
 
 // Get API keys from environment
 const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
@@ -119,8 +119,19 @@ function getSession(uuid, extensionId) {
             audioStreamBuffer: null,
             micWebSocket: null,
             humeAudioBuffer: [],
-            created: Date.now()
+            created: Date.now(),
+            // Timing tracking for new stages
+            firstAudioFrameTime: null,  // When first audio frame arrives
+            lastAudioFrameTime: null,   // Last frame timestamp for gap measurement
+            lsEnterTime: null,           // When audio enters Latency Sync buffer
+            lsExitTime: null,            // When audio exits Latency Sync buffer
+            bridgeInjectTime: null       // When audio is injected into bridge
         });
+        // Register extension with timing server
+        if (global.timingClient && global.timingClient.connected) {
+            global.timingClient.registerExtension(String(extension), uuid);
+            console.log(`[TimingSync] Registered extension ${extension} with timing server (UUID: ${uuid})`);
+        }
     }
     return activeSessions.get(uuid);
 }
@@ -158,6 +169,23 @@ const getIO = () => global.io;
 
 // Latency & Synchronization Manager
 let syncManager = null;
+// Timing Server Client (for bidirectional sync)
+let timingClient = null;
+function initializeTimingClient() {
+    if (timingClient) return;
+    console.log("[TimingClient] Initializing connection to timing server...");
+    timingClient = new TimingClient("127.0.0.1", 6000);
+    timingClient.connect()
+        .then(() => {
+            console.log("[TimingClient] ✓ Connected and ready");
+            global.timingClient = timingClient;  // Make available globally
+        })
+        .catch((err) => {
+            console.error("[TimingClient] Connection failed:", err.message);
+        });
+}
+setTimeout(() => { initializeTimingClient(); }, 2000);
+
 function initializeSyncManager() {
     const io = getIO();
     if (!io) {
@@ -298,11 +326,69 @@ function initializeAudioStreamBuffer(uuid) {
     session.audioStreamBuffer.on('audioReady', (audioData) => {
         // Extract buffer from audioData object {buffer, metadata, actualDelay}
         const pcmBuffer = audioData.buffer;
+        const actualDelay = audioData.actualDelay || 0;
 
-        // Send to WebSocket mic endpoint instead of AudioSocket speaker
+        // Track when audio exits LS buffer
+        session.lsExitTime = performance.now();
+
+        // Report LS (Latency Sync) delay - only positive values (negative = no sync needed, show 0)
+        const lsDelay = Math.max(0, actualDelay);
+        console.log(`[Timing] ${uuid} LS sync delay: ${lsDelay}ms (actualDelay: ${actualDelay}ms)`);
+
+        // Hook: Sync Manager LS Delay (only positive sync delays)
+        if (syncManager) {
+            syncManager.onLatencyMeasure({
+                extension: session.extension,
+                stage: 'ls',
+                latency: lsDelay
+            });
+        }
+
+        // Send e2e latency to timing server for bidirectional sync
+        if (syncManager && global.timingClient && global.timingClient.connected) {
+            const channel = syncManager.getOrCreateChannel(session.extension);
+            const e2eLatency = channel.latencies.e2e.current;
+
+            // Determine paired extension (7000 ↔ 7001)
+            const pairedExt = (String(session.extension) === "7000") ? "7001" : "7000";
+
+            if (e2eLatency > 0) {
+                global.timingClient.updateLatency(
+                    String(session.extension),
+                    pairedExt,
+                    e2eLatency
+                );
+                console.log(`[TimingSync] Sent latency ${session.extension}→${pairedExt}: ${e2eLatency}ms`);
+            }
+        }
+
+        // Track bridge injection start
+        const bridgeInjectStart = performance.now();
+
+        // Send to WebSocket mic endpoint (bridge injection)
         sendAudioToMicEndpoint(session.micWebSocket, pcmBuffer);
 
-        console.log('[Pipeline] ✓ Audio sent to mic channel for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
+        // Track bridge injection completion
+        session.bridgeInjectTime = performance.now();
+        const bridgeInjectTime = session.bridgeInjectTime - bridgeInjectStart;
+
+        console.log('[Pipeline] ✓ Audio sent to bridge for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
+        console.log(`[Timing] ${uuid} Bridge injection time: ${bridgeInjectTime}ms`);
+
+        // Calculate LS→Bridge gap
+        if (session.lsExitTime) {
+            const lsToBridgeGap = bridgeInjectStart - session.lsExitTime;
+            console.log(`[Timing] ${uuid} LS→Bridge gap: ${lsToBridgeGap}ms`);
+
+            // Hook: Sync Manager LS→Bridge Gap
+            if (syncManager) {
+                syncManager.onOverheadMeasure({
+                    extension: session.extension,
+                    stage: 'ls_to_bridge',
+                    overhead: lsToBridgeGap
+                });
+            }
+        }
     });
 
     console.log('[Pipeline] ✓ AudioStreamBuffer initialized for', uuid, '(16kHz, comfort noise enabled)');
@@ -335,6 +421,8 @@ async function initializeHumeWorker(uuid) {
             // Calculate Hume latency
             if (session.humeStart) {
                 const humeLatency = performance.now() - session.humeStart;
+                const humeEndTime = performance.now();
+                session.humeEndTime = humeEndTime;
                 console.log(`[Timing] Hume complete for ${session.extension}: ${humeLatency}ms`);
 
                 // Hook: Sync Manager Hume
@@ -343,6 +431,21 @@ async function initializeHumeWorker(uuid) {
                         extension: session.extension,
                         latency: humeLatency
                     });
+                }
+
+                // Calculate EV→TTS gap (if TTS has started)
+                if (session.ttsStartTime) {
+                    const evToTtsGap = session.ttsStartTime - humeEndTime;
+                    console.log(`[Timing] EV→TTS gap for ${session.extension}: ${evToTtsGap}ms`);
+
+                    // Hook: Sync Manager EV→TTS Gap
+                    if (syncManager) {
+                        syncManager.onOverheadMeasure({
+                            extension: session.extension,
+                            stage: 'ev_to_tts',
+                            overhead: Math.max(0, evToTtsGap) // Ensure non-negative
+                        });
+                    }
                 }
             }
 
@@ -470,8 +573,17 @@ try {
 
         console.log(`[Pipeline] ${uuid} [1/4] Translation check: ${sourceLang} → ${targetLang}`);
         const translationStart = performance.now();
-        const asrToMtNetwork = translationStart - asrEndTime;  // Network latency: ASR end → MT start
-        console.log(`[TIMING-VERIFY] ${uuid} ASR ended at ${asrEndTime}, MT started at ${translationStart}, Network: ${asrToMtNetwork}ms`);
+        const asrToMtGap = translationStart - asrEndTime;  // Server overhead: ASR end → MT start
+        console.log(`[Timing] ${uuid} ASR→MT gap: ${asrToMtGap}ms`);
+
+        // Hook: Sync Manager ASR→MT Gap
+        if (syncManager) {
+            syncManager.onOverheadMeasure({
+                extension: session.extension,
+                stage: 'asr_to_mt',
+                overhead: asrToMtGap
+            });
+        }
 
         let translationResult;
         let translationTime;
@@ -527,8 +639,18 @@ try {
 
         console.log('[Pipeline]', uuid, '[2/4] Synthesizing speech (PCM 16kHz)...');
         const ttsStart = performance.now();
-        const mtToTtsNetwork = ttsStart - (translationStart + translationTime);  // Network latency: MT end → TTS start
-        console.log(`[TIMING-VERIFY] ${uuid} MT: ${translationStart} + ${translationTime} = ${translationStart + translationTime}, TTS started at ${ttsStart}, Network: ${mtToTtsNetwork}ms`);
+        session.ttsStartTime = ttsStart; // Store for EV→TTS gap calculation
+        const mtToTtsGap = ttsStart - (translationStart + translationTime);  // Server overhead: MT end → TTS start
+        console.log(`[Timing] ${uuid} MT→TTS gap: ${mtToTtsGap}ms`);
+
+        // Hook: Sync Manager MT→TTS Gap
+        if (syncManager) {
+            syncManager.onOverheadMeasure({
+                extension: session.extension,
+                stage: 'mt_to_tts',
+                overhead: mtToTtsGap
+            });
+        }
 
         // Override the synthesize method to use PCM output
         const axios = require('axios');
@@ -581,15 +703,23 @@ try {
             console.error('[Pipeline]', uuid, 'Failed to save recording:', err.message);
         }
 
-        // Step 3: Skip downsampling - use 16kHz directly for mic endpoint
-        console.log('[Pipeline]', uuid, '[3/4] Using 16kHz PCM directly (no downsampling needed)');
-        const convertStart = performance.now();
+        // Step 3: Prepare audio for Latency Sync (LS) buffer
+        console.log('[Pipeline]', uuid, '[3/4] Preparing audio for Latency Sync buffer');
+        const lsEntryStart = performance.now();
 
-        const ttsToBufferNetwork = convertStart - (ttsStart + ttsTime);  // Network latency: TTS end → Buffer start
-        console.log(`[TIMING-VERIFY] ${uuid} TTS: ${ttsStart} + ${ttsTime} = ${ttsStart + ttsTime}, Buffer started at ${convertStart}, Network: ${ttsToBufferNetwork}ms`);
+        const ttsToLsGap = lsEntryStart - (ttsStart + ttsTime);  // Server overhead: TTS end → LS entry
+        console.log(`[Timing] ${uuid} TTS→LS gap: ${ttsToLsGap}ms`);
 
-        const convertTime = 0; // No conversion needed
-        console.log('[Pipeline]', uuid, '✓ Audio ready for buffer (16kHz)');
+        // Hook: Sync Manager TTS→LS Gap
+        if (syncManager) {
+            syncManager.onOverheadMeasure({
+                extension: session.extension,
+                stage: 'tts_to_ls',
+                overhead: ttsToLsGap
+            });
+        }
+
+        console.log('[Pipeline]', uuid, '✓ Audio ready for LS buffer (16kHz)');
         console.log('[Pipeline]', uuid, '  PCM 16kHz size:', pcm16Buffer.length, 'bytes');
         console.log('[Pipeline]', uuid, '  Audio duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
 
@@ -612,25 +742,22 @@ try {
             console.log('[Pipeline]', uuid, '✓ Sent audio to browser:', pcm16Buffer.length, 'bytes');
         }
 
-        // Step 4: Send PCM audio to mic endpoint via AudioStreamBuffer
+        // Step 4: Send PCM audio to LS (Latency Sync) buffer
         if (!session.audioStreamBuffer) {
             console.error('[Pipeline]', uuid, 'No AudioStreamBuffer for this session');
             return;
         }
 
-        console.log('[Pipeline]', uuid, '[4/4] Sending audio through AudioStreamBuffer to mic endpoint...');
-        const sendStart = performance.now();
+        console.log('[Pipeline]', uuid, '[4/4] Entering Latency Sync (LS) buffer...');
 
-        const bufferToSendNetwork = sendStart - convertStart;  // Network latency: Buffer start → Send start
-        console.log(`[TIMING-VERIFY] ${uuid} Buffer: ${convertStart}, Send started at ${sendStart}, Network: ${bufferToSendNetwork}ms`);
+        // Track when audio enters LS buffer
+        session.lsEnterTime = performance.now();
+        console.log(`[Timing] ${uuid} Audio entering LS buffer at ${session.lsEnterTime}ms`);
 
         // Route through AudioStreamBuffer for comfort noise and delay
-        console.log('[Pipeline]', uuid, 'Routing 16kHz audio through AudioStreamBuffer');
+        console.log('[Pipeline]', uuid, 'Routing 16kHz audio through LS buffer');
         session.audioStreamBuffer.addAudioChunk(pcm16Buffer);  // Send 16kHz buffer directly
-        console.log('[Pipeline]', uuid, '✓ Audio queued in buffer (will be sent to mic endpoint)');
-
-        const sendTime = performance.now() - sendStart;
-        console.log('[Pipeline]', uuid, '✓ Audio processing time:', sendTime, 'ms');
+        console.log('[Pipeline]', uuid, '✓ Audio queued in LS buffer (will be synchronized and sent to bridge)');
 
         // Calculate total pipeline time
         const totalTime = performance.now() - pipelineStart;
@@ -684,7 +811,7 @@ try {
 // ========================================================================
 // HELPER: Setup event handlers for an orchestrator
 // ========================================================================
-function setupOrchestratorHandlers(orchestrator, orchestratorName) {
+function setupOrchestratorHandlers(orchestrator, orchestratorName, extensionNumber) {
     const HUME_BUFFER_SIZE = 50; // 50 frames = 1 second at 20ms per frame
 
     // Handle incoming PCM frames from AudioSocket
@@ -692,20 +819,66 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName) {
     const uuid = frame.uuid || frame.connectionId;
     const session = getSession(uuid, frame.extensionId);  // Pass extensionId from frame
 
+    // Track frame arrival time
+    const frameArrivalTime = performance.now();
+
+    // Track first audio frame arrival
+    if (!session.firstAudioFrameTime) {
+        session.firstAudioFrameTime = frameArrivalTime;
+        console.log(`[Timing] ${uuid} First audio frame received`);
+    }
 
     // Update session extension if it was null and frame has extensionId
     if (!session.extension && frame.extensionId) {
         session.extension = frame.extensionId;
         console.log("[Pipeline] Updated session extension to:", frame.extensionId);
+        // List all active extensions
+        const activeExtensions = [];
+        for (const [uuid, session] of activeSessions) {
+            if (session.extension) {
+                activeExtensions.push(session.extension);
+            }
+        }
+        console.log("[BiDir] Active extensions:", activeExtensions);
+        // Check if both 7000 and 7001 are active (logging only)
+        if (activeExtensions.includes("7000") && activeExtensions.includes("7001")) {
+            console.log("[BiDir] *** Both extensions 7000 and 7001 are ACTIVE ***");
+        // Register the pair (only once)
+        if (!extensionPairs.has("7000")) {
+            registerExtensionPair("7000", "7001");
+        }
+        }
     }
+
     // Initialize ASR and Hume workers on first frame
     if (!session.asrWorker) {
         await initializeASRWorker(uuid);
         await initializeHumeWorker(uuid);
     }
 
+    // Track when ASR processing starts (when audio is sent to Deepgram)
+    const asrStartTime = performance.now();
+
     // Send frame to Deepgram for transcription
     if (session.asrWorker && session.asrWorker.connected) {
+        // Calculate AudioSocket→ASR gap (processing overhead from frame arrival to ASR send)
+        const audioSocketToAsrGap = asrStartTime - frameArrivalTime;
+
+        // Report periodically (every 50 frames) to show trends
+        if (!session.audioSocketToAsrReported || frame.sequenceNumber % 50 === 0) {
+            console.log(`[Timing] ${uuid} AudioSocket→ASR gap: ${audioSocketToAsrGap.toFixed(2)}ms (frame ${frame.sequenceNumber})`);
+
+            // Hook: Sync Manager AudioSocket→ASR Gap
+            if (syncManager) {
+                syncManager.onOverheadMeasure({
+                    extension: session.extension,
+                    stage: 'audiosocket_to_asr',
+                    overhead: audioSocketToAsrGap
+                });
+            }
+            session.audioSocketToAsrReported = true;
+        }
+
         session.asrWorker.sendAudio(frame.pcm, {
             segmentId: frame.sequenceNumber,
             duration: frame.duration
@@ -718,8 +891,30 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName) {
 
         // Send buffered audio once we have 1 second (50 frames × 20ms)
         if (session.humeAudioBuffer.length >= HUME_BUFFER_SIZE) {
+            const bufferFullTime = performance.now();
             const combinedBuffer = Buffer.concat(session.humeAudioBuffer);
-            session.humeStart = performance.now(); // Track timing for latency
+
+            // Track AudioSocket→EV gap (processing overhead after buffer fills)
+            const humeSendTime = performance.now();
+            const audioSocketToEvGap = humeSendTime - bufferFullTime;
+
+            // Report periodically (every 3rd send, approximately every 3 seconds)
+            const sendCount = Math.floor(frame.sequenceNumber / HUME_BUFFER_SIZE);
+            if (!session.audioSocketToEvReported || sendCount % 3 === 0) {
+                console.log(`[Timing] ${uuid} AudioSocket→EV gap: ${audioSocketToEvGap.toFixed(2)}ms (send ${sendCount})`);
+
+                // Hook: Sync Manager AudioSocket→EV Gap
+                if (syncManager) {
+                    syncManager.onOverheadMeasure({
+                        extension: session.extension,
+                        stage: 'audiosocket_to_ev',
+                        overhead: audioSocketToEvGap
+                    });
+                }
+                session.audioSocketToEvReported = true;
+            }
+
+            session.humeStart = bufferFullTime; // Track timing for latency
             session.humeWorker.sendAudio(combinedBuffer);
             console.log(`[Hume] ${uuid} Sent ${HUME_BUFFER_SIZE} frames (${combinedBuffer.length} bytes, 1 second buffer)`);
             session.humeAudioBuffer = []; // Reset buffer for next batch
@@ -791,11 +986,70 @@ audioSocketOrchestrator.on('connection', (info) => {
     }
 });
 
+    // Handshake handler - uses extensionNumber from function parameter
+    orchestrator.on('handshake', (info) => {
+        const uuid = info.uuid || info.connectionId;
+        const extension = extensionNumber;  // Use extension number passed to function
+
+        console.log('[Pipeline] ✓ Handshake complete:', uuid, '| Extension:', extension, '| Orchestrator:', orchestratorName);
+
+        // Update the session's extension (it may have been created with null)
+        const session = activeSessions.get(uuid);
+        if (session && extension) {
+            session.extension = extension;
+
+            // Register extension with timing server - it will handle pair detection
+            if (global.timingClient) {
+                global.timingClient.registerExtension(extension, uuid);
+                console.log('[BiDir] Registered extension', extension, 'with timing server');
+            }
+        }
+
+        const io = getIO();
+        if (io) {
+            io.emit('audiosocket-handshake', {
+                extension: extension,
+                uuid: uuid,
+                connectionId: info.connectionId || uuid,
+                timestamp: Date.now()
+            });
+        }
+    });
+
+    console.log(`[Pipeline] ✓ Event handlers attached to ${orchestratorName}`);
+}
+
+// OLD handshake handler - kept for backward compatibility with port 5050 only
 audioSocketOrchestrator.on('handshake', (info) => {
     const uuid = info.uuid || info.connectionId;
     const extension = info.extensionId || getExtensionFromUUID(uuid);  // Use extensionId from orchestrator
 
-    console.log('[Pipeline] ✓ Handshake complete:', uuid, '| Extension:', extension);
+    console.log('[Pipeline] ✓ Handshake complete (OLD handler):', uuid, '| Extension:', extension);
+
+    // Update the session's extension (it may have been created with null)
+    const session = activeSessions.get(uuid);
+    if (session && extension) {
+        session.extension = extension;
+        console.log("[BiDir] Updated session extension to:", extension);
+
+        // Check for extension pairs
+        const activeExtensions = [];
+        for (const [sessionUuid, sess] of activeSessions) {
+            if (sess.extension) {
+                activeExtensions.push(sess.extension);
+            }
+        }
+        console.log("[BiDir] Active extensions after handshake:", activeExtensions);
+
+        // Check if both 7000 and 7001 are active
+        if (activeExtensions.includes("7000") && activeExtensions.includes("7001")) {
+            console.log("[BiDir] *** Both extensions 7000 and 7001 are ACTIVE ***");
+            // Register the pair (only once)
+            if (!extensionPairs.has("7000")) {
+                registerExtensionPair("7000", "7001");
+            }
+        }
+    }
 
     const io = getIO();
     if (io) {
@@ -842,14 +1096,13 @@ audioSocketOrchestrator.on('disconnect', (info) => {
     }
     });
 
-    console.log(`[Pipeline] ✓ Event handlers attached to ${orchestratorName}`);
-}
+// NOTE: Function closing brace was moved up to line 1010 after adding handshake handler
 
 // ========================================================================
 // SETUP BOTH ORCHESTRATORS WITH EVENT HANDLERS
 // ========================================================================
-setupOrchestratorHandlers(audioSocketOrchestrator5050, 'orchestrator5050 (ext 7000, port 5050)');
-setupOrchestratorHandlers(audioSocketOrchestrator5052, 'orchestrator5052 (ext 7001, port 5052)');
+setupOrchestratorHandlers(audioSocketOrchestrator5050, 'orchestrator5050 (ext 7000, port 5050)', '7000');
+setupOrchestratorHandlers(audioSocketOrchestrator5052, 'orchestrator5052 (ext 7001, port 5052)', '7001');
 console.log('[Pipeline] ✓ Both orchestrators configured with independent event handlers');
 
 // Start both orchestrators

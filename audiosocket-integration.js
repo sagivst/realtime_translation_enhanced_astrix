@@ -55,6 +55,7 @@ const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 
 const HumeStreamingClient = require('./hume-streaming-client');
 const AudioStreamBuffer = require('./audio-stream-buffer');
+const LatencySyncManager = require("./latency-sync-manager");
 const WebSocket = require('ws');
 
 // Get API keys from environment
@@ -106,10 +107,10 @@ function getExtensionFromUUID(uuid) {
 /**
  * Get or create session for a given UUID
  */
-function getSession(uuid) {
+function getSession(uuid, extensionId) {
     if (!activeSessions.has(uuid)) {
         console.log('[Pipeline] Creating new session for:', uuid);
-        const extension = getExtensionFromUUID(uuid);
+        const extension = extensionId || getExtensionFromUUID(uuid);  // Prefer passed extensionId
         activeSessions.set(uuid, {
             uuid: uuid,
             extension: extension,
@@ -154,6 +155,22 @@ const VOICE_ID = 'pNInz6obpgDQGcFmaJgB';  // Default voice (Adam)
 
 // Get Socket.IO instance from global (set by conference-server.js)
 const getIO = () => global.io;
+
+// Latency & Synchronization Manager
+let syncManager = null;
+function initializeSyncManager() {
+    const io = getIO();
+    if (!io) {
+        console.log("[Sync] Socket.IO not available yet");
+        return;
+    }
+    if (syncManager) return;
+    console.log("[Sync] Initializing Latency & Sync Manager...");
+    syncManager = new LatencySyncManager(io, null);
+    syncManager.start();
+    console.log("[Sync] Manager initialized and started");
+}
+setTimeout(() => { initializeSyncManager(); }, 3000);
 
 // Translation configuration (TODO: make this dynamic per session)
 // Language configuration - now dynamic from QA Settings
@@ -315,6 +332,20 @@ async function initializeHumeWorker(uuid) {
 
         // Emit emotion metrics via Socket.IO (with extension filter)
         session.humeWorker.on('metrics', (metrics) => {
+            // Calculate Hume latency
+            if (session.humeStart) {
+                const humeLatency = performance.now() - session.humeStart;
+                console.log(`[Timing] Hume complete for ${session.extension}: ${humeLatency}ms`);
+
+                // Hook: Sync Manager Hume
+                if (syncManager) {
+                    syncManager.onHumeComplete({
+                        extension: session.extension,
+                        latency: humeLatency
+                    });
+                }
+            }
+
             const io = getIO();
             if (io) {
                 io.emit('emotion_detected', {
@@ -389,6 +420,14 @@ async function initializeASRWorker(uuid) {
                     type: 'final',
                     latency: transcript.latency || 100
                 });
+
+                // Hook: Sync Manager ASR
+                if (syncManager) {
+                    syncManager.onASRComplete({
+                        extension: session.extension,
+                        latency: transcript.latency || 100
+                    });
+                }
             }
 
             // ========================================
@@ -451,7 +490,7 @@ try {
                 originalText,
                 true
             );
-            translationTime = Date.now() - translationStart;
+            translationTime = performance.now() - translationStart;
         }
 
         console.log('[Pipeline]', uuid, '✓ Translation complete:', translationResult.text);
@@ -470,6 +509,14 @@ try {
                 targetLang: targetLang,
                 time: translationTime
             });
+
+            // Hook: Sync Manager MT
+            if (syncManager) {
+                syncManager.onMTComplete({
+                    extension: session.extension,
+                    time: translationTime
+                });
+            }
         }
 
         // Step 2: Synthesize with ElevenLabs (PCM 16kHz output)
@@ -514,6 +561,14 @@ try {
         console.log('[Pipeline]', uuid, '  Format: PCM 16kHz S16LE');
         console.log('[Pipeline]', uuid, '  Duration:', (pcm16Buffer.length / 2 / 16000).toFixed(2), 'seconds');
         console.log('[Pipeline]', uuid, '  Time:', ttsTime, 'ms');
+
+        // Hook: Sync Manager TTS
+        if (syncManager) {
+            syncManager.onTTSComplete({
+                extension: session.extension,
+                latency: ttsTime
+            });
+        }
 
         // Save ElevenLabs output to file for debugging
         const fs = require('fs');
@@ -635,8 +690,14 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName) {
     // Handle incoming PCM frames from AudioSocket
     orchestrator.on('pcm-frame', async (frame) => {
     const uuid = frame.uuid || frame.connectionId;
-    const session = getSession(uuid);
+    const session = getSession(uuid, frame.extensionId);  // Pass extensionId from frame
 
+
+    // Update session extension if it was null and frame has extensionId
+    if (!session.extension && frame.extensionId) {
+        session.extension = frame.extensionId;
+        console.log("[Pipeline] Updated session extension to:", frame.extensionId);
+    }
     // Initialize ASR and Hume workers on first frame
     if (!session.asrWorker) {
         await initializeASRWorker(uuid);
@@ -658,6 +719,7 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName) {
         // Send buffered audio once we have 1 second (50 frames × 20ms)
         if (session.humeAudioBuffer.length >= HUME_BUFFER_SIZE) {
             const combinedBuffer = Buffer.concat(session.humeAudioBuffer);
+            session.humeStart = performance.now(); // Track timing for latency
             session.humeWorker.sendAudio(combinedBuffer);
             console.log(`[Hume] ${uuid} Sent ${HUME_BUFFER_SIZE} frames (${combinedBuffer.length} bytes, 1 second buffer)`);
             session.humeAudioBuffer = []; // Reset buffer for next batch
@@ -731,7 +793,7 @@ audioSocketOrchestrator.on('connection', (info) => {
 
 audioSocketOrchestrator.on('handshake', (info) => {
     const uuid = info.uuid || info.connectionId;
-    const extension = getExtensionFromUUID(uuid);
+    const extension = info.extensionId || getExtensionFromUUID(uuid);  // Use extensionId from orchestrator
 
     console.log('[Pipeline] ✓ Handshake complete:', uuid, '| Extension:', extension);
 
@@ -748,7 +810,7 @@ audioSocketOrchestrator.on('handshake', (info) => {
 
 audioSocketOrchestrator.on('disconnect', (info) => {
     const uuid = info.uuid || info.connectionId;
-    const extension = getExtensionFromUUID(uuid);
+    const extension = info.extensionId || getExtensionFromUUID(uuid);  // Use extensionId from orchestrator
 
     console.log('[Pipeline] Asterisk disconnected:', {
         uuid: uuid,

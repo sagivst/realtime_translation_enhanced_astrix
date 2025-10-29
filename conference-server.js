@@ -67,9 +67,9 @@ global.io = io;
 require("./audiosocket-integration");
 
 // Latency Control Backend (for testing UI only - does not affect production)
-const LatencyControlBackend = require('./latency-control-backend');
-const latencyControl = new LatencyControlBackend();
-latencyControl.registerSocketHandlers(io);
+// const LatencyControlBackend = require('./latency-control-backend');
+// const latencyControl = new LatencyControlBackend();
+// latencyControl.registerSocketHandlers(io);
 console.log('[Server] ✓ Latency Control Backend initialized (testing mode)');
 
 app.use(express.static(path.join(__dirname, 'public')));

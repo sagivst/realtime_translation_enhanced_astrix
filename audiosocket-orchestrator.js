@@ -43,6 +43,21 @@ class AudioSocketOrchestrator extends EventEmitter {
         };
     }
 
+
+    /**
+     * Map server port to extension ID
+     * Port 5050 → Extension 7000
+     * Port 5052 → Extension 7001
+     */
+    getExtensionFromPort(port) {
+        const portMap = {
+            5050: '7000',  // Main AudioSocket port → Extension 7000
+            5051: '7000',  // WebSocket port → Extension 7000
+            5052: '7001',  // Second AudioSocket port → Extension 7001
+            5053: '7001'   // Second WebSocket port → Extension 7001 (future)
+        };
+        return portMap[port] || 'unknown';
+    }
     /**
      * Start both TCP AudioSocket and WebSocket servers
      */
@@ -108,16 +123,19 @@ class AudioSocketOrchestrator extends EventEmitter {
     handleTcpConnection(socket) {
         const connectionId = `tcp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const clientIp = socket.remoteAddress;
+        const serverPort = socket.localPort;  // Which port received this connection
+        const extensionId = this.getExtensionFromPort(serverPort);  // Map port → extension
 
         // CRITICAL FIX: Disable socket timeout (default is 2 minutes)
         // This prevents automatic disconnection during long calls
         socket.setTimeout(0);
 
-        console.log(`[AudioSocket/TCP] ✓ New connection: ${connectionId} from ${clientIp}`);
+        console.log(`[AudioSocket/TCP] ✓ New connection: ${connectionId} - Extension: ${extensionId}, from ${clientIp}`);
 
         const connectionInfo = {
             id: connectionId,
             type: 'tcp',
+            extensionId: extensionId,  // Extension ID from port mapping (7000, 7001, etc)
             socket: socket,
             startTime: Date.now(),
             framesReceived: 0,
@@ -176,14 +194,17 @@ class AudioSocketOrchestrator extends EventEmitter {
 
         const connectionId = `ws_${participantId}_${Date.now()}`;
         const clientIp = req.socket.remoteAddress;
+        const serverPort = req.socket.localPort;  // WebSocket server port
+        const extensionId = this.getExtensionFromPort(serverPort);  // Map port → extension
 
-        console.log(`[WebSocket] ✓ New connection: ${connectionId} from ${clientIp}`);
+        console.log(`[WebSocket] ✓ New connection: ${connectionId} - Extension: , from ${clientIp}`);
         console.log(`[WebSocket] Participant ID: ${participantId}`);
         console.log(`[WebSocket] URL: ${req.url}`);
-
+        console.log(`[WebSocket] ✓ New connection: ${connectionId} - Extension: ${extensionId}, from ${clientIp}`);
         const connectionInfo = {
             id: connectionId,
             type: 'websocket',
+            extensionId: extensionId,  // Extension ID from WebSocket port
             socket: ws,
             startTime: Date.now(),
             framesReceived: 0,
@@ -229,7 +250,8 @@ class AudioSocketOrchestrator extends EventEmitter {
         // Emit immediate handshake event (WebSocket provides ID upfront)
         this.emit('handshake', {
             connectionId: connectionInfo.id,
-            uuid: participantId
+            uuid: participantId,
+            extensionId: connectionInfo.extensionId
         });
     }
 
@@ -330,13 +352,14 @@ class AudioSocketOrchestrator extends EventEmitter {
      * Handle UUID frame (TCP only)
      */
     handleUUIDFrame(conn, frameData) {
-        conn.uuid = frameData.toString('utf8').trim();
+        conn.uuid = frameData.toString('hex').trim();
         conn.uuidReceived = true;
         console.log(`[AudioSocket/TCP] ✓ Received UUID for ${conn.id}: ${conn.uuid}`);
 
         this.emit('handshake', {
             connectionId: conn.id,
-            uuid: conn.uuid
+            uuid: conn.uuid,
+            extensionId: conn.extensionId
         });
     }
 
@@ -370,6 +393,7 @@ class AudioSocketOrchestrator extends EventEmitter {
             uuid: conn.uuid,
             participantId: conn.participantId || conn.uuid,
             protocol: conn.type,
+            extensionId: conn.extensionId,  // Extension ID (7000, 7001, etc) for filtering
             pcm: frameData,
             size: frameData.length,
             timestamp: Date.now(),
@@ -489,6 +513,7 @@ class AudioSocketOrchestrator extends EventEmitter {
             connectionId: conn.id,
             uuid: conn.uuid,
             protocol: conn.type,
+            extensionId: conn.extensionId,  // Extension ID (7000, 7001, etc) for filtering
             duration,
             framesReceived: conn.audioFramesReceived,
             bytesReceived: conn.bytesReceived

@@ -10,7 +10,8 @@ require('dotenv').config();
 // Import translation services
 const { createClient } = require('@deepgram/sdk');
 const deepl = require('deepl-node');
-const sdk = require('microsoft-cognitiveservices-speech-sdk');
+// const sdk = require('microsoft-cognitiveservices-speech-sdk'); // Replaced with ElevenLabs
+const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 const HumeStreamingClient = require('./hume-streaming-client');
 
 // Import HMLCP modules
@@ -62,9 +63,53 @@ const io = socketIo(server, {
 // Make Socket.IO available globally for audiosocket-integration
 global.io = io;
 
+// Initialize Timing Server Client for bidirectional translation
+const TimingClient = require('./timing-client');
+global.timingClient = new TimingClient();
+global.timingClient.connect().then(() => {
+    console.log('[Server] ✓ Timing client connected');
+}).catch(err => {
+    console.error('[Server] ✗ Timing client connection failed:', err.message);
+});
+
+// Phase 2: Global session registry for audio injection by extension
+// Key: extension number (string), Value: session object
+global.activeSessions = new Map();
+console.log('[Phase2] Global session registry initialized');
+
 // Start AudioSocket server (for Asterisk integration on port 5050)
 // IMPORTANT: Must load AFTER global.io is set
 require("./audiosocket-integration");
+
+// Phase 2: Set up INJECT_AUDIO handler for bidirectional audio buffering
+global.timingClient.setInjectAudioHandler((msg) => {
+    const { toExtension, audioData, timestamp } = msg;
+
+    // Look up session by extension
+    const session = global.activeSessions.get(String(toExtension));
+
+    if (!session) {
+        console.warn(`[Phase2] ✗ No session found for extension ${toExtension}`);
+        return;
+    }
+
+    if (!session.micWebSocket || session.micWebSocket.readyState !== 1) {
+        console.warn(`[Phase2] ✗ MicWebSocket not ready for extension ${toExtension}`);
+        return;
+    }
+
+    // Decode base64 audio to buffer
+    const audioBuffer = Buffer.from(audioData, 'base64');
+
+    // Inject audio using the global function
+    if (global.sendAudioToMicEndpoint) {
+        global.sendAudioToMicEndpoint(session.micWebSocket, audioBuffer);
+        console.log(`[Phase2] ✓ Injected ${audioBuffer.length} bytes to extension ${toExtension}`);
+    } else {
+        console.error('[Phase2] ✗ sendAudioToMicEndpoint not available');
+    }
+});
+console.log('[Phase2] INJECT_AUDIO handler registered');
 
 // Latency Control Backend (for testing UI only - does not affect production)
 // const LatencyControlBackend = require('./latency-control-backend');
@@ -82,14 +127,21 @@ app.use('/files/translations', express.static(path.join(__dirname, 'translations
 // Initialize services
 const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
 const deeplApiKey = process.env.DEEPL_API_KEY;
-const azureSpeechKey = process.env.AZURE_SPEECH_KEY;
-const azureSpeechRegion = process.env.AZURE_SPEECH_REGION;
+const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
+const elevenlabsVoiceId = process.env.ELEVENLABS_DEFAULT_VOICE_ID;
 const humeApiKey = process.env.HUME_EVI_API_KEY;
 
 // Initialize DeepL translator
 let translator;
 if (deeplApiKey) {
   translator = new deepl.Translator(deeplApiKey);
+}
+
+// Initialize ElevenLabs TTS
+let elevenlabsTTS = null;
+if (elevenlabsApiKey) {
+  elevenlabsTTS = new ElevenLabsTTSService(elevenlabsApiKey);
+  console.log('ElevenLabs TTS service initialized');
 }
 
 // Store active rooms and participants
@@ -99,12 +151,17 @@ const participants = new Map();
 // Store user profiles for HMLCP
 const userProfiles = new Map(); // key: userId_language, value: { profile, uloLayer }
 
-// QA Settings: Global language configuration
-global.qaConfig = {
-  sourceLang: 'en',
-  targetLang: 'en',
-  qaMode: true
-};
+// QA Settings: Per-extension language configuration
+// Extension 7000: English → French (DEFAULT)
+// Extension 7001: French → English (OPPOSITE - for bidirectional translation)
+global.qaConfigs = new Map();
+global.qaConfigs.set('7000', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
+global.qaConfigs.set('7001', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
+
+// Helper function to get config for extension (with fallback)
+function getQaConfig(extension) {
+  return global.qaConfigs.get(extension) || global.qaConfigs.get('7000');
+}
 
 // Store streaming Deepgram connections per socket
 const streamingConnections = new Map(); // key: socket.id, value: { connection, customVocab }
@@ -219,52 +276,27 @@ async function translateText(text, sourceLang, targetLang) {
   }
 }
 async function synthesizeSpeech(text, language) {
-  if (!azureSpeechKey || !azureSpeechRegion) {
-    console.warn('Azure Speech not configured');
+  if (!elevenlabsTTS) {
+    console.warn('ElevenLabs TTS not configured');
     return null;
   }
 
   try {
-    const speechConfig = sdk.SpeechConfig.fromSubscription(azureSpeechKey, azureSpeechRegion);
-    const voiceMap = {
-      'en': 'en-US-JennyNeural',
-      'es': 'es-ES-ElviraNeural',
-      'fr': 'fr-FR-DeniseNeural',
-      'de': 'de-DE-KatjaNeural',
-      'it': 'it-IT-ElsaNeural',
-      'pt': 'pt-PT-RaquelNeural',
-      'ja': 'ja-JP-NanamiNeural',
-      'ko': 'ko-KR-SunHiNeural',
-      'zh': 'zh-CN-XiaoxiaoNeural',
-      'ru': 'ru-RU-SvetlanaNeural'
-    };
+    // Use the default voice ID from .env
+    const voiceId = elevenlabsVoiceId || 'XPwQNE5RX9Rdhyx0DWcI'; // Boyan Tiholov
 
-    speechConfig.speechSynthesisVoiceName = voiceMap[language] || voiceMap['en'];
-    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
-
-    const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-
-    return new Promise((resolve, reject) => {
-      synthesizer.speakTextAsync(
-        text,
-        result => {
-          if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-            const audioData = result.audioData;
-            synthesizer.close();
-            resolve(Buffer.from(audioData));
-          } else {
-            synthesizer.close();
-            reject(new Error('Speech synthesis failed'));
-          }
-        },
-        error => {
-          synthesizer.close();
-          reject(error);
-        }
-      );
+    // Synthesize using ElevenLabs (returns MP3 buffer)
+    const result = await elevenlabsTTS.synthesize(text, voiceId, {
+      modelId: 'eleven_multilingual_v2' // Supports 29 languages
     });
+
+    if (result && result.audio) {
+      return result.audio; // Return the audio buffer
+    }
+
+    return null;
   } catch (error) {
-    console.error('TTS error:', error);
+    console.error('ElevenLabs TTS error:', error);
     return null;
   }
 }
@@ -872,17 +904,21 @@ io.on('connection', (socket) => {
 
   // QA Settings: Handle language configuration from dashboard
   socket.on('qa-language-config', (config) => {
-    const { sourceLang, targetLang, qaMode } = config;
+    const { sourceLang, targetLang, qaMode, extension } = config;
 
-    // Update global QA configuration
-    global.qaConfig.sourceLang = sourceLang;
-    global.qaConfig.targetLang = targetLang;
-    global.qaConfig.qaMode = qaMode;
+    if (!extension) {
+      console.warn('[QA Config] ⚠️  No extension specified, ignoring update');
+      return;
+    }
 
-    console.log(`[QA Config] Updated: ${sourceLang} → ${targetLang} (QA Mode: ${qaMode})`);
+    // Update per-extension QA configuration
+    global.qaConfigs.set(extension, { sourceLang, targetLang, qaMode });
 
-    // Broadcast to all connected clients
+    console.log(`[QA Config] ✓ Extension ${extension} updated: ${sourceLang} → ${targetLang} (QA Mode: ${qaMode})`);
+
+    // Broadcast to all connected clients (they will filter by extension)
     io.emit('qa-config-updated', {
+      extension,
       sourceLang,
       targetLang,
       qaMode
@@ -949,7 +985,7 @@ app.get('/health', (req, res) => {
     services: {
       deepgram: !!deepgramApiKey,
       deepl: !!deeplApiKey,
-      azure: !!(azureSpeechKey && azureSpeechRegion)
+      elevenlabs: !!elevenlabsApiKey
     },
     activeRooms: rooms.size,
     activeParticipants: participants.size
@@ -1170,7 +1206,7 @@ server.listen(PORT, HOST, () => {
   console.log('\nServices status:');
   console.log('  - Deepgram STT:', deepgramApiKey ? '✓' : '✗ (not configured)');
   console.log('  - DeepL Translation:', deeplApiKey ? '✓' : '✗ (not configured)');
-  console.log('  - Azure TTS:', (azureSpeechKey && azureSpeechRegion) ? '✓' : '✗ (not configured)');
+  console.log('  - ElevenLabs TTS:', elevenlabsApiKey ? '✓' : '✗ (not configured)');
 
   if (protocol === 'https') {
     console.log('\n✓ HTTPS enabled - Microphone will work on remote devices!');

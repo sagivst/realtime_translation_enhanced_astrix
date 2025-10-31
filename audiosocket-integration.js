@@ -56,11 +56,11 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const AudioStreamBuffer = require('./audio-stream-buffer');
 const LatencySyncManager = require("./latency-sync-manager");
 const WebSocket = require('ws');
-const TimingClient = require("./timing-client");
 
 // Get API keys from environment
 const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
 const deeplApiKey = process.env.DEEPL_API_KEY;
+const deeplApiKey7001 = process.env.DEEPL_API_KEY_7001 || deeplApiKey;  // Fallback to primary key
 const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
 const humeApiKey = process.env.HUME_EVI_API_KEY;
 
@@ -77,8 +77,18 @@ const audioSocketOrchestrator5052 = new AudioSocketOrchestrator(5052, 5053);  //
 const audioSocketOrchestrator = audioSocketOrchestrator5050;  // Backward compatibility
 
 // Initialize translation services (shared across all calls)
-const translator = deeplApiKey ? new DeepLIncrementalMT(deeplApiKey) : null;
+// Separate DeepL instances for each extension (prevents concurrent request blocking)
+const translator7000 = deeplApiKey ? new DeepLIncrementalMT(deeplApiKey) : null;
+const translator7001 = deeplApiKey7001 ? new DeepLIncrementalMT(deeplApiKey7001) : null;
+const translator = translator7000;  // Backward compatibility
 const ttsService = elevenlabsApiKey ? new ElevenLabsTTSService(elevenlabsApiKey) : null;
+
+// Helper function to get correct translator for extension
+function getTranslator(extension) {
+    console.log("[DeepL Router] Extension:", extension, "-> Using translator7000:", (extension !== "7001"), "translator7001:", (extension === "7001"));
+    if (extension === "7001") return translator7001;
+    return translator7000;  // Default to 7000
+}
 
 // ============================================================================
 // MULTI-PROCESS SESSION MANAGEMENT
@@ -112,7 +122,7 @@ function getSession(uuid, extensionId) {
         console.log('[Pipeline] Creating new session for:', uuid);
         const extension = extensionId || getExtensionFromUUID(uuid);  // Prefer passed extensionId
         activeSessions.set(uuid, {
-            uuid: uuid,
+            uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             extension: extension,
             asrWorker: null,
             humeWorker: null,
@@ -127,11 +137,6 @@ function getSession(uuid, extensionId) {
             lsExitTime: null,            // When audio exits Latency Sync buffer
             bridgeInjectTime: null       // When audio is injected into bridge
         });
-        // Register extension with timing server
-        if (global.timingClient && global.timingClient.connected) {
-            global.timingClient.registerExtension(String(extension), uuid);
-            console.log(`[TimingSync] Registered extension ${extension} with timing server (UUID: ${uuid})`);
-        }
     }
     return activeSessions.get(uuid);
 }
@@ -169,23 +174,6 @@ const getIO = () => global.io;
 
 // Latency & Synchronization Manager
 let syncManager = null;
-// Timing Server Client (for bidirectional sync)
-let timingClient = null;
-function initializeTimingClient() {
-    if (timingClient) return;
-    console.log("[TimingClient] Initializing connection to timing server...");
-    timingClient = new TimingClient("127.0.0.1", 6000);
-    timingClient.connect()
-        .then(() => {
-            console.log("[TimingClient] ✓ Connected and ready");
-            global.timingClient = timingClient;  // Make available globally
-        })
-        .catch((err) => {
-            console.error("[TimingClient] Connection failed:", err.message);
-        });
-}
-setTimeout(() => { initializeTimingClient(); }, 2000);
-
 function initializeSyncManager() {
     const io = getIO();
     if (!io) {
@@ -200,13 +188,14 @@ function initializeSyncManager() {
 }
 setTimeout(() => { initializeSyncManager(); }, 3000);
 
-// Translation configuration (TODO: make this dynamic per session)
-// Language configuration - now dynamic from QA Settings
-function getSourceLang() {
-    return (global.qaConfig && global.qaConfig.sourceLang) || 'en';
+// Translation configuration - per-extension from QA Settings
+function getSourceLang(extension) {
+    const config = global.qaConfigs && global.qaConfigs.get(extension);
+    return (config && config.sourceLang) || 'en';
 }
-function getTargetLang() {
-    return (global.qaConfig && global.qaConfig.targetLang) || 'ja';
+function getTargetLang(extension) {
+    const config = global.qaConfigs && global.qaConfigs.get(extension);
+    return (config && config.targetLang) || 'fr';
 }
 
 /**
@@ -253,6 +242,9 @@ function sendAudioToMicEndpoint(micWebSocket, pcmBuffer) {
         micWebSocket.send(remainingFrame);
     }
 }
+
+// Phase 2: Export as global for INJECT_AUDIO handler
+global.sendAudioToMicEndpoint = sendAudioToMicEndpoint;
 
 // ============================================================================
 // Initialize Audio Stream Buffer (per call, per language)
@@ -344,30 +336,12 @@ function initializeAudioStreamBuffer(uuid) {
             });
         }
 
-        // Send e2e latency to timing server for bidirectional sync
-        if (syncManager && global.timingClient && global.timingClient.connected) {
-            const channel = syncManager.getOrCreateChannel(session.extension);
-            const e2eLatency = channel.latencies.e2e.current;
-
-            // Determine paired extension (7000 ↔ 7001)
-            const pairedExt = (String(session.extension) === "7000") ? "7001" : "7000";
-
-            if (e2eLatency > 0) {
-                global.timingClient.updateLatency(
-                    String(session.extension),
-                    pairedExt,
-                    e2eLatency
-                );
-                console.log();
-            }
-        }
-
         // Phase 2: Route audio through timing server for buffering (controlled by env var)
         const ENABLE_PHASE2 = process.env.TIMING_PHASE2_ENABLED === 'true';
-        
-        if (ENABLE_PHASE2 && global.timingClient && global.timingClient.connected) {
-            // Send audio packet to timing server for buffering and synchronized injection
-            console.log();
+
+        if (ENABLE_PHASE2 && global.timingClient && global.timingClient.connected && session.extension) {
+            // Phase 2: Send audio packet to timing server for buffering and synchronized injection
+            console.log(`[Phase2] Sending audio packet to timing server for ext ${session.extension}`);
             global.timingClient.sendAudioPacket(
                 String(session.extension),
                 pcmBuffer,
@@ -376,10 +350,7 @@ function initializeAudioStreamBuffer(uuid) {
             console.log('[Pipeline] ✓ Audio sent to timing server for buffering (Phase 2)');
         } else {
             // Phase 1: Direct bridge injection (current behavior)
-            // Track bridge injection start
             const bridgeInjectStart = performance.now();
-
-            // Send to WebSocket mic endpoint (bridge injection)
             sendAudioToMicEndpoint(session.micWebSocket, pcmBuffer);
 
             // Track bridge injection completion
@@ -387,21 +358,21 @@ function initializeAudioStreamBuffer(uuid) {
             const bridgeInjectTime = session.bridgeInjectTime - bridgeInjectStart;
 
             console.log('[Pipeline] ✓ Audio sent to bridge for', uuid, '(16kHz,', pcmBuffer.length, 'bytes)');
-            console.log();
+            console.log(`[Timing] ${uuid} Bridge injection time: ${bridgeInjectTime}ms`);
+        }
 
-            // Calculate LS→Bridge gap
-            if (session.lsExitTime) {
-                const lsToBridgeGap = bridgeInjectStart - session.lsExitTime;
-                console.log();
+        // Calculate LS→Bridge gap (only for Phase 1 direct injection)
+        if (!ENABLE_PHASE2 && session.lsExitTime && session.bridgeInjectTime) {
+            const lsToBridgeGap = session.bridgeInjectTime - session.lsExitTime;
+            console.log(`[Timing] ${uuid} LS→Bridge gap: ${lsToBridgeGap}ms`);
 
-                // Hook: Sync Manager LS→Bridge Gap
-                if (syncManager) {
-                    syncManager.onOverheadMeasure({
-                        extension: session.extension,
-                        stage: 'ls_to_bridge',
-                        overhead: lsToBridgeGap
-                    });
-                }
+            // Hook: Sync Manager LS→Bridge Gap
+            if (syncManager) {
+                syncManager.onOverheadMeasure({
+                    extension: session.extension,
+                    stage: 'ls_to_bridge',
+                    overhead: lsToBridgeGap
+                });
             }
         }
     });
@@ -468,7 +439,7 @@ async function initializeHumeWorker(uuid) {
             if (io) {
                 io.emit('emotion_detected', {
                     extension: session.extension,
-                    uuid: uuid,
+                    uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                     arousal: metrics.arousal,
                     valence: metrics.valence,
                     energy: metrics.energy,
@@ -499,7 +470,7 @@ async function initializeASRWorker(uuid) {
     }
 
     try {
-        session.asrWorker = new ASRStreamingWorker(deepgramApiKey, getSourceLang());
+        session.asrWorker = new ASRStreamingWorker(deepgramApiKey, getSourceLang(session.extension));
         await session.asrWorker.connect();
         console.log('[Pipeline] ✓ ASR worker connected for', uuid);
 
@@ -510,8 +481,8 @@ async function initializeASRWorker(uuid) {
             if (io) {
                 io.emit('transcriptionPartial', {
                     extension: session.extension,
-                    connectionId: uuid,
-                    uuid: uuid,
+                    connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+                    uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                     text: transcript.text,
                     language: transcript.language,
                     type: 'partial'
@@ -529,8 +500,8 @@ async function initializeASRWorker(uuid) {
             if (io) {
                 io.emit('transcriptionFinal', {
                     extension: session.extension,
-                    connectionId: uuid,
-                    uuid: uuid,
+                    connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+                    uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                     text: transcript.text,
                     transcript: transcript.text,
                     language: transcript.language,
@@ -577,14 +548,16 @@ async function processTranslationPipeline(uuid, originalText, asrEndTime) {
     console.log('[Pipeline]', uuid, 'Original text:', originalText);
 
 try {
+        // Get correct translator for this extension
+        const activeTranslator = getTranslator(session.extension);
         // Step 1: Translate with DeepL (or bypass if source === target)
-        if (!translator) {
+        if (!activeTranslator) {
             console.error('[Pipeline]', uuid, 'DeepL not initialized, skipping translation');
             return;
         }
 
-        const sourceLang = getSourceLang();
-        const targetLang = getTargetLang();
+        const sourceLang = getSourceLang(session.extension);
+        const targetLang = getTargetLang(session.extension);
 
         console.log(`[Pipeline] ${uuid} [1/4] Translation check: ${sourceLang} → ${targetLang}`);
         const translationStart = performance.now();
@@ -610,7 +583,7 @@ try {
             translationTime = 0;
         } else {
             console.log('[Pipeline]', uuid, 'Calling DeepL for translation...');
-            translationResult = await translator.translateIncremental(
+            translationResult = await activeTranslator.translateIncremental(
                 uuid, // Use full UUID as session ID
                 sourceLang,
                 targetLang,
@@ -628,8 +601,8 @@ try {
         if (io) {
             io.emit('translationComplete', {
                 extension: session.extension,
-                connectionId: uuid,
-                uuid: uuid,
+                connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+                uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                 original: originalText,
                 translation: translationResult.text,
                 sourceLang: sourceLang,
@@ -743,7 +716,7 @@ try {
             console.log('[Pipeline]', uuid, '📤 Sending translated audio to browser...');
             io.emit('translatedAudio', {
                 extension: session.extension,
-                uuid: uuid,
+                uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                 audio: pcm16Buffer.toString("base64"),  // Send as Buffer (same as audioStream)
                 sampleRate: 16000,  // 16kHz PCM from ElevenLabs
                 channels: 1,
@@ -789,7 +762,7 @@ try {
         if (io) {
             io.emit('pipelineComplete', {
                 extension: session.extension,
-                uuid: uuid,
+                uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                 original: originalText,
                 translation: translationResult.text,
                 totalTime,
@@ -815,7 +788,7 @@ try {
         if (io) {
             io.emit('pipelineError', {
                 extension: session.extension,
-                uuid: uuid,
+                uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                 error: error.message,
                 original: originalText
             });
@@ -847,6 +820,13 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName, extensionNumb
     if (!session.extension && frame.extensionId) {
         session.extension = frame.extensionId;
         console.log("[Pipeline] Updated session extension to:", frame.extensionId);
+
+        // Phase 2: Register session in global registry for audio injection
+        if (global.activeSessions) {
+            global.activeSessions.set(String(frame.extensionId), session);
+            console.log(`[Phase2] Registered session for extension ${frame.extensionId}`);
+        }
+
         // List all active extensions
         const activeExtensions = [];
         for (const [uuid, session] of activeSessions) {
@@ -858,10 +838,6 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName, extensionNumb
         // Check if both 7000 and 7001 are active (logging only)
         if (activeExtensions.includes("7000") && activeExtensions.includes("7001")) {
             console.log("[BiDir] *** Both extensions 7000 and 7001 are ACTIVE ***");
-        // Register the pair (only once)
-        if (!extensionPairs.has("7000")) {
-            registerExtensionPair("7000", "7001");
-        }
         }
     }
 
@@ -941,7 +917,7 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName, extensionNumb
     if (io) {
         io.emit('audioStream', {
             extension: session.extension,
-            uuid: uuid,
+            uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             buffer: frame.pcm,
             sequenceNumber: frame.sequenceNumber,
             sampleRate: 8000,
@@ -954,7 +930,7 @@ function setupOrchestratorHandlers(orchestrator, orchestratorName, extensionNumb
 
 // Log connections
 audioSocketOrchestrator.on('connection', (info) => {
-    const uuid = info.connectionId;
+    const uuid = typeof info.connectionId === 'string' ? info.connectionId : info.connectionId.toString();
     
     // CRITICAL FIX: Skip WebSocket loopback connections
     if (info.protocol === 'websocket') {
@@ -981,16 +957,28 @@ audioSocketOrchestrator.on('connection', (info) => {
 
     const io = getIO();
     if (io) {
+        // DEBUG: Log UUID before emitting
+        console.log('[UUID DEBUG] Before emit - UUID type:', typeof uuid, '| Value:', uuid, '| Buffer check:', Buffer.isBuffer(uuid));
+        if (Buffer.isBuffer(uuid)) {
+            console.log('[UUID DEBUG] WARNING: UUID is a Buffer! Hex:', uuid.toString('hex'), '| UTF8:', uuid.toString('utf8'));
+        }
         io.emit('audiosocket-connected', {
             extension: extension,
-            connectionId: uuid,
-            uuid: uuid,
+            connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+            uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+            timestamp: Date.now()
+        });
+
+        // Emit callConnected for dashboard compatibility
+        io.emit('callConnected', {
+            callUUID: uuid,
+            extension: extension,
             timestamp: Date.now()
         });
 
         io.emit('audioStreamStart', {
             extension: extension,
-            connectionId: uuid,
+            connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             format: {
                 sampleRate: 8000,
                 channels: 1,
@@ -1024,9 +1012,24 @@ audioSocketOrchestrator.on('connection', (info) => {
         if (io) {
             io.emit('audiosocket-handshake', {
                 extension: extension,
-                uuid: uuid,
-                connectionId: info.connectionId || uuid,
+                uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+                connectionId: info.connectionId || (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
                 timestamp: Date.now()
+            });
+        }
+    });
+
+    // Outbound packet handler - tracks audio sent back to Asterisk
+    orchestrator.on('outbound-packet', (data) => {
+        const io = getIO();
+        if (io) {
+            io.emit('asterisk-outbound-packet', {
+                bridgeId: data.bridgeId,
+                extension: data.extension,
+                uuid: (Buffer.isBuffer(data.uuid) ? data.uuid.toString("utf8") : String(data.uuid)),
+                framesSent: data.framesSent,
+                bytesSent: data.bytesSent,
+                timestamp: data.timestamp
             });
         }
     });
@@ -1059,10 +1062,6 @@ audioSocketOrchestrator.on('handshake', (info) => {
         // Check if both 7000 and 7001 are active
         if (activeExtensions.includes("7000") && activeExtensions.includes("7001")) {
             console.log("[BiDir] *** Both extensions 7000 and 7001 are ACTIVE ***");
-            // Register the pair (only once)
-            if (!extensionPairs.has("7000")) {
-                registerExtensionPair("7000", "7001");
-            }
         }
     }
 
@@ -1070,8 +1069,8 @@ audioSocketOrchestrator.on('handshake', (info) => {
     if (io) {
         io.emit('audiosocket-handshake', {
             extension: extension,
-            uuid: uuid,
-            connectionId: info.connectionId || uuid,
+            uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+            connectionId: info.connectionId || (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             timestamp: Date.now()
         });
     }
@@ -1082,7 +1081,7 @@ audioSocketOrchestrator.on('disconnect', (info) => {
     const extension = info.extensionId || getExtensionFromUUID(uuid);  // Use extensionId from orchestrator
 
     console.log('[Pipeline] Asterisk disconnected:', {
-        uuid: uuid,
+        uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
         extension: extension,
         duration: `${info.duration.toFixed(1)}s`,
         frames: info.framesReceived
@@ -1095,8 +1094,8 @@ audioSocketOrchestrator.on('disconnect', (info) => {
     if (io) {
         io.emit('audiosocket-disconnected', {
             extension: extension,
-            connectionId: uuid,
-            uuid: uuid,
+            connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
+            uuid: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             duration: info.duration,
             frames: info.framesReceived,
             timestamp: Date.now()
@@ -1104,7 +1103,7 @@ audioSocketOrchestrator.on('disconnect', (info) => {
 
         io.emit('audioStreamEnd', {
             extension: extension,
-            connectionId: uuid,
+            connectionId: (Buffer.isBuffer(uuid) ? uuid.toString("utf8") : String(uuid)),
             duration: info.duration,
             frames: info.framesReceived
         });
@@ -1156,7 +1155,7 @@ console.log('[Pipeline] ══════════════════�
 console.log('[Pipeline] Flow: Asterisk → Deepgram STT → DeepL MT → ElevenLabs TTS (PCM 16kHz) → AudioStreamBuffer → WebSocket Mic Endpoint');
 console.log('[Pipeline] AudioSocket: port 5050 (receives audio FROM caller mic)');
 console.log('[Pipeline] WebSocket Mic: port 5051 (sends audio TO caller mic as input)');
-console.log('[Pipeline] Languages:', getSourceLang(), '→', getTargetLang());
+console.log('[Pipeline] Languages: 7000 (en→fr), 7001 (fr→en)');
 console.log('[Pipeline] Voice ID:', VOICE_ID);
 console.log('[Pipeline] Audio: 16kHz PCM (with comfort noise) → Mic endpoint');
 console.log('[Pipeline] Comfort Noise: ENABLED by default');

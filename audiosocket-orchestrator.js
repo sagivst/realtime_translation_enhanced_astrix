@@ -141,7 +141,10 @@ class AudioSocketOrchestrator extends EventEmitter {
             framesReceived: 0,
             audioFramesReceived: 0,
             bytesReceived: 0,
+            framesSent: 0,           // Track outbound packets
+            bytesSent: 0,            // Track outbound bytes
             lastFrameTime: Date.now(),
+            lastSentTime: null,      // Track last outbound packet time
             uuid: null,
             buffer: Buffer.alloc(0),
             uuidReceived: false
@@ -210,7 +213,10 @@ class AudioSocketOrchestrator extends EventEmitter {
             framesReceived: 0,
             audioFramesReceived: 0,
             bytesReceived: 0,
+            framesSent: 0,           // Track outbound packets
+            bytesSent: 0,            // Track outbound bytes
             lastFrameTime: Date.now(),
+            lastSentTime: null,      // Track last outbound packet time
             uuid: participantId,
             uuidReceived: true,  // WebSocket provides ID in URL
             participantId: participantId,
@@ -352,17 +358,36 @@ class AudioSocketOrchestrator extends EventEmitter {
      * Handle UUID frame (TCP only)
      */
     handleUUIDFrame(conn, frameData) {
-        conn.uuid = frameData.toString('hex').trim();
+        // CRITICAL: Asterisk sends UUID as 16 bytes of binary data, not UTF-8 string
+        // Convert from binary to standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        let uuidString;
+        
+        if (Buffer.isBuffer(frameData) && frameData.length === 16) {
+            // Convert 16 bytes to hex string
+            const hex = frameData.toString("hex");
+            // Format as UUID with hyphens: 8-4-4-4-12
+            uuidString = hex.substring(0, 8) + "-" + 
+                         hex.substring(8, 12) + "-" + 
+                         hex.substring(12, 16) + "-" + 
+                         hex.substring(16, 20) + "-" + 
+                         hex.substring(20);
+        } else if (typeof frameData === "string") {
+            uuidString = frameData.trim();
+        } else {
+            // Fallback: try toString
+            uuidString = String(frameData).trim();
+        }
+        
+        conn.uuid = uuidString;
         conn.uuidReceived = true;
-        console.log(`[AudioSocket/TCP] ✓ Received UUID for ${conn.id}: ${conn.uuid}`);
+        console.log("[AudioSocket/TCP] ✓ Received UUID for " + conn.id + ": \"" + conn.uuid + "\"");
 
-        this.emit('handshake', {
+        this.emit("handshake", {
             connectionId: conn.id,
             uuid: conn.uuid,
             extensionId: conn.extensionId
         });
     }
-
     /**
      * Handle audio frame (both TCP and WebSocket)
      */
@@ -390,8 +415,8 @@ class AudioSocketOrchestrator extends EventEmitter {
         // Create frame object
         const frame = {
             connectionId: conn.id,
-            uuid: conn.uuid,
-            participantId: conn.participantId || conn.uuid,
+            uuid: String(conn.uuid || ""),  // Ensure UUID is always a string
+            participantId: String(conn.participantId || conn.uuid || ""),  // Ensure participantId is always a string
             protocol: conn.type,
             extensionId: conn.extensionId,  // Extension ID (7000, 7001, etc) for filtering
             pcm: frameData,
@@ -486,6 +511,22 @@ class AudioSocketOrchestrator extends EventEmitter {
                     conn.socket.send(pcmData, { binary: true });
                 }
             }
+
+            // Track outbound metrics
+            conn.framesSent++;
+            conn.bytesSent += pcmData.length;
+            conn.lastSentTime = Date.now();
+
+            // Emit outbound packet event for dashboard
+            this.emit('outbound-packet', {
+                bridgeId: conn.id,
+                extension: conn.extensionId,
+                uuid: conn.uuid,
+                framesSent: conn.framesSent,
+                bytesSent: conn.bytesSent,
+                timestamp: conn.lastSentTime
+            });
+
             return true;
         } catch (err) {
             console.error(`[AudioSocket] Error sending audio to ${connectionId}:`, err.message);

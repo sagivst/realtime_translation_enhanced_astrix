@@ -71,6 +71,20 @@ class LatencySyncManager extends EventEmitter {
     this.recordLatency(extension, "hume", latency);
   }
 
+  onLatencyMeasure(data) {
+    const { extension, stage, latency } = data;
+    if (!extension || !stage || latency === undefined) return;
+    console.log(`[Timing] ${stage} latency for ${extension}: ${latency}ms`);
+    this.recordLatency(extension, stage, latency);
+  }
+
+  onOverheadMeasure(data) {
+    const { extension, stage, overhead } = data;
+    if (!extension || !stage || overhead === undefined) return;
+    console.log(`[Timing] ${stage} overhead for ${extension}: ${overhead}ms`);
+    this.recordLatency(extension, stage, overhead);
+  }
+
   recordLatency(extension, stage, latency) {
     const channel = this.getOrCreateChannel(extension);
     const stageData = channel.latencies[stage];
@@ -86,7 +100,8 @@ class LatencySyncManager extends EventEmitter {
     this.calculateStatistics(stageData);
     stageData.trend = this.calculateTrend(stageData.history);
 
-    if (stage !== "e2e") {
+    // Only calculate E2E for raw measurements, not for calculated totals
+    if (stage !== "e2e" && stage !== "serial_total" && stage !== "parallel_total") {
       this.calculateE2ELatency(channel);
     }
 
@@ -108,17 +123,56 @@ class LatencySyncManager extends EventEmitter {
   }
 
   calculateE2ELatency(channel) {
-    const { asr, mt, tts, hume } = channel.latencies;
-    // Sequential pipeline: ASR → MT → TTS
-    const sequentialLatency = (asr.current || 0) + (mt.current || 0) + (tts.current || 0);
-    // Parallel: Hume runs alongside, but if it's slower, it becomes the bottleneck
-    const humeLatency = hume.current || 0;
-    // E2E is the maximum of sequential and parallel paths
-    const e2e = Math.max(sequentialLatency, humeLatency);
+    const {
+      audiosocket_to_asr, asr, asr_to_mt, mt, mt_to_tts, tts,
+      tts_to_ls, ls, ls_to_bridge, hume, audiosocket_to_ev, ev_to_tts
+    } = channel.latencies;
+
+    // Serial Pipeline (9 stages):
+    // 1. AudioSocket→ASR, 2. ASR, 3. ASR→MT, 4. MT, 5. MT→TTS,
+    // 6. TTS, 7. TTS→LS, 8. LS, 9. LS→Bridge
+    const serialLatency =
+      (audiosocket_to_asr.current || 0) +
+      (asr.current || 0) +
+      (asr_to_mt.current || 0) +
+      (mt.current || 0) +
+      (mt_to_tts.current || 0) +
+      (tts.current || 0) +
+      (tts_to_ls.current || 0) +
+      (ls.current || 0) +
+      (ls_to_bridge.current || 0);
+
+    // Parallel Pipeline (3 stages): AudioSocket→EV, EV (Hume), EV→TTS
+    const parallelLatency =
+      (audiosocket_to_ev.current || 0) +
+      (hume.current || 0) +
+      (ev_to_tts.current || 0);
+
+    // Store serial and parallel totals
+    if (serialLatency > 0) {
+      this.recordLatency(channel.extension, "serial_total", serialLatency);
+    }
+    if (parallelLatency > 0) {
+      this.recordLatency(channel.extension, "parallel_total", parallelLatency);
+    }
+
+    // E2E Logic: if serial < parallel, then e2e = parallel
+    // (parallel becomes the bottleneck)
+    let e2e = serialLatency;
+    let displaySerialTotal = serialLatency;
+
+    if (serialLatency < parallelLatency) {
+      e2e = parallelLatency;
+      displaySerialTotal = parallelLatency; // Replace serial with parallel
+      console.log(`[Sync] Extension ${channel.extension}: Parallel path (${parallelLatency}ms) is slower than serial (${serialLatency}ms), replacing serial total`);
+    }
 
     if (e2e > 0) {
       this.recordLatency(channel.extension, "e2e", e2e);
     }
+
+    // Store the display serial total (which may be replaced by parallel)
+    channel.displaySerialTotal = displaySerialTotal;
   }
 
   calculateTrend(history) {
@@ -203,16 +257,47 @@ class LatencySyncManager extends EventEmitter {
     console.log(`[Sync] Emitting latencyUpdate for ext ${channel.extension}:`, {
       asr: channel.latencies.asr.current,
       mt: channel.latencies.mt.current,
-      e2e: channel.latencies.e2e.current
+      e2e: channel.latencies.e2e.current,
+      serial_total: channel.latencies.serial_total.current,
+      parallel_total: channel.latencies.parallel_total.current
     });
+
+    // Calculate displaySerialTotal with positive sync adjustment added (server-side calculation)
+    const baseSerialTotal = channel.displaySerialTotal || channel.latencies.serial_total.current;
+    const syncAdjustment = channel.buffer.adjustment || 0;
+    const displaySerialTotalWithSync = syncAdjustment > 0
+      ? baseSerialTotal + syncAdjustment
+      : baseSerialTotal;
 
     this.io.emit("latencyUpdate", {
       extension: channel.extension,
       latencies: channel.latencies,
       buffer: channel.buffer,
       stats: channel.stats,
-      timestamps: channel.timestamps
+      timestamps: channel.timestamps,
+      displaySerialTotal: channel.displaySerialTotal || channel.latencies.serial_total.current,
+      displaySerialTotalWithSync: displaySerialTotalWithSync  // Pre-calculated value for dashboard
     });
+
+    // ===== TIMING SERVER SYNC - SEND LATENCY DATA =====
+    // Send latency to timing server for bidirectional synchronization
+    if (global.timingClient && global.timingClient.connected) {
+      // Determine paired extension (7000 ↔ 7001)
+      const ext = channel.extension;
+      const pairedExt = (ext === '7000' || ext === 7000) ? '7001' : 
+                         (ext === '7001' || ext === 7001) ? '7000' : null;
+      
+      if (pairedExt && channel.latencies.e2e.current > 0) {
+        global.timingClient.updateLatency(
+          String(ext), 
+          String(pairedExt), 
+          channel.latencies.e2e.current
+        );
+        console.log(`[TimingSync] ✓ Sent latency ${ext}→${pairedExt}: ${channel.latencies.e2e.current}ms`);
+      }
+    }
+    // ===== END TIMING SERVER SYNC =====
+
 
     this.emit("channelUpdate", channel);
   }
@@ -223,11 +308,25 @@ class LatencySyncManager extends EventEmitter {
         extension,
         uuid: null,
         latencies: {
+          // Service latencies (actual processing time)
           asr: this.createLatencyObject(),
           mt: this.createLatencyObject(),
           tts: this.createLatencyObject(),
           hume: this.createLatencyObject(),
-          e2e: this.createLatencyObject()
+          ls: this.createLatencyObject(),
+          e2e: this.createLatencyObject(),
+          // Serial pipeline overhead (server processing gaps)
+          audiosocket_to_asr: this.createLatencyObject(),
+          asr_to_mt: this.createLatencyObject(),
+          mt_to_tts: this.createLatencyObject(),
+          tts_to_ls: this.createLatencyObject(),
+          ls_to_bridge: this.createLatencyObject(),
+          // Parallel pipeline overhead (Hume/EV path)
+          audiosocket_to_ev: this.createLatencyObject(),
+          ev_to_tts: this.createLatencyObject(),
+          // Pipeline totals (calculated)
+          serial_total: this.createLatencyObject(),
+          parallel_total: this.createLatencyObject()
         },
         buffer: {
           current: this.config.baseBuffer,

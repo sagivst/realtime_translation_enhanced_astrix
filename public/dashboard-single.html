@@ -14,49 +14,60 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 50%, #1a1a2e 100%);
+            background-attachment: fixed;
+            color: #e8eaed;
             overflow-x: hidden;
+            line-height: 1.6;
+            letter-spacing: 0.01em;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px 40px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #5b6fd8 0%, #6b5b95 100%);
+            padding: 28px 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
         }
 
         .header h1 {
-            font-size: 2em;
-            margin-bottom: 5px;
+            font-size: 1.95em;
+            margin-bottom: 6px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
         }
 
         .header p {
-            opacity: 0.9;
-            font-size: 1.1em;
+            opacity: 0.92;
+            font-size: 1.05em;
+            font-weight: 400;
         }
 
         .status-badge {
             display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-weight: bold;
+            padding: 7px 14px;
+            border-radius: 16px;
+            font-weight: 600;
             margin-top: 10px;
-            font-size: 0.9em;
+            font-size: 0.88em;
+            letter-spacing: 0.02em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
         }
 
         .status-operational {
-            background: #51cf66;
+            background: linear-gradient(135deg, #51cf66, #40c057);
             color: white;
         }
 
         .status-degraded {
-            background: #fcc419;
-            color: #000;
+            background: linear-gradient(135deg, #ffd43b, #fcc419);
+            color: #1a1a2e;
         }
 
         .status-down {
-            background: #ff6b6b;
+            background: linear-gradient(135deg, #ff6b6b, #fa5252);
             color: white;
         }
 
@@ -74,38 +85,53 @@
         }
 
         .card {
-            background: #16213e;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            border: 1px solid #2a3f5f;
+            background: rgba(22, 33, 62, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15);
+            border-color: rgba(255,255,255,0.12);
         }
 
         .card-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #2a3f5f;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
         .card-title {
-            font-size: 1.3em;
-            font-weight: bold;
+            font-size: 1.25em;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            letter-spacing: -0.01em;
         }
 
         .service-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.5em;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease;
+        }
+
+        .service-icon:hover {
+            transform: scale(1.05);
         }
 
         .icon-deepgram {
@@ -132,8 +158,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #2a3f5f;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            transition: background 0.2s ease;
+        }
+
+        .metric-row:hover {
+            background: rgba(255,255,255,0.02);
+            padding-left: 8px;
+            padding-right: 8px;
+            margin-left: -8px;
+            margin-right: -8px;
+            border-radius: 6px;
         }
 
         .metric-row:last-child {
@@ -141,13 +177,15 @@
         }
 
         .metric-label {
-            color: #aaa;
-            font-size: 0.95em;
+            color: #9ca3af;
+            font-size: 0.93em;
+            font-weight: 500;
         }
 
         .metric-value {
-            font-size: 1.4em;
-            font-weight: bold;
+            font-size: 1.35em;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .metric-value.good {
@@ -328,35 +366,40 @@
         }
 
         .latency-breakdown {
-            max-height: 250px;
-            overflow-y: auto;
+            width: 100%;
+            max-height: none;
+            overflow-y: visible;
             margin-top: 15px;
         }
 
         .latency-item {
             display: flex;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 0px;
+            font-size: 0.62em;
+            line-height: 1;
         }
 
         .latency-bar-container {
             flex: 1;
-            height: 30px;
-            background: #0f1419;
-            border-radius: 6px;
+            height: 10px;
+            background: rgba(15,20,25,0.8);
+            border-radius: 4px;
             overflow: hidden;
-            margin-left: 10px;
+            margin-left: 3px;
             position: relative;
+            border: 1px solid rgba(255,255,255,0.05);
         }
 
         .latency-bar {
             height: 100%;
-            transition: width 0.5s ease;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
-            padding-left: 10px;
-            font-weight: bold;
-            font-size: 0.85em;
+            padding-left: 3px;
+            font-weight: 600;
+            font-size: 0.6em;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.2);
         }
 
         .latency-asr {
@@ -371,6 +414,10 @@
             background: #a78bfa;
         }
 
+        .latency-ls {
+            background: #ffa94d;
+        }
+
         .latency-hume {
             background: #51cf66;
         }
@@ -383,6 +430,135 @@
             opacity: 0.8;
         }
 
+        .pipeline-group {
+            width: 100%;
+            margin-bottom: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            overflow: visible;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .pipeline-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(20,20,36,0.95));
+            padding: 6px 12px;
+            font-weight: 600;
+            color: #e8eaed;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .pipeline-group-title {
+            font-size: 0.75em;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .pipeline-group-total {
+            font-size: 0.82em;
+            font-weight: 700;
+            color: #6ba3e8;
+            background: rgba(107,163,232,0.15);
+            padding: 3px 10px;
+            border-radius: 8px;
+        }
+
+        .pipeline-group-content {
+            padding: 4px 6px;
+            background: rgba(15,15,30,0.7);
+        }
+
+        /* Bidirectional Bar for Latency Sync */
+        .sync-bar-container {
+            position: relative;
+            width: 100%;
+            height: 14px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            overflow: visible;
+            display: flex;
+            align-items: center;
+        }
+
+        .sync-bar-track {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+        }
+
+        .sync-bar-negative-zone {
+            flex: 1;
+            background: linear-gradient(to right, #ff6b6b 0%, #1a1a2e 100%);
+            opacity: 0.3;
+        }
+
+        .sync-bar-positive-zone {
+            flex: 1;
+            background: linear-gradient(to left, #51cf66 0%, #1a1a2e 100%);
+            opacity: 0.3;
+        }
+
+        .sync-bar-center-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #666;
+            z-index: 1;
+        }
+
+        .sync-bar-center-label {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9em;
+            color: #999;
+            font-weight: 600;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .sync-bar-fill {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85em;
+            z-index: 3;
+            border-radius: 4px;
+        }
+
+        .sync-bar-fill.positive {
+            left: 50%;
+            background: linear-gradient(to right, rgba(81, 207, 102, 0.5), rgba(81, 207, 102, 0.8));
+            border: 1px solid #51cf66;
+            color: #51cf66;
+        }
+
+        .sync-bar-fill.negative {
+            right: 50%;
+            background: linear-gradient(to left, rgba(255, 107, 107, 0.5), rgba(255, 107, 107, 0.8));
+            border: 1px solid #ff6b6b;
+            color: #ff6b6b;
+        }
+
+        .sync-bar-fill.zero {
+            left: 50%;
+            width: 40px !important;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            border: 1px solid #666;
+            color: #999;
+        }
 
         .quota-card {
             background: #16213e;
@@ -457,42 +633,52 @@
         }
 
         .controls {
-            background: #16213e;
-            padding: 20px;
-            border-radius: 12px;
+            background: rgba(22,33,62,0.9);
+            backdrop-filter: blur(10px);
+            padding: 22px;
+            border-radius: 14px;
             margin-bottom: 20px;
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 11px 22px;
             border: none;
-            border-radius: 8px;
-            font-weight: bold;
+            border-radius: 10px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.95em;
+            transition: all 0.25s ease;
+            font-size: 0.93em;
+            letter-spacing: 0.01em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #5b6fd8 0%, #6b5b95 100%);
             color: white;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+            box-shadow: 0 6px 24px rgba(91,111,216,0.35);
+            background: linear-gradient(135deg, #6b7fe8 0%, #7b6ba5 100%);
         }
 
         .btn-secondary {
-            background: #2a3f5f;
-            color: white;
+            background: rgba(42,63,95,0.8);
+            color: #e8eaed;
+            border: 1px solid rgba(255,255,255,0.08);
         }
 
         .btn-secondary:hover {
-            background: #3a5f8f;
+            background: rgba(58,95,143,0.9);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
         }
 
         .loading {
@@ -528,25 +714,27 @@
 
         .badge {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.75em;
-            font-weight: bold;
+            padding: 5px 11px;
+            border-radius: 14px;
+            font-size: 0.73em;
+            font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.03em;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
         }
 
         .badge-success {
-            background: #51cf66;
+            background: linear-gradient(135deg, #51cf66, #40c057);
             color: white;
         }
 
         .badge-warning {
-            background: #fcc419;
-            color: #000;
+            background: linear-gradient(135deg, #ffd43b, #fcc419);
+            color: #1a1a2e;
         }
 
         .badge-error {
-            background: #ff6b6b;
+            background: linear-gradient(135deg, #ff6b6b, #fa5252);
             color: white;
         }
 
@@ -556,52 +744,62 @@
 
         /* Live Transcription Window */
         .transcription-window {
-            background: #0f1419;
-            border-radius: 8px;
-            padding: 15px;
+            background: rgba(15,20,25,0.7);
+            border-radius: 10px;
+            padding: 16px;
             max-height: 400px;
             overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.6;
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+            font-size: 13.5px;
+            line-height: 1.65;
             scroll-behavior: smooth;
+            border: 1px solid rgba(255,255,255,0.08);
         }
 
         .transcription-window::-webkit-scrollbar {
-            width: 8px;
+            width: 10px;
         }
 
         .transcription-window::-webkit-scrollbar-track {
-            background: #16213e;
-            border-radius: 4px;
+            background: rgba(22,33,62,0.5);
+            border-radius: 5px;
+            margin: 4px;
         }
 
         .transcription-window::-webkit-scrollbar-thumb {
-            background: #667eea;
-            border-radius: 4px;
+            background: linear-gradient(135deg, #5b6fd8, #6b5b95);
+            border-radius: 5px;
+            border: 2px solid rgba(22,33,62,0.5);
         }
 
         .transcription-window::-webkit-scrollbar-thumb:hover {
-            background: #764ba2;
+            background: linear-gradient(135deg, #6b7fe8, #7b6ba5);
         }
 
         .transcript-line {
-            margin-bottom: 12px;
-            padding: 8px 12px;
-            border-radius: 6px;
-            background: #16213e;
+            margin-bottom: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: rgba(22,33,62,0.7);
             border-left: 3px solid transparent;
-            animation: fadeIn 0.3s ease;
+            animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            transition: all 0.2s ease;
+        }
+
+        .transcript-line:hover {
+            background: rgba(22,33,62,0.9);
+            transform: translateX(2px);
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .transcript-line.partial {
-            border-left-color: #fcc419;
-            opacity: 0.7;
+            border-left-color: #ffc107;
+            opacity: 0.75;
         }
 
         .transcript-line.final {
@@ -945,40 +1143,6 @@
 
         <div class="grid">
 
-            <!-- Extension & UUID Monitor -->
-            <div class="card" style="border: 3px solid #667eea;">
-                <div class="card-header">
-                    <div class="card-title">
-                        <div class="service-icon" style="font-size: 2em;">📡</div>
-                        <div>
-                            <div>Extension Monitor</div>
-                            <div style="font-size: 0.7em; color: #aaa;">Live Packet Flow</div>
-                        </div>
-                    </div>
-                    <span class="status-badge status-operational" id="extensionStatus">● LIVE</span>
-                </div>
-                <div class="metric-row" style="border-bottom: 2px solid #667eea; padding-bottom: 15px; margin-bottom: 15px;">
-                    <span class="metric-label" style="font-size: 1.1em;">Extension Number</span>
-                    <span class="metric-value" id="extensionNumber" style="font-size: 2em; color: #667eea; font-weight: bold;">---</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Call UUID</span>
-                    <span class="metric-value" id="callUuid" style="font-size: 0.85em; font-family: monospace; color: #51cf66;">Waiting...</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Packets Received</span>
-                    <span class="metric-value" id="packetCount" style="color: #fcc419;">0</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Last Update</span>
-                    <span class="metric-value" id="lastPacketTime" style="font-size: 0.85em; color: #aaa;">Never</span>
-                </div>
-                <div style="margin-top: 15px; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; text-align: center; font-size: 0.9em; color: #aaa;">
-                    <div id="extensionBadge" style="font-size: 1.5em; font-weight: bold; color: #667eea;">
-                        WAITING FOR PACKETS...
-                    </div>
-                </div>
-            </div>
             <!-- Deepgram Service -->
             <div class="card">
                 <div class="card-header">
@@ -1274,6 +1438,35 @@
                     <span class="status-badge" id="asteriskStreamStatus">⏸ Idle</span>
                 </div>
 
+                <!-- Extension Monitor - Live Packet Flow -->
+                <div style="background: rgba(102, 126, 234, 0.1); border: 2px solid #667eea; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                    <div style="font-size: 0.9em; color: #667eea; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.5em;">📡</span>
+                        Extension Monitor - Live Packet Flow
+                    </div>
+                    <div class="metric-row" style="border-bottom: 1px solid #667eea; padding-bottom: 10px; margin-bottom: 10px;">
+                        <span class="metric-label" style="font-size: 0.95em;">Extension Number</span>
+                        <span class="metric-value" id="extensionNumber" style="font-size: 1.5em; color: #667eea; font-weight: bold;">---</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Call UUID</span>
+                        <span class="metric-value" id="callUuid" style="font-size: 0.75em; font-family: monospace; color: #51cf66;">Waiting...</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Packets Received</span>
+                        <span class="metric-value" id="packetCount" style="color: #fcc419;">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Last Update</span>
+                        <span class="metric-value" id="lastPacketTime" style="font-size: 0.75em; color: #aaa;">Never</span>
+                    </div>
+                    <div style="margin-top: 10px; padding: 8px; background: rgba(102, 126, 234, 0.2); border-radius: 6px; text-align: center; font-size: 0.85em;">
+                        <div id="extensionBadge" style="font-size: 1.2em; font-weight: bold; color: #667eea;">
+                            WAITING FOR PACKETS...
+                        </div>
+                    </div>
+                </div>
+
                 <div class="call-info-box" id="callInfo" style="display:none;">
                     <div class="call-info-row">
                         <span class="call-info-label">Call UUID:</span>
@@ -1324,7 +1517,7 @@
                             <div style="color: #aaa; font-size: 0.85em;">📝 Live Transcription (LIFO):</div>
                             <button class="btn btn-secondary" onclick="clearTranscripts()" style="font-size: 0.8em; padding: 4px 8px;">🗑️ Clear</button>
                         </div>
-                        <div class="transcription-window" id="transcriptionWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; min-height: 150px;  overflow-y: auto; border-left: 3px solid #667eea; font-family: monospace;">
+                        <div class="transcription-window" id="transcriptionWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; height: 150px; max-height: 150px; overflow-y: auto; border-left: 3px solid #667eea; font-family: monospace;">
                             <div class="transcript-empty" id="transcriptEmpty" style="color: #666; text-align: center; padding: 20px;">
                                 🎤 Waiting for transcriptions...
                             </div>
@@ -1368,7 +1561,7 @@
                 <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
                     <div style="margin-bottom: 15px;">
                         <div style="color: #aaa; font-size: 0.85em; margin-bottom: 5px;">📝 Original → 🌐 Translated:</div>
-                        <div id="deeplTranslationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; color: #e0e0e0;  overflow-y: auto; font-family: monospace; border-left: 3px solid #667eea;">
+                        <div id="deeplTranslationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; color: #e0e0e0; height: 150px; max-height: 150px; overflow-y: auto; font-family: monospace; border-left: 3px solid #667eea;">
                             <div class="translation-empty" style="color: #666; text-align: center; padding: 20px;">Waiting for translations...</div>
                         </div>
                     </div>
@@ -1429,7 +1622,7 @@
                             </div>
                             <button class="btn btn-secondary" onclick="clearTranslations()" style="font-size: 0.8em; padding: 4px 8px;">🗑️ Clear</button>
                         </div>
-                        <div class="translation-window" id="translationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; min-height: 150px;  overflow-y: auto; border-left: 3px solid #a78bfa; font-family: monospace;">
+                        <div class="translation-window" id="translationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; height: 150px; max-height: 150px; overflow-y: auto; border-left: 3px solid #a78bfa; font-family: monospace;">
                             <div class="translation-empty" id="translationEmpty" style="color: #666; text-align: center; padding: 20px;">
                                 🎙️ Waiting for translations...
                             </div>
@@ -1539,6 +1732,68 @@
                 </div>
             </div>
 
+            <!-- 6. Asterisk Outbound Voice Stream -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #5b6fd8;">📤</div>
+                        <span>6. Asterisk Voice Stream (OUT)</span>
+                    </div>
+                    <span class="status-badge" id="asteriskOutboundStreamStatus">⏸ Idle</span>
+                </div>
+
+                <!-- Extension Monitor - Outbound Stream -->
+                <div style="background: rgba(91, 111, 216, 0.1); border: 2px solid #5b6fd8; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                    <div style="font-size: 0.9em; color: #5b6fd8; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.5em;">📡</span>
+                        Bridge → Asterisk - Live Packet Flow
+                    </div>
+                    <div class="metric-row" style="border-bottom: 1px solid #5b6fd8; padding-bottom: 10px; margin-bottom: 10px;">
+                        <span class="metric-label" style="font-size: 0.95em;">Extension Number</span>
+                        <span class="metric-value" id="outboundExtensionNumber" style="font-size: 1.5em; color: #5b6fd8; font-weight: bold;">---</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Bridge ID</span>
+                        <span class="metric-value" id="outboundBridgeId" style="font-size: 0.65em; font-family: monospace; color: #51cf66;">Waiting...</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Call UUID</span>
+                        <span class="metric-value" id="outboundCallUuid" style="font-size: 0.75em; font-family: monospace; color: #51cf66;">Waiting...</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Packets Sent</span>
+                        <span class="metric-value" id="outboundPacketCount" style="color: #fcc419;">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Last Update</span>
+                        <span class="metric-value" id="outboundLastPacketTime" style="font-size: 0.75em; color: #aaa;">Never</span>
+                    </div>
+                    <div style="margin-top: 10px; padding: 8px; background: rgba(91, 111, 216, 0.2); border-radius: 6px; text-align: center; font-size: 0.85em;">
+                        <div id="outboundExtensionBadge" style="font-size: 1.2em; font-weight: bold; color: #5b6fd8;">
+                            WAITING FOR OUTBOUND PACKETS...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="audio-player-container">
+                    <div class="audio-visualizer">
+                        <canvas id="asteriskOutboundViz" width="800" height="120"></canvas>
+                    </div>
+                    <div class="audio-status">
+                        <div class="audio-status-indicator" id="asteriskOutboundIndicator"></div>
+                        <span id="asteriskOutboundStatus">No active call</span>
+                    </div>
+                    <div class="audio-controls">
+                        <div class="volume-control">
+                            <span>🔊</span>
+                            <input type="range" class="volume-slider" id="asteriskOutboundVolume" min="0" max="100" value="0">
+                            <span id="asteriskOutboundVolumeLabel">0%</span>
+                        </div>
+                    </div>
+                    <audio id="asteriskOutboundPlayer" autoplay style="display:none;"></audio>
+                </div>
+            </div>
+
             <!-- Call Recordings -->
             <div class="card full-width">
                 <div class="card-header">
@@ -1575,52 +1830,117 @@
                 <span class="metric-value" id="e2eLatency">- ms</span>
             </div>
             <div class="latency-breakdown">
-                <div class="latency-item">
-                    <span style="width: 100px;">ASR (Deepgram)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-asr" id="latencyBarAsr" style="width: 0%;">-</div>
+                <!-- Serial Pipeline Group -->
+                <div class="pipeline-group">
+                    <div class="pipeline-group-header">
+                        <span class="pipeline-group-title">Serial</span>
+                        <span class="pipeline-group-total" id="serialTotal">- ms</span>
+                    </div>
+                    <div class="pipeline-group-content">
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (AudioSocket→ASR)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarAudioSocketAsr" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item">
+                            <span style="width: 140px;">ASR (Deepgram)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-asr" id="latencyBarAsr" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (ASR→MT)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarAsrMt" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item">
+                            <span style="width: 140px;">MT (DeepL)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-mt" id="latencyBarMt" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (MT→TTS)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarMtTts" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item">
+                            <span style="width: 140px;">TTS (ElevenLabs)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-tts" id="latencyBarTts" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (TTS→LS)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarTtsLs" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item">
+                            <span style="width: 140px;">LS (Latency Sync)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-ls" id="latencyBarLs" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (LS→Bridge)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarLsBridge" style="width: 0%;">-</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="latency-item network-latency-item">
-                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (ASR→MT)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-network" id="latencyBarAsrMt" style="width: 0%;">-</div>
+
+                <!-- Parallel Pipeline Group -->
+                <div class="pipeline-group">
+                    <div class="pipeline-group-header">
+                        <span class="pipeline-group-title">Parallel</span>
+                        <span class="pipeline-group-total" id="parallelTotal">- ms</span>
+                    </div>
+                    <div class="pipeline-group-content">
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (AudioSocket→EV)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarAudioSocketEv" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item">
+                            <span style="width: 140px;">EV (Hume)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-hume" id="latencyBarHume" style="width: 0%;">-</div>
+                            </div>
+                        </div>
+                        <div class="latency-item network-latency-item">
+                            <span style="width: 140px; font-size: 0.85em; color: #999;">↓ Server (EV→TTS)</span>
+                            <div class="latency-bar-container">
+                                <div class="latency-bar latency-network" id="latencyBarEvTts" style="width: 0%;">-</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="latency-item">
-                    <span style="width: 100px;">MT (DeepL)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-mt" id="latencyBarMt" style="width: 0%;">-</div>
+
+                <!-- Latency Sync Group -->
+                <div class="pipeline-group">
+                    <div class="pipeline-group-header">
+                        <span class="pipeline-group-title">Latency Sync</span>
+                        <span class="pipeline-group-total">[total MS]</span>
                     </div>
-                </div>
-                <div class="latency-item network-latency-item">
-                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (MT→TTS)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-network" id="latencyBarMtTts" style="width: 1%;">0ms</div>
-                    </div>
-                </div>
-                <div class="latency-item">
-                    <span style="width: 100px;">TTS (ElevenLabs)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-tts" id="latencyBarTts" style="width: 0%;">-</div>
-                    </div>
-                </div>
-                <div class="latency-item network-latency-item">
-                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (TTS→DS)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-network" id="latencyBarTtsDs" style="width: 1%;">0ms</div>
-                    </div>
-                </div>
-                <div class="latency-item network-latency-item">
-                    <span style="width: 100px; font-size: 0.85em; color: #999;">↓ Network (DS→Send)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-network" id="latencyBarDsSend" style="width: 1%;">0ms</div>
-                    </div>
-                </div>
-                <div class="latency-item">
-                    <span style="width: 100px;">Hume (Parallel)</span>
-                    <div class="latency-bar-container">
-                        <div class="latency-bar latency-hume" id="latencyBarHume" style="width: 0%;">-</div>
+                    <div class="pipeline-group-content">
+                        <div class="latency-item">
+                            <span style="width: 140px; font-size: 0.85em;">↓ <span id="pairingExtension">----</span> (latency correction)</span>
+                            <div class="sync-bar-container">
+                                <div class="sync-bar-track">
+                                    <div class="sync-bar-negative-zone"></div>
+                                    <div class="sync-bar-positive-zone"></div>
+                                </div>
+                                <div class="sync-bar-center-line"></div>
+                                <div class="sync-bar-center-label">0</div>
+                                <div class="sync-bar-fill zero" id="syncCorrectionBar" style="width: 40px;">0 ms</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1984,6 +2304,128 @@
                 addTranscript(data, 'partial');
             });
 
+            // Outbound audio - tracks TTS audio from bridge being sent back to Asterisk
+            socket.on('translatedAudio', (data) => {
+                // Filter by extension if URL param is set
+                if (filterExtension && data.extension !== filterExtension) {
+                    return; // Skip events from other extensions
+                }
+
+                console.log('[Card #6] translatedAudio event received:', data.extension, data.uuid);
+
+                // Initialize outbound monitor data
+                if (!window.outboundMonitorData) window.outboundMonitorData = { packetCount: 0 };
+                window.outboundMonitorData.packetCount++;
+
+                // Update outbound stream card
+                if (document.getElementById('outboundExtensionNumber') && data.extension) {
+                    document.getElementById('outboundExtensionNumber').textContent = data.extension;
+                    document.getElementById('outboundExtensionNumber').style.color = data.extension === '7000' ? '#5b6fd8' : '#764ba2';
+                }
+                if (document.getElementById('outboundBridgeId') && data.uuid) {
+                    document.getElementById('outboundBridgeId').textContent = String(data.uuid).substring(0, 30) + '...';
+                }
+                if (document.getElementById('outboundCallUuid') && data.uuid) {
+                    document.getElementById('outboundCallUuid').textContent = data.uuid;
+                }
+                if (document.getElementById('outboundPacketCount')) {
+                    document.getElementById('outboundPacketCount').textContent = window.outboundMonitorData.packetCount.toLocaleString();
+                }
+                if (document.getElementById('outboundLastPacketTime')) {
+                    document.getElementById('outboundLastPacketTime').textContent = new Date().toLocaleTimeString();
+                }
+
+                // Update status badge
+                if (document.getElementById('asteriskOutboundStreamStatus')) {
+                    document.getElementById('asteriskOutboundStreamStatus').textContent = '▶ Active';
+                    document.getElementById('asteriskOutboundStreamStatus').className = 'status-badge status-active';
+                }
+
+                // Handle audio playback using Web Audio API (like Card #4)
+                if (data.audio) {
+                    const audioIndicator = document.getElementById('asteriskOutboundIndicator');
+                    const audioStatus = document.getElementById('asteriskOutboundStatus');
+
+                    // Update status
+                    if (audioStatus) {
+                        audioStatus.textContent = 'Playing translated audio...';
+                    }
+                    if (audioIndicator) {
+                        audioIndicator.classList.add('active');
+                    }
+
+                    // Initialize Web Audio API context if not already created
+                    if (!window.asteriskOutboundAudioContext) {
+                        window.asteriskOutboundAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                            sampleRate: data.sampleRate || 16000
+                        });
+                        window.asteriskOutboundNextPlayTime = window.asteriskOutboundAudioContext.currentTime;
+
+                        // Create global gain node for volume control
+                        window.asteriskOutboundGainNode = window.asteriskOutboundAudioContext.createGain();
+                        window.asteriskOutboundGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                        window.asteriskOutboundGainNode.connect(window.asteriskOutboundAudioContext.destination);
+                        console.log('[Card #6] Web Audio Context initialized at', data.sampleRate, 'Hz');
+                    }
+
+                    // Resume AudioContext if suspended (browser autoplay policy)
+                    if (window.asteriskOutboundAudioContext.state === 'suspended') {
+                        window.asteriskOutboundAudioContext.resume().then(() => {
+                            console.log('[Card #6] AudioContext resumed - audio should now play');
+                        }).catch(err => {
+                            console.error('[Card #6] Failed to resume AudioContext:', err);
+                        });
+                    }
+
+                    // Decode base64 PCM audio and play
+                    try {
+                        const pcmBase64 = data.audio;
+                        const pcmBinary = atob(pcmBase64);
+                        const pcmData = new Int16Array(pcmBinary.length / 2);
+
+                        // Convert binary string to Int16Array
+                        for (let i = 0; i < pcmData.length; i++) {
+                            const byte1 = pcmBinary.charCodeAt(i * 2);
+                            const byte2 = pcmBinary.charCodeAt(i * 2 + 1);
+                            pcmData[i] = (byte2 << 8) | byte1; // Little-endian
+                        }
+
+                        // Convert Int16 PCM to Float32 for Web Audio API
+                        const float32Data = new Float32Array(pcmData.length);
+                        for (let i = 0; i < pcmData.length; i++) {
+                            float32Data[i] = pcmData[i] / 32768.0;
+                        }
+
+                        // Create audio buffer
+                        const sampleRate = data.sampleRate || 16000;
+                        const audioBuffer = window.asteriskOutboundAudioContext.createBuffer(1, float32Data.length, sampleRate);
+                        audioBuffer.getChannelData(0).set(float32Data);
+
+                        // Create buffer source and connect to gain node
+                        const source = window.asteriskOutboundAudioContext.createBufferSource();
+                        source.buffer = audioBuffer;
+                        source.connect(window.asteriskOutboundGainNode);
+
+                        // Schedule playback
+                        if (window.asteriskOutboundNextPlayTime < window.asteriskOutboundAudioContext.currentTime) {
+                            window.asteriskOutboundNextPlayTime = window.asteriskOutboundAudioContext.currentTime;
+                        }
+                        source.start(window.asteriskOutboundNextPlayTime);
+                        window.asteriskOutboundNextPlayTime += audioBuffer.duration;
+
+                        console.log('[Card #6] Playing audio chunk:', float32Data.length, 'samples,', audioBuffer.duration.toFixed(2), 's');
+
+                        // Start visualization animation if not already running
+                        if (!window.asteriskOutboundAnimating) {
+                            window.asteriskOutboundAnimating = true;
+                            drawAsteriskOutboundVisualizer();
+                        }
+                    } catch (err) {
+                        console.error('[Card #6] Audio processing error:', err);
+                    }
+                }
+            });
+
             socket.on('transcriptionFinal', (data) => {
                 console.log('[Filter] transcriptionFinal - filterExtension:', filterExtension, 'data.extension:', data.extension);
                 // Filter by extension if URL param is set
@@ -2186,6 +2628,38 @@
 
         // Refresh dashboard data
 
+        // Helper function to create WAV header for PCM audio
+        function createWavHeader(pcmLength, sampleRate, numChannels, bitsPerSample) {
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const dataSize = pcmLength;
+            const fileSize = 36 + dataSize;
+
+            const header = new ArrayBuffer(44);
+            const view = new DataView(header);
+
+            // RIFF chunk descriptor
+            view.setUint32(0, 0x52494646, false); // "RIFF"
+            view.setUint32(4, fileSize, true);    // File size - 8
+            view.setUint32(8, 0x57415645, false); // "WAVE"
+
+            // fmt sub-chunk
+            view.setUint32(12, 0x666d7420, false); // "fmt "
+            view.setUint32(16, 16, true);          // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true);           // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true); // NumChannels
+            view.setUint32(24, sampleRate, true);  // SampleRate
+            view.setUint32(28, byteRate, true);    // ByteRate
+            view.setUint16(32, blockAlign, true);  // BlockAlign
+            view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+            // data sub-chunk
+            view.setUint32(36, 0x64617461, false); // "data"
+            view.setUint32(40, dataSize, true);    // Subchunk2Size
+
+            return new Uint8Array(header);
+        }
+
         // QA Settings: Update language configuration
         function updateQASettings() {
             const sourceLang = document.getElementById('qaSourceLang').value;
@@ -2204,11 +2678,12 @@
             // Emit configuration to server (with safety check)
             if (socket && socket.connected) {
                 socket.emit('qa-language-config', {
+                    extension: filterExtension,
                     sourceLang: sourceLang,
                     targetLang: targetLang,
                     qaMode: sourceLang === targetLang
                 });
-                console.log(`[QA Settings] ✓ Updated and sent to server: ${sourceLang} → ${targetLang} (QA Mode: ${sourceLang === targetLang})`);
+                console.log(`[QA Settings] ✓ Extension ${filterExtension} updated and sent to server: ${sourceLang} → ${targetLang} (QA Mode: ${sourceLang === targetLang})`);
             } else {
                 console.warn('[QA Settings] Socket not connected, will retry on connect');
             }
@@ -2261,12 +2736,37 @@
                 }
 
                 // Update latency breakdown bars
+                // Serial pipeline stages
+                const audiosocketToAsr = (data.latencies.audiosocket_to_asr && data.latencies.audiosocket_to_asr.current) || 0;
                 const asr = (data.latencies.asr && data.latencies.asr.current) || 0;
+                const asrToMt = (data.latencies.asr_to_mt && data.latencies.asr_to_mt.current) || 0;
                 const mt = (data.latencies.mt && data.latencies.mt.current) || 0;
+                const mtToTts = (data.latencies.mt_to_tts && data.latencies.mt_to_tts.current) || 0;
                 const tts = (data.latencies.tts && data.latencies.tts.current) || 0;
+                const ttsToLs = (data.latencies.tts_to_ls && data.latencies.tts_to_ls.current) || 0;
+                const ls = (data.latencies.ls && data.latencies.ls.current) || 0;
+                const lsToBridge = (data.latencies.ls_to_bridge && data.latencies.ls_to_bridge.current) || 0;
+
+                // Parallel pipeline stages
+                const audiosocketToEv = (data.latencies.audiosocket_to_ev && data.latencies.audiosocket_to_ev.current) || 0;
                 const hume = (data.latencies.hume && data.latencies.hume.current) || 0;
+                const evToTts = (data.latencies.ev_to_tts && data.latencies.ev_to_tts.current) || 0;
+
+                // Totals (use server-calculated value that includes positive sync adjustment)
+                const serialTotal = data.displaySerialTotalWithSync || data.displaySerialTotal || (data.latencies.serial_total && data.latencies.serial_total.current) || 0;
+                const parallelTotal = (data.latencies.parallel_total && data.latencies.parallel_total.current) || 0;
                 const total = (data.latencies.e2e && data.latencies.e2e.current) || 0;
-                updateLatencyBars(asr, mt, tts, hume, total);
+
+                updateLatencyBars(
+                    audiosocketToAsr, asr, asrToMt, mt, mtToTts, tts, ttsToLs, ls, lsToBridge,
+                    audiosocketToEv, hume, evToTts,
+                    serialTotal, parallelTotal, total
+                );
+
+                // Update sync correction bar
+                if (data.buffer) {
+                    updateSyncCorrectionBar(data.buffer.adjustment || 0, data.buffer.reason || '');
+                }
             }
 
             // Log buffer and sync info
@@ -2371,24 +2871,93 @@
             }
         }
 
+        // Helper function to format latency values
+        function formatLatency(value) {
+            if (value < 1) {
+                return value.toFixed(2) + 'ms';
+            } else {
+                return Math.round(value) + 'ms';
+            }
+        }
+
         // Update latency breakdown bars
-        function updateLatencyBars(asr, mt, tts, hume, total) {
-            const asrPct = (asr / 900) * 100;
-            const mtPct = (mt / 900) * 100;
-            const ttsPct = (tts / 900) * 100;
-            const humePct = (hume / 900) * 100;
+        function updateLatencyBars(
+            audiosocketToAsr, asr, asrToMt, mt, mtToTts, tts, ttsToLs, ls, lsToBridge,
+            audiosocketToEv, hume, evToTts,
+            serialTotal, parallelTotal, total
+        ) {
+            const MAX_LATENCY = 900; // Reference max for bar width calculation
 
-            document.getElementById('latencyBarAsr').style.width = asrPct + '%';
-            document.getElementById('latencyBarAsr').textContent = Math.round(asr) + 'ms';
+            // Serial Pipeline - Update bars
+            updateBar('latencyBarAudioSocketAsr', audiosocketToAsr, MAX_LATENCY);
+            updateBar('latencyBarAsr', asr, MAX_LATENCY);
+            updateBar('latencyBarAsrMt', asrToMt, MAX_LATENCY);
+            updateBar('latencyBarMt', mt, MAX_LATENCY);
+            updateBar('latencyBarMtTts', mtToTts, MAX_LATENCY);
+            updateBar('latencyBarTts', tts, MAX_LATENCY);
+            updateBar('latencyBarTtsLs', ttsToLs, MAX_LATENCY);
+            updateBar('latencyBarLs', ls, MAX_LATENCY);
+            updateBar('latencyBarLsBridge', lsToBridge, MAX_LATENCY);
 
-            document.getElementById('latencyBarMt').style.width = mtPct + '%';
-            document.getElementById('latencyBarMt').textContent = Math.round(mt) + 'ms';
+            // Parallel Pipeline - Update bars
+            updateBar('latencyBarAudioSocketEv', audiosocketToEv, MAX_LATENCY);
+            updateBar('latencyBarHume', hume, MAX_LATENCY);
+            updateBar('latencyBarEvTts', evToTts, MAX_LATENCY);
 
-            document.getElementById('latencyBarTts').style.width = ttsPct + '%';
-            document.getElementById('latencyBarTts').textContent = Math.round(tts) + 'ms';
+            // Update group totals (serialTotal already includes positive sync adjustment from server)
+            document.getElementById('serialTotal').textContent = formatLatency(serialTotal);
+            document.getElementById('parallelTotal').textContent = formatLatency(parallelTotal);
+        }
 
-            document.getElementById('latencyBarHume').style.width = humePct + '%';
-            document.getElementById('latencyBarHume').textContent = Math.round(hume) + 'ms';
+        // Helper function to update individual bar
+        function updateBar(elementId, value, maxValue) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const percentage = (value / maxValue) * 100;
+                element.style.width = percentage + '%';
+                element.textContent = formatLatency(value);
+            }
+        }
+
+        // Update sync correction bar (bidirectional +/- bar)
+        function updateSyncCorrectionBar(adjustment, reason) {
+            const bar = document.getElementById('syncCorrectionBar');
+            const pairingExt = document.getElementById('pairingExtension');
+
+            if (!bar) return;
+
+            const MAX_ADJUSTMENT = 300; // Max adjustment for visual scale (ms)
+            const absAdjustment = Math.abs(adjustment);
+
+            // Update pairing extension from reason (e.g., "sync_to_7001")
+            if (reason && reason.startsWith('sync_to_')) {
+                const targetExtension = reason.replace('sync_to_', '');
+                if (pairingExt) {
+                    pairingExt.textContent = targetExtension;
+                }
+            }
+
+            // Remove all classes
+            bar.classList.remove('positive', 'negative', 'zero');
+
+            if (adjustment === 0) {
+                // Zero state
+                bar.classList.add('zero');
+                bar.style.width = '40px';
+                bar.textContent = '0 ms';
+            } else if (adjustment > 0) {
+                // Positive adjustment (adding delay)
+                bar.classList.add('positive');
+                const widthPercentage = Math.min((absAdjustment / MAX_ADJUSTMENT) * 50, 50);
+                bar.style.width = widthPercentage + '%';
+                bar.textContent = '+' + formatLatency(absAdjustment);
+            } else {
+                // Negative adjustment (removing delay / ahead)
+                bar.classList.add('negative');
+                const widthPercentage = Math.min((absAdjustment / MAX_ADJUSTMENT) * 50, 50);
+                bar.style.width = widthPercentage + '%';
+                bar.textContent = '-' + formatLatency(absAdjustment);
+            }
         }
 
         // Update timestamp
@@ -3019,11 +3588,23 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             document.getElementById('outgoingVolume').addEventListener('input', (e) => {
                 const volume = e.target.value;
                 document.getElementById('outgoingVolumeLabel').textContent = volume + '%';
-                
+
                 // Control Web Audio API gain node instead of HTML5 audio element
                 if (outgoingGainNode) {
                     outgoingGainNode.gain.value = volume / 100;
                     console.log('[Volume] Outgoing volume set to', volume + '%');
+                }
+            });
+
+            // Asterisk Outbound volume control (Card #6)
+            document.getElementById('asteriskOutboundVolume').addEventListener('input', (e) => {
+                const volume = e.target.value;
+                document.getElementById('asteriskOutboundVolumeLabel').textContent = volume + '%';
+
+                // Control Web Audio API gain node (like Card #4)
+                if (window.asteriskOutboundGainNode) {
+                    window.asteriskOutboundGainNode.gain.value = volume / 100;
+                    console.log('[Card #6] Volume set to', volume + '%');
                 }
             });
 
@@ -3145,6 +3726,9 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                 cancelAnimationFrame(outgoingAnimationId);
                 outgoingAnimationId = null;
             }
+            if (window.asteriskOutboundAnimating) {
+                window.asteriskOutboundAnimating = false;
+            }
 
             // Refresh recordings after call ends
             setTimeout(refreshRecordings, 2000);
@@ -3221,6 +3805,47 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             // Continue animation if call is active
             if (currentCall) {
                 outgoingAnimationId = requestAnimationFrame(drawOutgoingVisualizer);
+            }
+        }
+
+        // Draw Asterisk outbound visualizer (Card #6)
+        function drawAsteriskOutboundVisualizer() {
+            const canvas = document.getElementById('asteriskOutboundViz');
+            if (!canvas) {
+                window.asteriskOutboundAnimating = false;
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw animated waveform
+            ctx.strokeStyle = '#5b6fd8';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+
+            const time = Date.now() / 1000;
+            const amplitude = 40;
+
+            for (let x = 0; x < width; x++) {
+                const y = height / 2 + Math.sin((x / 40) + time * 3) * amplitude * (0.8 + Math.random() * 0.2);
+                if (x === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+
+            ctx.stroke();
+
+            // Continue animation if still active
+            if (window.asteriskOutboundAnimating) {
+                requestAnimationFrame(drawAsteriskOutboundVisualizer);
             }
         }
 

@@ -75,6 +75,13 @@ console.log('[Pipeline] Hume AI:', humeApiKey ? '✓' : '✗');
 const audioSocketOrchestrator5050 = new AudioSocketOrchestrator(5050, 5051);  // Extension 7000
 const audioSocketOrchestrator5052 = new AudioSocketOrchestrator(5052, 5053);  // Extension 7001
 const audioSocketOrchestrator = audioSocketOrchestrator5050;  // Backward compatibility
+// Bridge OUTPUT monitors - capture what extensions HEAR from their bridges
+const audioSocketOrchestrator5054 = new AudioSocketOrchestrator(5054, 5055);  // Bridge 7000 output
+const audioSocketOrchestrator5056 = new AudioSocketOrchestrator(5056, 5057);  // Bridge 7001 output
+console.log("[Pipeline] Bridge Output Monitors initialized:");
+console.log("[Pipeline]   - Port 5054: Bridge 7000 output (what Extension 7000 hears)");
+console.log("[Pipeline]   - Port 5056: Bridge 7001 output (what Extension 7001 hears)");
+
 
 // Initialize translation services (shared across all calls)
 // Separate DeepL instances for each extension (prevents concurrent request blocking)
@@ -218,6 +225,23 @@ function downsamplePCM16to8(pcm16Buffer) {
     return pcm8Buffer;
 }
 
+
+/**
+ * Amplify PCM audio by a given factor
+ */
+function amplifyAudio(pcmBuffer, gain = 500) {
+    const amplified = Buffer.alloc(pcmBuffer.length);
+    
+    for (let i = 0; i < pcmBuffer.length; i += 2) {
+        let sample = pcmBuffer.readInt16LE(i);
+        sample = Math.round(sample * gain);
+        sample = Math.max(-32768, Math.min(32767, sample));
+        amplified.writeInt16LE(sample, i);
+    }
+    
+    return amplified;
+}
+
 /**
  * Send audio to WebSocket mic endpoint in proper frames
  * WebSocket expects raw PCM binary data in 640-byte frames (16kHz, 20ms)
@@ -228,6 +252,10 @@ function sendAudioToMicEndpoint(micWebSocket, pcmBuffer) {
         return;
     }
 
+    // AMPLIFY AUDIO BY 500x
+    pcmBuffer = amplifyAudio(pcmBuffer, 500);
+    console.log("[Volume] Amplified 500x");
+    
     const FRAME_SIZE = 640; // 16kHz * 20ms * 2 bytes = 640 bytes per frame
     const numFrames = Math.floor(pcmBuffer.length / FRAME_SIZE);
 
@@ -296,7 +324,12 @@ function initializeAudioStreamBuffer(uuid) {
     }
 
     // Create WebSocket connection to mic endpoint
-    const micEndpointUrl = `ws://127.0.0.1:5051/mic/${uuid}`;
+    // Route to OPPOSITE extension's WebSocket for cross-language injection
+    // Extension 7000 (EN→FR) → Port 5053 (Bridge 7001)
+    // Extension 7001 (FR→EN) → Port 5051 (Bridge 7000)
+    const targetPort = (session.extension === '7000') ? 5053 : 5051;
+    const micEndpointUrl = `ws://127.0.0.1:${targetPort}/mic/${uuid}`;
+    console.log(`[MicWebSocket] Ext ${session.extension} → Port ${targetPort}`);
     console.log('[MicWebSocket] Connecting to:', micEndpointUrl);
 
     session.micWebSocket = new WebSocket(micEndpointUrl);
@@ -1123,6 +1156,11 @@ console.log('[Pipeline] ✓ Both orchestrators configured with independent event
 audioSocketOrchestrator5050.start();
 audioSocketOrchestrator5052.start();
 console.log("[Pipeline] ✓ Dual AudioSocket orchestrators started on ports 5050 (ext 7000) and 5052 (ext 7001)");
+
+// Start bridge output monitor orchestrators
+audioSocketOrchestrator5054.start();
+audioSocketOrchestrator5056.start();
+console.log("[Pipeline] ✓ Bridge output monitor orchestrators started on ports 5054 and 5056");
 
 // Make orchestrator available globally
 global.audioSocketOrchestrator = audioSocketOrchestrator;

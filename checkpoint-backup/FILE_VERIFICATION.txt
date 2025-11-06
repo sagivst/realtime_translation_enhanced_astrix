@@ -1,0 +1,18 @@
+
+=== FILE VERIFICATION ===
+
+-rw-rw-r-- 1 azureuser azureuser 2.8K Nov  6 11:16 /tmp/checkpoint-20251106-111655/MANIFEST.md
+-rw-rw-r-- 1 azureuser azureuser 50K Nov  6 11:16 /tmp/checkpoint-20251106-111655/legacy-audiosocket/audiosocket-integration.js
+-rw-rw-r-- 1 azureuser azureuser 20K Nov  6 11:16 /tmp/checkpoint-20251106-111655/legacy-audiosocket/asterisk-ari-handler.js
+-rw-rw-r-- 1 azureuser azureuser 23K Nov  6 11:16 /tmp/checkpoint-20251106-111655/legacy-audiosocket/audiosocket-orchestrator.js
+-rw-r--r-- 1 azureuser azureuser 2.3K Nov  6 11:16 /tmp/checkpoint-20251106-111655/gateway/rtp-recorder.js
+-rw-rw-r-- 1 azureuser azureuser 11K Nov  6 11:16 /tmp/checkpoint-20251106-111655/gateway/ari-externalmedia-handler.js
+-rw-r--r-- 1 azureuser azureuser 16K Nov  6 11:16 /tmp/checkpoint-20251106-111655/gateway/audio-monitor-server.js
+-rw-r--r-- 1 azureuser azureuser 4.3K Nov  6 11:16 /tmp/checkpoint-20251106-111655/gateway/simple-port-crossover.js
+-rwxr-xr-x 1 azureuser azureuser 809 Nov  6 11:16 /tmp/checkpoint-20251106-111655/scripts/start-crossover-debug.sh
+-rwxr-xr-x 1 azureuser azureuser 424 Nov  6 11:16 /tmp/checkpoint-20251106-111655/scripts/stop-crossover-debug.sh
+-rw-r--r-- 1 azureuser azureuser 300 Nov  6 11:16 /tmp/checkpoint-20251106-111655/asterisk-config/pjsip.conf
+-rw-r----- 1 azureuser azureuser 53 Nov  6 11:16 /tmp/checkpoint-20251106-111655/asterisk-config/http.conf
+-rw-r--r-- 1 azureuser azureuser 11K Nov  6 11:16 /tmp/checkpoint-20251106-111655/asterisk-config/extensions.conf
+-rw-r----- 1 azureuser azureuser 115 Nov  6 11:16 /tmp/checkpoint-20251106-111655/asterisk-config/ari.conf
+-rw-rw-r-- 1 azureuser azureuser 1.6K Nov  6 11:16 /tmp/checkpoint-20251106-111655/FILE_VERIFICATION.txt

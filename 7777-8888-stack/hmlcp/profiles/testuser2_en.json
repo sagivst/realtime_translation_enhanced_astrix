@@ -1,0 +1,25 @@
+{
+  "userId": "testuser2",
+  "language": "en",
+  "created": "2025-10-12T21:05:26.168Z",
+  "lastUpdated": "2025-10-12T21:05:26.169Z",
+  "tone": "neutral",
+  "avgSentenceLength": 0,
+  "directness": 0,
+  "ambiguityTolerance": 0,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [
+    "Kubernetes",
+    "PostgreSQL",
+    "Azure",
+    "Deepgram",
+    "WebSocket"
+  ],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

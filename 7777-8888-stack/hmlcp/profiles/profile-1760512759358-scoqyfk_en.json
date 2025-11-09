@@ -1,0 +1,22 @@
+{
+  "userId": "profile-1760512759358-scoqyfk",
+  "language": "en",
+  "created": "2025-10-15T07:19:19.361Z",
+  "lastUpdated": "2025-10-15T07:19:19.361Z",
+  "tone": "neutral",
+  "avgSentenceLength": 0,
+  "directness": 0,
+  "ambiguityTolerance": 0,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [],
+  "textSamples": [],
+  "audioSamples": [],
+  "corrections": [],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

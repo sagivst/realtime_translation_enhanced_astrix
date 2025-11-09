@@ -1,0 +1,1003 @@
+{
+  "userId": "sagiv",
+  "language": "en",
+  "created": "2025-10-14T21:24:34.471Z",
+  "lastUpdated": "2025-10-15T08:27:32.553Z",
+  "tone": "neutral",
+  "avgSentenceLength": 0,
+  "directness": 0,
+  "ambiguityTolerance": 0,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [],
+  "textSamples": [
+    {
+      "text": "Hello. Good evening.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:37.793Z"
+    },
+    {
+      "text": "Oh, so now you believe you, you can do it fast?",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:45.005Z"
+    },
+    {
+      "text": "With no arrows,",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:45.597Z"
+    },
+    {
+      "text": "No. There is an arrow.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:49.547Z"
+    },
+    {
+      "text": "I see it in red.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:51.325Z"
+    },
+    {
+      "text": "Something is still not working good.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:24:55.040Z"
+    },
+    {
+      "text": "Or maybe everything is perfect as you can see.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:00.980Z"
+    },
+    {
+      "text": "You think we can talk fast, fast, fast, fast, and you will catch it all?",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:05.492Z"
+    },
+    {
+      "text": "There is something in the middle.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:09.375Z"
+    },
+    {
+      "text": "And another thing.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:11.116Z"
+    },
+    {
+      "text": "And one more.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:13.615Z"
+    },
+    {
+      "text": "And then two two together. And while I'm telling the other, I'm telling you one more.",
+      "intent": null,
+      "timestamp": "2025-10-14T21:25:20.745Z"
+    },
+    {
+      "text": "Okay. Looks better.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:32:44.815Z"
+    },
+    {
+      "text": "Nice.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:32:48.474Z"
+    },
+    {
+      "text": "Let's see how fast you are.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:32:50.842Z"
+    },
+    {
+      "text": "If I'm talking, talking, talking again, and while I'm talking, talking.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:32:57.281Z"
+    },
+    {
+      "text": "Then what you do, you take it as one sentence.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:04.668Z"
+    },
+    {
+      "text": "So if I'm talking, talking, talking,",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:05.985Z"
+    },
+    {
+      "text": "Talking.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:08.133Z"
+    },
+    {
+      "text": "Talking. Talking.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:09.882Z"
+    },
+    {
+      "text": "Oh, understand.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:12.534Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:14.381Z"
+    },
+    {
+      "text": "So let's give it a chance.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:16.912Z"
+    },
+    {
+      "text": "And I will, reload that.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:33:20.117Z"
+    },
+    {
+      "text": "System.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:19.325Z"
+    },
+    {
+      "text": "One. Good evening.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:19.604Z"
+    },
+    {
+      "text": "What?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:21.809Z"
+    },
+    {
+      "text": "System.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:25.937Z"
+    },
+    {
+      "text": "What? System.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:35.191Z"
+    },
+    {
+      "text": "What?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:37.251Z"
+    },
+    {
+      "text": "System.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:39.029Z"
+    },
+    {
+      "text": "What?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:34:40.151Z"
+    },
+    {
+      "text": "Okay. So that's now",
+      "intent": null,
+      "timestamp": "2025-10-14T22:35:52.716Z"
+    },
+    {
+      "text": "So that sound.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:35:56.583Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:35:56.586Z"
+    },
+    {
+      "text": "Go on.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:37:00.789Z"
+    },
+    {
+      "text": "Okay. What can we say? What what can we do?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:43:00.664Z"
+    },
+    {
+      "text": "We can save. We can do.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:43:05.222Z"
+    },
+    {
+      "text": "I can.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:43:06.866Z"
+    },
+    {
+      "text": "Okay. Okay. Good evening.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:43:40.632Z"
+    },
+    {
+      "text": "Very good filter. Nobody can hear you.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:43:54.158Z"
+    },
+    {
+      "text": "Can you hear me now?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:44:23.597Z"
+    },
+    {
+      "text": "Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:44:25.813Z"
+    },
+    {
+      "text": "No.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:44:28.949Z"
+    },
+    {
+      "text": "No speakers.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:44:29.910Z"
+    },
+    {
+      "text": "Good evening. New test.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:49:09.304Z"
+    },
+    {
+      "text": "So if you can hear me, what do you have to say?",
+      "intent": null,
+      "timestamp": "2025-10-14T22:50:07.087Z"
+    },
+    {
+      "text": "I would say say",
+      "intent": null,
+      "timestamp": "2025-10-14T22:50:35.218Z"
+    },
+    {
+      "text": "And let me see what I'm saying.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:50:37.475Z"
+    },
+    {
+      "text": "Okay. I'm seeing now, first time.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:51:06.362Z"
+    },
+    {
+      "text": "And now there was a sentence entered that shouldn't be.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:51:52.361Z"
+    },
+    {
+      "text": "Nobody said it, and there was no echo.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:51:52.984Z"
+    },
+    {
+      "text": "And now I'm speaking from",
+      "intent": null,
+      "timestamp": "2025-10-14T22:52:37.603Z"
+    },
+    {
+      "text": "Not the other client.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:52:38.703Z"
+    },
+    {
+      "text": "And I see and I hear there was a mix of sentence",
+      "intent": null,
+      "timestamp": "2025-10-14T22:52:43.955Z"
+    },
+    {
+      "text": "Between previous and the current ones that I was",
+      "intent": null,
+      "timestamp": "2025-10-14T22:52:48.254Z"
+    },
+    {
+      "text": "Saying in the first client.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:52:53.841Z"
+    },
+    {
+      "text": "Okay. First test. Let's see if it is working.",
+      "intent": null,
+      "timestamp": "2025-10-14T22:59:56.034Z"
+    },
+    {
+      "text": "Okay. One client.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:00:01.808Z"
+    },
+    {
+      "text": "Looks walking.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:00:02.604Z"
+    },
+    {
+      "text": "Noise.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:00:08.327Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:12:57.064Z"
+    },
+    {
+      "text": "Let's test it again.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:12:57.799Z"
+    },
+    {
+      "text": "Okay. Starting well.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:01.986Z"
+    },
+    {
+      "text": "Now I will.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:05.399Z"
+    },
+    {
+      "text": "We'll go down the client.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:07.922Z"
+    },
+    {
+      "text": "Phone number.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:11.655Z"
+    },
+    {
+      "text": "Two.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:12.876Z"
+    },
+    {
+      "text": "So tell me, please. What can you hear?",
+      "intent": null,
+      "timestamp": "2025-10-14T23:13:46.801Z"
+    },
+    {
+      "text": "From where you can hear it?",
+      "intent": null,
+      "timestamp": "2025-10-14T23:14:04.165Z"
+    },
+    {
+      "text": "Okay. I will try now.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:14:55.741Z"
+    },
+    {
+      "text": "To go with the other client.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:14:57.326Z"
+    },
+    {
+      "text": "On the mobile,",
+      "intent": null,
+      "timestamp": "2025-10-14T23:14:59.289Z"
+    },
+    {
+      "text": "Outside and far away from the",
+      "intent": null,
+      "timestamp": "2025-10-14T23:15:03.559Z"
+    },
+    {
+      "text": "Computer.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:15:04.905Z"
+    },
+    {
+      "text": "So there will be no chance for echoes.",
+      "intent": null,
+      "timestamp": "2025-10-14T23:15:08.338Z"
+    },
+    {
+      "text": "How much testing can, do?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:17:35.032Z"
+    },
+    {
+      "text": "Much testing can a man do?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:17:41.299Z"
+    },
+    {
+      "text": "The same exact.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:17:43.713Z"
+    },
+    {
+      "text": "How much testing can a man do?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:17:47.706Z"
+    },
+    {
+      "text": "What is new?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:17:57.947Z"
+    },
+    {
+      "text": "What's old?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:18:01.227Z"
+    },
+    {
+      "text": "Should I drain?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:18:05.626Z"
+    },
+    {
+      "text": "Not today old.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:18:08.104Z"
+    },
+    {
+      "text": "88.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:18:15.019Z"
+    },
+    {
+      "text": "Now I'm testing the new system after new calibration.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:19:36.040Z"
+    },
+    {
+      "text": "And then I will test the new system with old calibration.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:19:45.464Z"
+    },
+    {
+      "text": "No. Then I will test the old system with old calibration.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:19:56.839Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:20:02.365Z"
+    },
+    {
+      "text": "No. It's in the supply.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:20:03.067Z"
+    },
+    {
+      "text": "Looks as it is working. Yeah. Let's connect the other one.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:20:08.881Z"
+    },
+    {
+      "text": "Which one? Which one? Which one? Which one?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:20:53.862Z"
+    },
+    {
+      "text": "19.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:20:54.487Z"
+    },
+    {
+      "text": "Hi. Yeah.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:21:29.076Z"
+    },
+    {
+      "text": "Fuck you. Hold on.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:21:32.291Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:21:45.290Z"
+    },
+    {
+      "text": "Jose?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:21:59.919Z"
+    },
+    {
+      "text": "Can't that call? No.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:14.629Z"
+    },
+    {
+      "text": "Hello. My name is John, and I'm testing the voice calibration system.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:18.425Z"
+    },
+    {
+      "text": "Hello. My name is John, and I'm testing the voice calibration system.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:25.960Z"
+    },
+    {
+      "text": "Yes.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:29.722Z"
+    },
+    {
+      "text": "I would like to schedule a meeting for tomorrow afternoon.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:34.949Z"
+    },
+    {
+      "text": "Would like to have a meeting for tomorrow afternoon.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:38.487Z"
+    },
+    {
+      "text": "Thank you very much for your help with this translation.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:50.079Z"
+    },
+    {
+      "text": "Thank you very much for your help with the train station.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:22:53.629Z"
+    },
+    {
+      "text": "Hello. My name is Orianne.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:06.644Z"
+    },
+    {
+      "text": "Ryan, can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:27.800Z"
+    },
+    {
+      "text": "Oian?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:34.437Z"
+    },
+    {
+      "text": "Oian.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:42.532Z"
+    },
+    {
+      "text": "O yan.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:48.000Z"
+    },
+    {
+      "text": "Orianne.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:53.549Z"
+    },
+    {
+      "text": "You cannot hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:54.803Z"
+    },
+    {
+      "text": "Hello? Ryan?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:13.705Z"
+    },
+    {
+      "text": "What's new?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:17.564Z"
+    },
+    {
+      "text": "What's new?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:27.604Z"
+    },
+    {
+      "text": "K. Can I spell back?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:36.563Z"
+    },
+    {
+      "text": "What's old?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:37.003Z"
+    },
+    {
+      "text": "Cancel it.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:42.311Z"
+    },
+    {
+      "text": "Okay. Testing again. Hopefully, now it is working.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:32:46.312Z"
+    },
+    {
+      "text": "But I'm not sure because it might not.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:32:54.944Z"
+    },
+    {
+      "text": "I don't know what to see anyone.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:08.439Z"
+    },
+    {
+      "text": "Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:34.315Z"
+    },
+    {
+      "text": "No. Can you hear?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:38.560Z"
+    },
+    {
+      "text": "Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:43.306Z"
+    },
+    {
+      "text": "No. Can you hear?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:51.211Z"
+    },
+    {
+      "text": "No channel.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:53.013Z"
+    },
+    {
+      "text": "Now can you",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:54.754Z"
+    },
+    {
+      "text": "Ryan, can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:34:34.989Z"
+    },
+    {
+      "text": "Oh, yeah?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:34:45.619Z"
+    },
+    {
+      "text": "Answer me.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:34:46.758Z"
+    },
+    {
+      "text": "No. I can't. Why? Why? What's happened?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:08.663Z"
+    },
+    {
+      "text": "Automaret?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:13.308Z"
+    },
+    {
+      "text": "Hello.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:16.972Z"
+    },
+    {
+      "text": "I'm fine. I'm fine. I'm fine. I'm fine. Thanks.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:45.864Z"
+    },
+    {
+      "text": "So, yeah, can you hear me now?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:51.050Z"
+    },
+    {
+      "text": "Answer me.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:56.217Z"
+    },
+    {
+      "text": "Say something.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:09.049Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:29.247Z"
+    },
+    {
+      "text": "Hello. How are you?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:45.963Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:37:02.722Z"
+    },
+    {
+      "text": "K.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:02.102Z"
+    },
+    {
+      "text": "With the Azure pipeline, could we work on?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:05.065Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:09.294Z"
+    },
+    {
+      "text": "This is with the Azure. I plan. It should be working.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:17.863Z"
+    },
+    {
+      "text": "Thank you.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:23.800Z"
+    },
+    {
+      "text": "And those?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:29.959Z"
+    },
+    {
+      "text": "Okay. Bye. I'll call",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:36.291Z"
+    },
+    {
+      "text": "Oh, yeah. Just a minute. I want to test.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:20:56.403Z"
+    },
+    {
+      "text": "Oh. Yeah. Just a minute.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:01.072Z"
+    },
+    {
+      "text": "I want to test. What was it?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:05.884Z"
+    },
+    {
+      "text": "Alright.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:10.084Z"
+    },
+    {
+      "text": "So, Hosey, can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:33.289Z"
+    },
+    {
+      "text": "Okay. Wozi, talk to me.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:38.426Z"
+    },
+    {
+      "text": "Jose?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:42.324Z"
+    },
+    {
+      "text": "Yeah.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:45.710Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:46.222Z"
+    },
+    {
+      "text": "What you're about so what you're about to do now?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:49.148Z"
+    },
+    {
+      "text": "I'm fine. What you're about to do? I saw you been",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:56.891Z"
+    },
+    {
+      "text": "Going up.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:21:57.207Z"
+    },
+    {
+      "text": "What you will do?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:03.731Z"
+    },
+    {
+      "text": "I didn't get it.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:10.305Z"
+    },
+    {
+      "text": "Maybe what?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:10.881Z"
+    },
+    {
+      "text": "Was it?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:16.966Z"
+    },
+    {
+      "text": "Who don't try?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:24.982Z"
+    },
+    {
+      "text": "Oh, what you want to cook? What you plan to cook?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:30.398Z"
+    },
+    {
+      "text": "Okay. What else?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:34.711Z"
+    },
+    {
+      "text": "Vegetables are the best for you?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:43.563Z"
+    },
+    {
+      "text": "Okay. Got it.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:22:54.624Z"
+    },
+    {
+      "text": "And, what else you plan to do today?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:23:01.205Z"
+    },
+    {
+      "text": "Jose?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:23:18.545Z"
+    },
+    {
+      "text": "Wait. Talk here. Talk here. No. Because it's closed probably.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:23:34.415Z"
+    },
+    {
+      "text": "Close? Yeah. So Tokyo. Doesn't matter. Wait.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:23:37.057Z"
+    },
+    {
+      "text": "Yeah. I'm here. You know, I have a big problem in Philippines.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:23:57.646Z"
+    },
+    {
+      "text": "My permit is good.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:03.894Z"
+    },
+    {
+      "text": "It's too far in the earthquake problem in The Philippines.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:08.773Z"
+    },
+    {
+      "text": "They have a all Macron.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:18.822Z"
+    },
+    {
+      "text": "All they have, all place, they have earthquake already.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:23.715Z"
+    },
+    {
+      "text": "Yeah.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:26.431Z"
+    },
+    {
+      "text": "The earthquake",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:33.764Z"
+    },
+    {
+      "text": "A lot of place, they have a lot of earthquakes, Cebu, Palawan, Baguio. But, thanks God, and my place is not.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:43.012Z"
+    },
+    {
+      "text": "Yeah. No. Today every day, they have",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:50.650Z"
+    },
+    {
+      "text": "Yes. I'm here.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:24:56.762Z"
+    },
+    {
+      "text": "No. It's the Finnish earthquake. All people wait. They have they told they have tsunami, but thanks to god we don't talk.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:14.514Z"
+    },
+    {
+      "text": "Yes.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:16.922Z"
+    },
+    {
+      "text": "Near beaches.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:19.860Z"
+    },
+    {
+      "text": "But, the news, they told that they have a big problem. They called",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:31.605Z"
+    },
+    {
+      "text": "Yes. Not tsunami. Earthquake. Big earthquake. They told they have places we need to to finish like that. They eat the water like that, but I don't know video.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:47.473Z"
+    },
+    {
+      "text": "The The Philippines, news.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:25:54.245Z"
+    },
+    {
+      "text": "And, also, they have a volcano eruption.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:26:03.324Z"
+    },
+    {
+      "text": "The Batangas. I don't know what this volcano in Batangas.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:26:07.503Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:26:20.315Z"
+    },
+    {
+      "text": "My name is",
+      "intent": null,
+      "timestamp": "2025-10-15T08:26:22.553Z"
+    },
+    {
+      "text": "Yeah.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:26:30.189Z"
+    },
+    {
+      "text": "But tell me, I have a lot of yeah. Yeah. Yeah. You said a lot of time. Yes? Yes. I I hear. But you said it?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:27:14.506Z"
+    },
+    {
+      "text": "Yes. Yes. Yes. Again, my answer is yes. Doctor Duplex. Where Daniel goes? Mhmm.",
+      "intent": null,
+      "timestamp": "2025-10-15T08:27:30.764Z"
+    },
+    {
+      "text": "You may I guess?",
+      "intent": null,
+      "timestamp": "2025-10-15T08:27:32.553Z"
+    }
+  ],
+  "audioSamples": [],
+  "corrections": [],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

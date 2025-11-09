@@ -1,0 +1,143 @@
+{
+  "userId": "Orian",
+  "language": "en",
+  "created": "2025-10-15T07:23:03.123Z",
+  "lastUpdated": "2025-10-15T07:37:09.230Z",
+  "tone": "neutral",
+  "avgSentenceLength": 0,
+  "directness": 0,
+  "ambiguityTolerance": 0,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [],
+  "textSamples": [
+    {
+      "text": "Hello. My name is Oriane.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:07.811Z"
+    },
+    {
+      "text": "So one of the lotion at the time.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:13.279Z"
+    },
+    {
+      "text": "Let's kinda see if it's a buyout.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:15.696Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:19.166Z"
+    },
+    {
+      "text": "Okay.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:23:22.156Z"
+    },
+    {
+      "text": "No.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:11.704Z"
+    },
+    {
+      "text": "We are.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:14.067Z"
+    },
+    {
+      "text": "What's new?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:17.544Z"
+    },
+    {
+      "text": "Alma.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:25.324Z"
+    },
+    {
+      "text": "What's new?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:27.651Z"
+    },
+    {
+      "text": "K. Let's pull back.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:36.252Z"
+    },
+    {
+      "text": "What's old?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:24:36.846Z"
+    },
+    {
+      "text": "Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:35.353Z"
+    },
+    {
+      "text": "No. Do you hear No. Can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:39.985Z"
+    },
+    {
+      "text": "Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:44.467Z"
+    },
+    {
+      "text": "No.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:50.988Z"
+    },
+    {
+      "text": "One moment, please.",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:51.857Z"
+    },
+    {
+      "text": "Do you know? Can you hear me? Hear me? Now can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:33:58.801Z"
+    },
+    {
+      "text": "One moment, please. Do you know? No. I'm from the blue bunny. Can you hear me?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:34:11.733Z"
+    },
+    {
+      "text": "Hello. How are you?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:35:28.192Z"
+    },
+    {
+      "text": "What is your plan for today?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:27.381Z"
+    },
+    {
+      "text": "Your plan for today?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:31.913Z"
+    },
+    {
+      "text": "Hello? How are you?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:36:46.599Z"
+    },
+    {
+      "text": "Hello?",
+      "intent": null,
+      "timestamp": "2025-10-15T07:37:09.230Z"
+    }
+  ],
+  "audioSamples": [],
+  "corrections": [],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

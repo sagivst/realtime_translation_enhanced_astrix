@@ -1,0 +1,214 @@
+#!/bin/bash
+# Comprehensive Checkpoint Creation Script - UPDATED v7.0
+# Backs up ALL critical application and Asterisk configuration files
+# NOW INCLUDES: 7777-8888-stack directory with Phase 2 files
+
+DESCRIPTION="${1:-Manual checkpoint}"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+CHECKPOINT_DIR="checkpoints/checkpoint-${TIMESTAMP}"
+
+echo "Creating checkpoint: ${CHECKPOINT_DIR}"
+echo "Description: ${DESCRIPTION}"
+
+# Create directory structure
+mkdir -p "${CHECKPOINT_DIR}/asterisk-configs"
+mkdir -p "${CHECKPOINT_DIR}/public"
+mkdir -p "${CHECKPOINT_DIR}/7777-8888-stack"
+
+# ===== APPLICATION FILES (Core) =====
+echo "Copying core application files..."
+cp conference-server.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp audiosocket-integration.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp server.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== WORKERS =====
+echo "Copying worker files..."
+cp asr-streaming-worker.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp asr-streaming-worker-16khz.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp deepl-incremental-mt.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp elevenlabs-tts-service.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp deepgram-streaming-client.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp hume-streaming-client.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp hume-evi-adapter.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== ORCHESTRATORS & HANDLERS =====
+echo "Copying orchestrators and handlers..."
+cp audiosocket-orchestrator.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp externalmedia-orchestrator.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp externalmedia-integration.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp asterisk-ari-handler.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp audio-stream-buffer.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp audio-playback-handler.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp audio-converter.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== EXTERNALMEDIA GATEWAY (7777/8888) =====
+echo "Copying ExternalMedia Gateway files (7777/8888)..."
+cp ari-externalmedia-handler.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp audio-monitor-server.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp simple-port-crossover.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp rtp-recorder.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== 7777-8888-stack DIRECTORY (Phase 2 Files) - NEW in v7.0 =====
+echo "Copying 7777-8888-stack directory (Phase 2 files)..."
+cp 7777-8888-stack/gateway-7777-8888.js "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+cp 7777-8888-stack/monitor-7777-8888.js "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+cp 7777-8888-stack/conference-server-externalmedia.js "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+cp 7777-8888-stack/externalmedia-integration.js "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+cp 7777-8888-stack/externalmedia-orchestrator.js "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+cp 7777-8888-stack/.env.externalmedia "${CHECKPOINT_DIR}/7777-8888-stack/" 2>/dev/null
+
+# ===== LATENCY & TIMING =====
+echo "Copying latency and timing files..."
+cp latency-sync-manager.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp bidirectional-timing-server.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp timing-client.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== UTILITIES =====
+echo "Copying utility files..."
+cp confbridge-manager.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp frame-collector.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp pacing-governor.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp prosodic-segmenter.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp punctuation.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== RTP FILES =====
+echo "Copying RTP files..."
+cp rtp-audio-receiver.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp rtp-audio-receiver-fixed.js "${CHECKPOINT_DIR}/" 2>/dev/null
+cp rtp-packet-builder.js "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== CONFIGURATION =====
+echo "Copying configuration files..."
+cp package.json "${CHECKPOINT_DIR}/" 2>/dev/null
+cp package-lock.json "${CHECKPOINT_DIR}/" 2>/dev/null
+cp .env "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== SCRIPTS =====
+echo "Copying scripts..."
+cp create-checkpoint.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+cp restore-checkpoint.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+cp start-server.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+cp start-server-with-checkpoint.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+cp start-crossover-debug.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+cp stop-crossover-debug.sh "${CHECKPOINT_DIR}/" 2>/dev/null
+
+# ===== PUBLIC DASHBOARDS (ALL) =====
+echo "Copying public dashboards..."
+cp -r public/*.html "${CHECKPOINT_DIR}/public/" 2>/dev/null
+
+# ===== ASTERISK CONFIGURATION FILES =====
+echo "Copying Asterisk configurations..."
+sudo cp /etc/asterisk/sip.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/extensions.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/modules.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/ari.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/http.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/pjsip.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/pjsip_users.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo cp /etc/asterisk/rtp.conf "${CHECKPOINT_DIR}/asterisk-configs/" 2>/dev/null
+sudo chown -R azureuser:azureuser "${CHECKPOINT_DIR}/asterisk-configs/"
+
+# Count files
+FILE_COUNT=$(find "${CHECKPOINT_DIR}" -type f | wc -l)
+
+# Create checkpoint info file
+cat > "${CHECKPOINT_DIR}/CHECKPOINT_INFO.txt" << EOF
+Checkpoint: ${TIMESTAMP}
+Created: $(date)
+Description: ${DESCRIPTION}
+Total Files Backed Up: ${FILE_COUNT}
+
+=== APPLICATION FILES ===
+Core:
+- conference-server.js
+- audiosocket-integration.js
+- server.js
+
+Workers:
+- asr-streaming-worker.js
+- asr-streaming-worker-16khz.js
+- deepl-incremental-mt.js
+- elevenlabs-tts-service.js
+- deepgram-streaming-client.js
+- hume-streaming-client.js
+- hume-evi-adapter.js
+
+Orchestrators & Handlers:
+- audiosocket-orchestrator.js
+- externalmedia-orchestrator.js
+- externalmedia-integration.js
+- asterisk-ari-handler.js
+- audio-stream-buffer.js
+- audio-playback-handler.js
+- audio-converter.js
+
+ExternalMedia Gateway (7777/8888):
+- ari-externalmedia-handler.js
+- audio-monitor-server.js
+- simple-port-crossover.js
+- rtp-recorder.js
+
+7777-8888-stack/ Directory (Phase 2) [NEW in v7.0]:
+- gateway-7777-8888.js
+- monitor-7777-8888.js
+- conference-server-externalmedia.js
+- externalmedia-integration.js
+- externalmedia-orchestrator.js
+- .env.externalmedia
+
+Latency & Timing:
+- latency-sync-manager.js
+- bidirectional-timing-server.js
+- timing-client.js
+
+Utilities:
+- confbridge-manager.js
+- frame-collector.js
+- pacing-governor.js
+- prosodic-segmenter.js
+- punctuation.js
+
+RTP:
+- rtp-audio-receiver.js
+- rtp-audio-receiver-fixed.js
+- rtp-packet-builder.js
+
+Configuration:
+- package.json
+- package-lock.json
+- .env
+
+Scripts:
+- create-checkpoint.sh
+- restore-checkpoint.sh
+- start-server.sh
+- start-server-with-checkpoint.sh
+- start-crossover-debug.sh
+- stop-crossover-debug.sh
+
+Public Dashboards:
+- All HTML files from public/ directory
+
+=== ASTERISK CONFIGURATION FILES ===
+- sip.conf
+- extensions.conf
+- modules.conf
+- ari.conf
+- http.conf
+- pjsip.conf
+- pjsip_users.conf
+- rtp.conf
+
+=== SYSTEM STATUS ===
+- SIP Peers: $(sudo asterisk -rx 'sip show peers' 2>/dev/null | grep -E '^(1001|1002)')
+- Active Calls: $(sudo asterisk -rx 'core show channels' 2>/dev/null | tail -1)
+- Server Process: $(pgrep -f 'node conference-server' || echo 'Not running')
+- Asterisk Version: $(sudo asterisk -rx 'core show version' 2>/dev/null | head -1)
+
+To restore this checkpoint:
+  ./restore-checkpoint.sh checkpoint-${TIMESTAMP}
+EOF
+
+echo "✓ Checkpoint created: ${CHECKPOINT_DIR}"
+echo "✓ Files backed up: ${FILE_COUNT}"
+ls -lh "${CHECKPOINT_DIR}" | head -12

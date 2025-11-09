@@ -1,0 +1,28 @@
+{
+  "userId": "profile-1760482833481-h2okelo",
+  "language": "en",
+  "created": "2025-10-14T23:00:33.635Z",
+  "lastUpdated": "2025-10-14T23:00:33.635Z",
+  "tone": "neutral",
+  "avgSentenceLength": 15,
+  "directness": 75,
+  "ambiguityTolerance": 40,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [
+    "meeting",
+    "presentation",
+    "project",
+    "deadline",
+    "schedule"
+  ],
+  "textSamples": [],
+  "audioSamples": [],
+  "corrections": [],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

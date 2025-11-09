@@ -6,3 +6,6 @@ node_modules/
 *.bak*
 *.backup-*
 ._*
+checkpoints/
+backup-*.tar.gz
+*.log

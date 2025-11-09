@@ -1,0 +1,28 @@
+{
+  "userId": "profile-1760481811643-z1jsny1",
+  "language": "en",
+  "created": "2025-10-14T22:43:31.710Z",
+  "lastUpdated": "2025-10-14T22:43:31.710Z",
+  "tone": "neutral",
+  "avgSentenceLength": 15,
+  "directness": 75,
+  "ambiguityTolerance": 40,
+  "lexicalBias": [],
+  "phraseMap": {},
+  "biasTerms": [
+    "meeting",
+    "presentation",
+    "project",
+    "deadline",
+    "schedule"
+  ],
+  "textSamples": [],
+  "audioSamples": [],
+  "corrections": [],
+  "metrics": {
+    "intentMatchRate": 0,
+    "correctionFrequency": 0,
+    "semanticDrift": 0,
+    "calibrationIndex": 0
+  }
+}

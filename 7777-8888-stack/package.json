@@ -1,0 +1,10 @@
+{
+  "name": "gateway-7777-8888-stack",
+  "version": "1.0.0",
+  "description": "ExternalMedia Gateway with WebSocket Translation for extensions 7777/8888",
+  "main": "gateway-7777-8888.js",
+  "dependencies": {
+    "ari-client": "^2.2.0",
+    "socket.io-client": "^4.8.1"
+  }
+}

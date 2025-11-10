@@ -1,0 +1,34 @@
+[default]
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+exten => _X.,1,NoOp(=== Inbound SIP Call ===)
+ same => n,Goto(translation-conference,\${EXTEN},1)
+
+[from-internal]
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+exten => 1000,1,Goto(translation-conference,1000,1)
+exten => 2000,1,Goto(translation-conference,2000,1)
+
+[from-sip-custom]
+; Extension 7000 - Enter Stasis for ARI management
+exten => 7000,1,NoOp(=== Extension 7000: Enter Stasis ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+ same => n,Set(CALL_UUID=\${FILTER(a-zA-Z0-9-,\${SHELL(uuidgen)})})
+ same => n,Stasis(translation-app,7000,\${CALL_UUID})
+ same => n,Hangup()
+
+; Extension 7001 - Enter Stasis for ARI management  
+exten => 7001,1,NoOp(=== Extension 7001: Enter Stasis ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+ same => n,Set(CALL_UUID=\${FILTER(a-zA-Z0-9-,\${SHELL(uuidgen)})})
+ same => n,Stasis(translation-app,7001,\${CALL_UUID})
+ same => n,Hangup()
+
+[translation-conference]
+exten => _X.,1,NoOp(=== Translation Conference Room \${EXTEN} ===)
+ same => n,Answer()
+ same => n,ConfBridge(\${EXTEN},default_bridge,default_user)
+ same => n,Hangup()

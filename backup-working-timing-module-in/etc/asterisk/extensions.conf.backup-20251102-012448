@@ -1,0 +1,158 @@
+; Asterisk Dialplan Configuration - NON-ARI VERSION
+; Two-Phase Architecture using ConfBridge and channel origination
+
+[default]
+; Extension 7000 - AudioSocket (exact match has priority over pattern)
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+
+; Route other inbound SIP calls to translation conference
+exten => _X.,1,NoOp(=== Inbound SIP Call ===)
+ same => n,Set(CALLERID(name)=${CALLERID(name)})
+ same => n,Set(CONFERENCE_ID=${EXTEN})
+ same => n,Goto(translation-conference,${EXTEN},1)
+
+[from-internal]
+; Extension 7000 - AudioSocket
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+
+; Extension 7004 - Entry point for English speaker
+exten => 7004,1,Goto(from-sip-custom,7004,1)
+
+; Extension 7005 - Entry point for French speaker
+exten => 7005,1,Goto(from-sip-custom,7005,1)
+
+; Conference room 1000
+exten => 1000,1,Goto(translation-conference,1000,1)
+
+; Conference room 2000
+exten => 2000,1,Goto(translation-conference,2000,1)
+
+; Echo test
+exten => 8888,1,NoOp(Echo test)
+ same => n,Answer()
+ same => n,Playback(hello-world)
+ same => n,Echo()
+ same => n,Hangup()
+
+; Test audio extension (plays tone continuously)
+exten => 9999,1,NoOp(=== Audio Test ===)
+ same => n,Answer()
+ same => n,Playback(hello-world)
+ same => n,Playback(demo-congrats)
+ same => n,Wait(1)
+ same => n,Playback(hello-world)
+ same => n,Playback(demo-congrats)
+ same => n,Wait(1)
+ same => n,Goto(3)
+
+[public]
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+exten => _X.,1,NoOp(=== Default Context ===)
+ same => n,Playback(invalid)
+ same => n,Hangup()
+
+[from-sip-custom]
+; ============================================================================
+; Extension 7000 - Mic Capture for EN Speaker (AudioSocket port 5050)
+; ============================================================================
+exten => 7000,1,NoOp(=== Extension 7000: Mic Capture (EN) ===)
+ same => n,Answer()
+ same => n,Set(CALL_UUID=${FILTER(a-zA-Z0-9-,${SHELL(uuidgen)})})
+ same => n,NoOp(Call UUID: ${CALL_UUID})
+ same => n,AudioSocket(${CALL_UUID},127.0.0.1:5050)
+ same => n,Hangup()
+
+; ============================================================================
+; Extension 7001 - Mic Capture for FR Speaker (AudioSocket port 5052)
+; ============================================================================
+exten => 7001,1,NoOp(=== Extension 7001: Mic Capture (FR) ===)
+ same => n,Answer()
+ same => n,Set(CALL_UUID=${FILTER(a-zA-Z0-9-,${SHELL(uuidgen)})})
+ same => n,NoOp(Call UUID: ${CALL_UUID})
+ same => n,AudioSocket(${CALL_UUID},127.0.0.1:5052)
+ same => n,Hangup()
+
+; ============================================================================
+; Extension 7004 - EN Speaker Entry (NO ARI!)
+; ============================================================================
+exten => 7004,1,NoOp(=== Extension 7004: EN Speaker Entry (No ARI) ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+
+ ; Auto-originate mic capture (Extension 7000) into Bridge 7004
+ same => n,NoOp(Originating mic capture Extension 7000...)
+ same => n,System(asterisk -rx "channel originate Local/7000@from-sip-custom application ConfBridge 7004,default_bridge,default_user" &)
+
+ ; Auto-originate muted listener to Bridge 7000 into Bridge 7004
+ same => n,NoOp(Originating muted listener to Bridge 7000...)
+ same => n,System(asterisk -rx "channel originate Local/listen-7000@from-sip-custom application ConfBridge 7004,default_bridge,muted_user" &)
+
+ ; Join user to their personal bridge 7004
+ same => n,NoOp(User joining Bridge 7004)
+ same => n,ConfBridge(7004,default_bridge,default_user)
+ same => n,Hangup()
+
+; ============================================================================
+; Extension 7005 - FR Speaker Entry (NO ARI!)
+; ============================================================================
+exten => 7005,1,NoOp(=== Extension 7005: FR Speaker Entry (No ARI) ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+
+ ; Auto-originate mic capture (Extension 7001) into Bridge 7005
+ same => n,NoOp(Originating mic capture Extension 7001...)
+ same => n,System(asterisk -rx "channel originate Local/7001@from-sip-custom application ConfBridge 7005,default_bridge,default_user" &)
+
+ ; Auto-originate muted listener to Bridge 7001 into Bridge 7005
+ same => n,NoOp(Originating muted listener to Bridge 7001...)
+ same => n,System(asterisk -rx "channel originate Local/listen-7001@from-sip-custom application ConfBridge 7005,default_bridge,muted_user" &)
+
+ ; Join user to their personal bridge 7005
+ same => n,NoOp(User joining Bridge 7005)
+ same => n,ConfBridge(7005,default_bridge,default_user)
+ same => n,Hangup()
+
+; ============================================================================
+; Extension listen-7000 - Muted Listener to Bridge 7000
+; ============================================================================
+exten => listen-7000,1,NoOp(=== Listen to Bridge 7000 MUTED ===)
+ same => n,Answer()
+ same => n,ConfBridge(7000,default_bridge,muted_user)
+ same => n,Hangup()
+
+; ============================================================================
+; Extension listen-7001 - Muted Listener to Bridge 7001
+; ============================================================================
+exten => listen-7001,1,NoOp(=== Listen to Bridge 7001 MUTED ===)
+ same => n,Answer()
+ same => n,ConfBridge(7001,default_bridge,muted_user)
+ same => n,Hangup()
+
+
+[translation-conference]
+; Translation conference room (1000-9999)
+exten => _X.,1,NoOp(=== Translation Conference Room ${EXTEN} ===)
+ same => n,Answer()
+ same => n,ConfBridge(${EXTEN},default_bridge,default_user)
+ same => n,Hangup()
+
+; Test audio context - used by automated test script
+[conference-test]
+exten => test-audio,1,NoOp(=== Conference Test Audio ===)
+ same => n,Answer()
+ same => n,Wait(1)
+ same => n,Playback(hello-world)
+ same => n,Playback(demo-congrats)
+ same => n,Playback(demo-abouttotry)
+ same => n,Playback(demo-echotest)
+ same => n,Wait(2)
+ same => n,Goto(3)  ; Loop: play audio continuously

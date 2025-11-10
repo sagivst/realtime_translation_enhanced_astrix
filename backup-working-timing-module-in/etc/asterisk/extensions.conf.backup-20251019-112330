@@ -1,0 +1,92 @@
+[general]
+static=yes
+writeprotect=no
+clearglobalvars=no
+
+[globals]
+TRANSLATION_SERVER=localhost:3000
+ARI_ENDPOINT=http://localhost:8088/ari
+
+[default]
+; Conference room 1000 (basic ConfBridge - NO TRANSLATION)
+exten => 1000,1,NoOp(Joining conference 1000)
+  same => n,Answer()
+  same => n,ConfBridge(1000)
+  same => n,Hangup()
+
+; Echo test
+exten => 100,1,NoOp(Echo test)
+  same => n,Answer()
+  same => n,Playback(demo-echotest)
+  same => n,Echo()
+  same => n,Hangup()
+
+; Extension 5000 - AudioSocket with proper UUID generation
+exten => 5000,1,NoOp(=== Real-Time Transcription with AudioSocket ===)
+  same => n,Set(UUID1=${RAND(10000000,99999999)})
+  same => n,Set(UUID2=${RAND(1000,9999)})
+  same => n,Set(UUID3=${RAND(1000,9999)})
+  same => n,Set(UUID4=${RAND(1000,9999)})
+  same => n,Set(UUID5=${RAND(100000000000,999999999999)})
+  same => n,Set(CALL_UUID=${UUID1}-${UUID2}-${UUID3}-${UUID4}-${UUID5})
+  same => n,Answer()
+  same => n,NoOp(Call UUID: ${CALL_UUID})
+  same => n,AudioSocket(${CALL_UUID},127.0.0.1:5050)
+  same => n,Hangup()
+
+; Extension 6000 - AudioSocket with proper UUID generation (NEW - to avoid phone cache)
+exten => 6000,1,NoOp(=== Real-Time Transcription with AudioSocket ===)
+  same => n,Set(UUID1=${RAND(10000000,99999999)})
+  same => n,Set(UUID2=${RAND(1000,9999)})
+  same => n,Set(UUID3=${RAND(1000,9999)})
+  same => n,Set(UUID4=${RAND(1000,9999)})
+  same => n,Set(UUID5=${RAND(100000000000,999999999999)})
+  same => n,Set(CALL_UUID=${UUID1}-${UUID2}-${UUID3}-${UUID4}-${UUID5})
+  same => n,Answer()
+  same => n,NoOp(Call UUID: ${CALL_UUID})
+  same => n,AudioSocket(${CALL_UUID},127.0.0.1:5050)
+  same => n,Hangup()
+
+; Conference room 2000 (with real-time translation via ARI)
+exten => 2000,1,NoOp(Joining translation conference - default room, English)
+  same => n,Answer()
+  same => n,Stasis(translation-app,default-room,en)
+  same => n,Hangup()
+
+; Conference room 2001 (translation - Spanish)
+exten => 2001,1,NoOp(Joining translation conference - room1, Spanish)
+  same => n,Answer()
+  same => n,Stasis(translation-app,room1,es)
+  same => n,Hangup()
+
+; Conference room 2002 (translation - French)
+exten => 2002,1,NoOp(Joining translation conference - room1, French)
+  same => n,Answer()
+  same => n,Stasis(translation-app,room1,fr)
+  same => n,Hangup()
+
+; Echo test (alternate extension)
+exten => 8888,1,NoOp(Echo test)
+  same => n,Answer()
+  same => n,Echo()
+  same => n,Hangup()
+
+; ========================================
+; from-internal context (for SIP endpoints)
+; Includes all extensions from [default]
+; ========================================
+[from-internal]
+include => default
+
+; Extension 7000 - AudioSocket with proper UUID generation (NEWLY ADDED)
+exten => 7000,1,NoOp(=== Real-Time Transcription with AudioSocket ===)
+  same => n,Set(UUID1=${RAND(10000000,99999999)})
+  same => n,Set(UUID2=${RAND(1000,9999)})
+  same => n,Set(UUID3=${RAND(1000,9999)})
+  same => n,Set(UUID4=${RAND(1000,9999)})
+  same => n,Set(UUID5=${RAND(100000000000,999999999999)})
+  same => n,Set(CALL_UUID=${UUID1}-${UUID2}-${UUID3}-${UUID4}-${UUID5})
+  same => n,Answer()
+  same => n,NoOp(Call UUID: ${CALL_UUID})
+  same => n,AudioSocket(${CALL_UUID},127.0.0.1:5050)
+  same => n,Hangup()

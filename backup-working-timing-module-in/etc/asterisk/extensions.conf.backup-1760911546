@@ -1,0 +1,114 @@
+;
+; Asterisk Dialplan for Real-Time Translation Conference
+;
+; Routes SIP calls to ConfBridge with ARI integration for translation
+; Each participant gets mix-minus audio through translation pipeline
+;
+
+[general]
+static=yes
+writeprotect=no
+clearglobalvars=no
+
+[globals]
+; Translation server endpoints
+TRANSLATION_SERVER=localhost:3000
+ARI_ENDPOINT=http://localhost:8088/ari
+
+;
+; Main conference context
+;
+[translation-conference]
+
+; Join translation conference
+; Usage: Dial(Local/1000@translation-conference)
+; Conference ID is passed as extension (e.g., 1000, 2000, etc.)
+exten => _X.,1,NoOp(=== Translation Conference Entry ===)
+ same => n,Set(CONFERENCE_ID=${EXTEN})
+ same => n,NoOp(Conference ID: ${CONFERENCE_ID})
+ same => n,Answer()
+ same => n,Playback(conf-now-entering)
+
+ ; Start ARI application for translation
+ same => n,Stasis(translation-app,${CONFERENCE_ID})
+
+ ; If Stasis fails, fall back to standard ConfBridge
+ same => n,NoOp(Stasis failed, using standard ConfBridge)
+ same => n,ConfBridge(${CONFERENCE_ID},translation_bridge,translation_user)
+ same => n,Hangup()
+
+; Join conference directly (bypass translation - for testing)
+exten => _9X.,1,NoOp(=== Direct ConfBridge (No Translation) ===)
+ same => n,Set(CONFERENCE_ID=${EXTEN:1})
+ same => n,Answer()
+ same => n,ConfBridge(${CONFERENCE_ID},default_bridge,default_user)
+ same => n,Hangup()
+
+;
+; Inbound SIP context
+;
+[from-sip]
+; Extension 7000 - AudioSocket (exact match has priority over pattern)
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Route other inbound SIP calls to translation conference
+exten => _X.,1,NoOp(=== Inbound SIP Call ===)
+ same => n,Set(CALLERID(name)=${CALLERID(name)})
+ same => n,Set(CONFERENCE_ID=${EXTEN})
+ same => n,Goto(translation-conference,${EXTEN},1)
+
+;
+; Local context for internal calls
+;
+[from-internal]
+; Test extension - echo test
+exten => 100,1,NoOp(=== Echo Test ===)
+ same => n,Answer()
+ same => n,Playback(demo-echotest)
+ same => n,Echo()
+ same => n,Hangup()
+
+; Extension 7000 - AudioSocket
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Conference room 1000
+exten => 1000,1,Goto(translation-conference,1000,1)
+
+; Conference room 2000
+exten => 2000,1,Goto(translation-conference,2000,1)
+
+; Conference room 3000
+exten => 3000,1,Goto(translation-conference,3000,1)
+
+; Direct ConfBridge test (no translation)
+exten => 9000,1,Goto(translation-conference,9000,1)
+
+;
+; Stasis application for ARI integration
+;
+[translation-stasis]
+; This context is used when Stasis() application is running
+; All call control happens via ARI from Node.js server
+
+exten => _X.,1,NoOp(=== Stasis Application Running ===)
+ same => n,NoOp(Controlled by ARI: ${EXTEN})
+ same => n,Hangup()
+
+;
+; Default context (fallback)
+;
+[default]
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+exten => _X.,1,NoOp(=== Default Context ===)
+ same => n,Playback(invalid)
+ same => n,Hangup()
+
+; AudioSocket extension for 7000
+[from-sip-custom]
+exten => 7000,1,NoOp(=== Real-Time Translation with AudioSocket ===)
+ same => n,Set(CONFERENCE_ID=7000)
+ same => n,Answer()
+ same => n,Set(CALL_UUID=${FILTER(a-zA-Z0-9-,${SHELL(uuidgen)})})
+ same => n,NoOp(Call UUID: ${CALL_UUID})
+ same => n,AudioSocket(${CALL_UUID},127.0.0.1:5050)
+ same => n,Hangup()

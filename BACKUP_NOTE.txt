@@ -1,0 +1,59 @@
+CHECKPOINT BACKUP: working-7777-8888-buffering-and-dashboards-in
+=================================================================
+
+Date: 2025-11-11 22:39:28
+Status: Steps 1-3 Completed, Ready for Step 4
+
+SYSTEM STATUS:
+--------------
+Gateway: Running (PID 213948)
+Conference Server: Running (PID 215291)
+Buffer Settings: Initialized (autoSync: true by default)
+
+COMPLETED STEPS:
+----------------
+✓ Step 1: Socket.IO event handlers (setAutoSync, setManualLatency, requestAudioMonitor) - logging only
+✓ Step 2: Latency broadcasting to dashboard with signed differences
+✓ Step 2.5: Architecture discovery - identified audio flow and buffer placement point
+✓ Step 3: Buffer settings storage per extension (Map-based, autoSync: true default)
+
+PENDING STEPS:
+--------------
+○ Step 4: Implement actual audio buffer delay (NEXT - main purpose of system)
+  - Location: After ElevenLabs TTS completion (~line 1330)
+  - Calculate total buffer from settings Map
+  - Convert MP3 → PCM16
+  - Use audioBufferManager.bufferAndSend()
+  - Emit 'translatedAudio' Socket.IO event to Gateway
+  - Send to OPPOSITE extension (7777→8888, 8888→7777)
+
+○ Step 5: Audio monitoring stream (OPTIONAL - for speaker volume functionality)
+
+ARCHITECTURE:
+-------------
+Asterisk → Gateway (RTP/UDP) → Conference Server (Socket.IO) → [BUFFER HERE] → Gateway → Asterisk
+Extensions: 7777 ↔ 8888 (bidirectional translation)
+
+KEY FILES BACKED UP:
+--------------------
+1. conference-server-externalmedia.js (Main translation server)
+2. gateway-7777-8888.js (RTP/WebSocket bridge)
+3. dashboard-latency-sync.html (UI controls for buffer settings)
+4. dashboard-latency-split.html (Split view for both extensions)
+5. Asterisk configuration files (pjsip.conf, extensions.conf, etc.)
+6. All supporting Node.js files and dependencies
+
+DASHBOARD URLs:
+---------------
+- Split view: http://20.170.155.53:3002/dashboard-latency-split.html
+- Extension 7777: http://20.170.155.53:3002/dashboard-latency-sync.html?ext=7777
+- Extension 8888: http://20.170.155.53:3002/dashboard-latency-sync.html?ext=8888
+
+CRITICAL NOTES:
+---------------
+- ALL calculations happen SERVER-SIDE (not client-side)
+- Buffer placement: RIGHT AFTER ElevenLabs, BEFORE crossed hearing channel ports
+- autoSync default: ON
+- Latency values are signed: +/- indicates faster/slower
+- Paired broadcasting ensures mirror values between extensions
+

@@ -63,7 +63,14 @@ const io = socketIo(server, {
 // Make Socket.IO available globally for audiosocket-integration
 global.io = io;
 
-// Initialize Timing Server Client for bidirectional translation
+// ========================================================================
+// OLD TIMING CLIENT - DISABLED 2025-11-12
+// ========================================================================
+// This external timing server on port 6000 is replaced by embedded timing model
+// OLD Architecture: Conf Server → Timing Server (6000) → manipulate → back to Conf Server → Asterisk
+// NEW Architecture: Conf Server → directly to Asterisk (parallel mode)
+// ========================================================================
+/*
 const TimingClient = require('./timing-client');
 global.timingClient = new TimingClient();
 global.timingClient.connect().then(() => {
@@ -71,6 +78,8 @@ global.timingClient.connect().then(() => {
 }).catch(err => {
     console.error('[Server] ✗ Timing client connection failed:', err.message);
 });
+*/
+console.log('[Server] ℹ OLD Timing client disabled - using embedded timing model');
 
 // Phase 2: Global session registry for audio injection by extension
 // Key: extension number (string), Value: session object
@@ -81,7 +90,13 @@ console.log('[Phase2] Global session registry initialized');
 // [DISABLED FOR 7777/8888] // IMPORTANT: Must load AFTER global.io is set
 // [DISABLED FOR 7777/8888] require("./audiosocket-integration");
 
-// Phase 2: Set up INJECT_AUDIO handler for bidirectional audio buffering
+// ========================================================================
+// OLD INJECT_AUDIO HANDLER - DISABLED 2025-11-12
+// ========================================================================
+// This was part of the OLD timing server architecture
+// Now replaced by direct Gateway → Conference Server communication
+// ========================================================================
+/*
 global.timingClient.setInjectAudioHandler((msg) => {
     const { toExtension, audioData, timestamp } = msg;
 
@@ -110,6 +125,8 @@ global.timingClient.setInjectAudioHandler((msg) => {
     }
 });
 console.log('[Phase2] INJECT_AUDIO handler registered');
+*/
+console.log('[Phase2] ℹ OLD INJECT_AUDIO handler disabled - using direct Gateway communication');
 
 // Latency Control Backend (for testing UI only - does not affect production)
 // const LatencyControlBackend = require('./latency-control-backend');
@@ -144,6 +161,628 @@ if (elevenlabsApiKey) {
   console.log('ElevenLabs TTS service initialized');
 }
 
+// ============================================================================
+// AUDIO TEST MODE - For calibrating RTP audio format without live translation
+// ============================================================================
+// Test audio files (PCM16, 16kHz, mono) for format testing
+const TEST_AUDIO_FILES = {
+  '7777': path.join(__dirname, 'test-audio-en.pcm'),  // English test tone (440 Hz)
+  '8888': path.join(__dirname, 'test-audio-fr.pcm')   // French test tone (550 Hz)
+};
+
+// Test mode state
+const testModeState = {
+  enabled: false,
+  targetExtension: null,  // Which extension to send test audio to
+  interval: null,         // setInterval reference for looping
+  testAudioBuffer: null,  // Loaded test audio data
+  loopCount: 0            // Track how many loops have been sent
+};
+
+/**
+ * Load test audio file for the target extension
+ * @param {string} targetExtension - Extension to send test audio to ('7777' or '8888')
+ * @returns {Buffer|null} - PCM16 audio buffer or null if file not found
+ */
+function loadTestAudio(targetExtension) {
+  const filePath = TEST_AUDIO_FILES[targetExtension];
+  if (!filePath) {
+    console.error(`[Test Mode] ✗ No test audio file configured for extension ${targetExtension}`);
+    return null;
+  }
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      console.error(`[Test Mode] ✗ Test audio file not found: ${filePath}`);
+      return null;
+    }
+
+    const audioBuffer = fs.readFileSync(filePath);
+    console.log(`[Test Mode] ✓ Loaded test audio: ${filePath} (${audioBuffer.length} bytes, ~${(audioBuffer.length / 32000).toFixed(2)}s)`);
+    return audioBuffer;
+  } catch (error) {
+    console.error(`[Test Mode] ✗ Error loading test audio:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Start test mode - sends test audio in a continuous loop to target extension
+ * @param {string} targetExtension - Extension to send test audio to ('7777' or '8888')
+ */
+function startTestMode(targetExtension) {
+  if (testModeState.enabled) {
+    console.log(`[Test Mode] ⚠ Test mode already running for extension ${testModeState.targetExtension}`);
+    return { success: false, message: 'Test mode already running' };
+  }
+
+  // Load test audio file
+  const audioBuffer = loadTestAudio(targetExtension);
+  if (!audioBuffer) {
+    return { success: false, message: 'Failed to load test audio file' };
+  }
+
+  testModeState.enabled = true;
+  testModeState.targetExtension = targetExtension;
+  testModeState.testAudioBuffer = audioBuffer;
+  testModeState.loopCount = 0;
+
+  // Send test audio immediately, then every 4 seconds (allowing 3s audio + 1s gap)
+  const sendTestAudio = () => {
+    if (!testModeState.enabled) return;
+
+    testModeState.loopCount++;
+    console.log(`[Test Mode] → Sending test audio to extension ${targetExtension} (loop #${testModeState.loopCount})`);
+
+    // Emit translatedAudio event to Gateway (same format as real translation)
+    global.io.emit('translatedAudio', {
+      extension: String(targetExtension),
+      audio: testModeState.testAudioBuffer,
+      format: 'pcm16',
+      sampleRate: 16000,
+      channels: 1,
+      timestamp: Date.now(),
+      bufferApplied: 0,           // No buffer in test mode
+      sourceExtension: 'TEST',    // Indicate test mode source
+      testMode: true              // Flag to identify test audio
+    });
+  };
+
+  // Send first test audio immediately
+  sendTestAudio();
+
+  // Then send every 4 seconds in a loop
+  testModeState.interval = setInterval(sendTestAudio, 4000);
+
+  console.log(`[Test Mode] ✓ Started test mode for extension ${targetExtension} (looping every 4s)`);
+  return { success: true, message: `Test mode started for extension ${targetExtension}` };
+}
+
+/**
+ * Stop test mode - stops the test audio loop
+ */
+function stopTestMode() {
+  if (!testModeState.enabled) {
+    console.log(`[Test Mode] ⚠ Test mode not running`);
+    return { success: false, message: 'Test mode not running' };
+  }
+
+  if (testModeState.interval) {
+    clearInterval(testModeState.interval);
+    testModeState.interval = null;
+  }
+
+  const prevExtension = testModeState.targetExtension;
+  const totalLoops = testModeState.loopCount;
+
+  testModeState.enabled = false;
+  testModeState.targetExtension = null;
+  testModeState.testAudioBuffer = null;
+  testModeState.loopCount = 0;
+
+  console.log(`[Test Mode] ✓ Stopped test mode (was running for extension ${prevExtension}, sent ${totalLoops} loops)`);
+  return { success: true, message: `Test mode stopped (${totalLoops} loops sent)` };
+}
+
+/**
+ * Get current test mode status
+ * @returns {object} - Test mode status object
+ */
+function getTestModeStatus() {
+  return {
+    enabled: testModeState.enabled,
+    targetExtension: testModeState.targetExtension,
+    loopCount: testModeState.loopCount,
+    audioLoaded: !!testModeState.testAudioBuffer
+  };
+}
+
+// ============================================================================
+// TIMING & BUFFERING MODULE - Step 1: Class Definitions (NOT YET ACTIVE)
+// ============================================================================
+// These classes are added but not yet integrated into the pipeline
+// System behavior remains unchanged until Step 2
+
+const net = require('net');
+
+// Class 1: ExtensionPairManager - Tracks which extensions are paired
+class ExtensionPairManager {
+  constructor() {
+    this.pairs = new Map(); // ext → pairedExt
+    this.startTimes = new Map(); // ext → callStartTime
+  }
+
+  registerPair(ext1, ext2) {
+    this.pairs.set(ext1, ext2);
+    this.pairs.set(ext2, ext1);
+    this.startTimes.set(ext1, Date.now());
+    this.startTimes.set(ext2, Date.now());
+    console.log('[PairManager] Registered pair: ' + ext1 + ' ↔ ' + ext2);
+  }
+
+  isPaired(ext) {
+    return this.pairs.has(ext);
+  }
+
+  getPairedExtension(ext) {
+    return this.pairs.get(ext);
+  }
+
+  unregisterPair(ext) {
+    const paired = this.pairs.get(ext);
+    if (paired) {
+      this.pairs.delete(ext);
+      this.pairs.delete(paired);
+      this.startTimes.delete(ext);
+      this.startTimes.delete(paired);
+      console.log('[PairManager] Unregistered pair: ' + ext + ' ↔ ' + paired);
+    }
+  }
+}
+
+// Class 2: LatencyTracker - Tracks latency samples and calculates rolling averages
+class LatencyTracker {
+  constructor() {
+    this.directionSamples = new Map(); // 'ext1→ext2' → [sample1, sample2, ...]
+    this.stageSamples = new Map(); // 'ext:stage' → [sample1, sample2, ...]
+    this.maxSamples = 10; // Rolling average window
+  }
+
+  updateLatency(direction, latencyMs) {
+    if (!this.directionSamples.has(direction)) {
+      this.directionSamples.set(direction, []);
+    }
+
+    const samples = this.directionSamples.get(direction);
+    samples.push(latencyMs);
+
+    // Keep only last 10 samples
+    if (samples.length > this.maxSamples) {
+      samples.shift();
+    }
+
+    const avg = this.getAverageLatency(direction);
+    console.log('[Latency] ' + direction + ' = ' + latencyMs + 'ms (avg: ' + Math.round(avg) + 'ms, n=' + samples.length + ')');
+  }
+
+  updateStageLatency(extension, stageName, latencyMs) {
+    const key = extension + ':' + stageName;
+    if (!this.stageSamples.has(key)) {
+      this.stageSamples.set(key, []);
+    }
+
+    const samples = this.stageSamples.get(key);
+    samples.push(latencyMs);
+
+    if (samples.length > this.maxSamples) {
+      samples.shift();
+    }
+  }
+
+  getAverageLatency(direction) {
+    const samples = this.directionSamples.get(direction) || [];
+    if (samples.length === 0) return 0;
+    return samples.reduce((a, b) => a + b) / samples.length;
+  }
+
+  getStageAverage(extension, stageName) {
+    const key = extension + ':' + stageName;
+    const samples = this.stageSamples.get(key) || [];
+    if (samples.length === 0) return 0;
+    return samples.reduce((a, b) => a + b) / samples.length;
+  }
+
+  getLatestLatency(direction) {
+    const samples = this.directionSamples.get(direction) || [];
+    if (samples.length === 0) return 0;
+    return samples[samples.length - 1]; // Return most recent sample
+  }
+
+  getLatencyDifference(ext1, ext2) {
+    const direction1 = ext1 + '→' + ext2;
+    const direction2 = ext2 + '→' + ext1;
+
+    const avg1 = this.getAverageLatency(direction1);
+    const avg2 = this.getAverageLatency(direction2);
+
+    const difference = avg1 - avg2;
+
+    console.log('[LatencyDiff] ' + direction1 + '=' + Math.round(avg1) + 'ms, ' + direction2 + '=' + Math.round(avg2) + 'ms, Δ=' + Math.round(difference) + 'ms');
+
+    return difference;
+  }
+
+  getCurrentLatencyDifference(ext1, ext2) {
+    const direction1 = ext1 + '→' + ext2;
+    const direction2 = ext2 + '→' + ext1;
+
+    const current1 = this.getLatestLatency(direction1);
+    const current2 = this.getLatestLatency(direction2);
+
+    // Only calculate difference if BOTH extensions have valid data (non-zero)
+    if (current1 === 0 || current2 === 0) {
+      console.log('[LatencyDiff-Current] Skipping calculation - one or both extensions have no data yet (' + direction1 + '=' + Math.round(current1) + 'ms, ' + direction2 + '=' + Math.round(current2) + 'ms)');
+      return null;
+    }
+
+    // FIXED: Inverted formula - ext2→ext1 minus ext1→ext2
+    // Positive = ext1 is slower (needs more delay), Negative = ext1 is faster (needs less delay)
+    const difference = current2 - current1;
+
+    console.log('[LatencyDiff-Current] ' + direction1 + '=' + Math.round(current1) + 'ms, ' + direction2 + '=' + Math.round(current2) + 'ms, Δ=' + Math.round(difference) + 'ms');
+
+    return difference;
+  }
+
+  getAllLatencies(extension) {
+    const stages = [
+      'audiosocket_to_asr', 'asr', 'asr_to_mt', 'mt', 'mt_to_tts',
+      'tts', 'tts_to_ls', 'ls', 'ls_to_bridge'
+    ];
+
+    const result = {};
+    for (const stage of stages) {
+      const key = extension + ':' + stage;
+      const samples = this.stageSamples.get(key) || [];
+      result[stage] = {
+        current: samples[samples.length - 1] || 0,
+        avg: this.getStageAverage(extension, stage)
+      };
+    }
+
+    return result;
+  }
+}
+
+// Class 3: AudioBufferManager - Manages setTimeout-based audio buffering
+class AudioBufferManager {
+  constructor() {
+    this.pendingBuffers = new Map(); // extension → [{audio, timer, targetTime}, ...]
+  }
+
+  bufferAndSend(extension, audioData, delayMs, sendCallback) {
+    if (delayMs === 0) {
+      // No delay needed, send immediately
+      sendCallback(extension, audioData);
+      return;
+    }
+
+    const targetTime = Date.now() + delayMs;
+
+    console.log('[AudioBuffer] Buffering ' + audioData.length + ' bytes for ' + extension + ' by ' + delayMs + 'ms');
+
+    const timer = setTimeout(() => {
+      console.log('[AudioBuffer] Sending buffered audio for ' + extension + ' (delayed by ' + delayMs + 'ms)');
+      sendCallback(extension, audioData);
+
+      // Remove from pending buffers
+      const buffers = this.pendingBuffers.get(extension) || [];
+      const index = buffers.findIndex(b => b.targetTime === targetTime);
+      if (index !== -1) {
+        buffers.splice(index, 1);
+      }
+    }, delayMs);
+
+    // Track pending buffer
+    if (!this.pendingBuffers.has(extension)) {
+      this.pendingBuffers.set(extension, []);
+    }
+
+    this.pendingBuffers.get(extension).push({
+      audio: audioData,
+      timer,
+      targetTime,
+      delayMs
+    });
+  }
+
+  clearBuffer(extension) {
+    const buffers = this.pendingBuffers.get(extension) || [];
+    buffers.forEach(b => clearTimeout(b.timer));
+    this.pendingBuffers.delete(extension);
+    console.log('[AudioBuffer] Cleared all pending buffers for ' + extension);
+  }
+
+  getPendingBuffers(extension) {
+    return this.pendingBuffers.get(extension) || [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 4.3: MP3 → PCM16 AUDIO CONVERSION FUNCTION
+// ═══════════════════════════════════════════════════════════════
+// Note: fs and path already declared at top of file
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execPromise = promisify(exec);
+
+async function convertMp3ToPcm16(mp3Buffer) {
+  const tempDir = '/tmp';
+  const inputFile = path.join(tempDir, `tts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp3`);
+  const outputFile = path.join(tempDir, `tts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.pcm`);
+
+  try {
+    // Write MP3 to temporary file
+    fs.writeFileSync(inputFile, mp3Buffer);
+
+    // Convert: MP3 → PCM16, 16kHz, mono, signed 16-bit little-endian
+    const ffmpegCommand = `ffmpeg -i ${inputFile} -f s16le -acodec pcm_s16le -ar 16000 -ac 1 ${outputFile}`;
+    await execPromise(ffmpegCommand);
+
+    // Read PCM data
+    const pcmBuffer = fs.readFileSync(outputFile);
+
+    // Cleanup
+    fs.unlinkSync(inputFile);
+    fs.unlinkSync(outputFile);
+
+    console.log(`[Audio Convert] MP3 → PCM16: ${mp3Buffer.length} bytes → ${pcmBuffer.length} bytes`);
+    return pcmBuffer;
+
+  } catch (error) {
+    console.error('[Audio Convert] Error converting MP3 to PCM16:', error);
+    // Cleanup on error
+    try { fs.unlinkSync(inputFile); } catch {}
+    try { fs.unlinkSync(outputFile); } catch {}
+    throw error;
+  }
+}
+
+// Class 4: DashboardTCPAPI - TCP server for dashboard metrics
+class DashboardTCPAPI {
+  constructor() {
+    this.server = null;
+    this.clients = new Map(); // socket → { id, subscriptions: Set }
+    this.nextClientId = 1;
+    this.heartbeatInterval = null;
+  }
+
+  startServer(port = 6001) {
+    this.server = net.createServer((socket) => {
+      this.handleClientConnection(socket);
+    });
+
+    this.server.listen(port, () => {
+      console.log('[TCP API] Dashboard metrics API listening on port ' + port);
+    });
+
+    // Start heartbeat
+    this.heartbeatInterval = setInterval(() => {
+      this.broadcastHeartbeat();
+    }, 30000);
+  }
+
+  handleClientConnection(socket) {
+    const clientId = this.nextClientId++;
+    const clientInfo = {
+      id: clientId,
+      subscriptions: new Set(), // Set of extension numbers
+      address: socket.remoteAddress
+    };
+
+    this.clients.set(socket, clientInfo);
+
+    console.log('[TCP API] Client ' + clientId + ' connected from ' + socket.remoteAddress);
+
+    // Send connection confirmation
+    this.sendToClient(socket, {
+      type: 'CONNECTED',
+      timestamp: Date.now(),
+      serverVersion: '1.0.0',
+      clientId: clientId
+    });
+
+    // Handle incoming data
+    let buffer = '';
+    socket.on('data', (data) => {
+      buffer += data.toString('utf8');
+
+      // Process complete messages (newline-delimited)
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const message = JSON.parse(line);
+            this.handleClientMessage(socket, clientInfo, message);
+          } catch (error) {
+            console.error('[TCP API] Invalid JSON from client ' + clientId + ':', error);
+          }
+        }
+      }
+    });
+
+    socket.on('error', (error) => {
+      console.error('[TCP API] Client ' + clientId + ' error:', error);
+    });
+
+    socket.on('close', () => {
+      console.log('[TCP API] Client ' + clientId + ' disconnected');
+      this.clients.delete(socket);
+    });
+  }
+
+  handleClientMessage(socket, clientInfo, message) {
+    switch (message.type) {
+      case 'SUBSCRIBE':
+        if (message.extension) {
+          clientInfo.subscriptions.add(message.extension);
+          console.log('[TCP API] Client ' + clientInfo.id + ' subscribed to extension ' + message.extension);
+        }
+        break;
+
+      case 'UNSUBSCRIBE':
+        if (message.extension) {
+          clientInfo.subscriptions.delete(message.extension);
+          console.log('[TCP API] Client ' + clientInfo.id + ' unsubscribed from extension ' + message.extension);
+        }
+        break;
+
+      default:
+        console.warn('[TCP API] Unknown message type from client ' + clientInfo.id + ':', message.type);
+    }
+  }
+
+  sendToClient(socket, data) {
+    if (socket.writable) {
+      const json = JSON.stringify(data) + '\n';
+      socket.write(json);
+    }
+  }
+
+  broadcastLatencyUpdate(data) {
+    const message = {
+      type: 'LATENCY_UPDATE',
+      timestamp: Date.now(),
+      ...data
+    };
+
+    // Send to subscribed clients
+    for (const [socket, clientInfo] of this.clients.entries()) {
+      if (clientInfo.subscriptions.size === 0 ||
+          clientInfo.subscriptions.has(data.extension)) {
+        this.sendToClient(socket, message);
+      }
+    }
+  }
+
+  broadcastStage(extension, stage, duration, stageName) {
+    const message = {
+      type: 'STAGE_TIMING',
+      timestamp: Date.now(),
+      extension,
+      stage,
+      duration,
+      stageName
+    };
+
+    for (const [socket, clientInfo] of this.clients.entries()) {
+      if (clientInfo.subscriptions.size === 0 ||
+          clientInfo.subscriptions.has(extension)) {
+        this.sendToClient(socket, message);
+      }
+    }
+  }
+
+  broadcastBufferApplied(extension, delayMs, reason, latencyDifference) {
+    const message = {
+      type: 'BUFFER_APPLIED',
+      timestamp: Date.now(),
+      extension,
+      delayMs,
+      reason,
+      latencyDifference
+    };
+
+    for (const [socket, clientInfo] of this.clients.entries()) {
+      if (clientInfo.subscriptions.size === 0 ||
+          clientInfo.subscriptions.has(extension)) {
+        this.sendToClient(socket, message);
+      }
+    }
+  }
+
+  broadcastBufferCalculation(extension, targetBufferMs, pairedExtension, latencyDifference) {
+    const message = {
+      type: 'BUFFER_CALCULATION',
+      timestamp: Date.now(),
+      extension: extension,
+      targetBufferMs: Math.round(targetBufferMs),
+      pairedExtension: pairedExtension,
+      latencyDifference: Math.round(latencyDifference),
+      status: 'calculated_not_applied'
+    };
+
+    for (const [socket, clientInfo] of this.clients.entries()) {
+      if (clientInfo.subscriptions.size === 0 ||
+          clientInfo.subscriptions.has(extension)) {
+        this.sendToClient(socket, message);
+      }
+    }
+
+    console.log('[TCP API] Broadcast buffer calculation for ' + extension + ': target=' + Math.round(targetBufferMs) + 'ms, diff=' + Math.round(latencyDifference) + 'ms');
+  }
+
+  broadcastHeartbeat() {
+    const message = {
+      type: 'HEARTBEAT',
+      timestamp: Date.now(),
+      connectedClients: this.clients.size,
+      uptime: process.uptime() * 1000
+    };
+
+    for (const [socket] of this.clients.entries()) {
+      this.sendToClient(socket, message);
+    }
+  }
+
+  stopServer() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    // Close all client connections
+    for (const [socket] of this.clients.entries()) {
+      socket.end();
+    }
+
+    if (this.server) {
+      this.server.close(() => {
+        console.log('[TCP API] Server closed');
+      });
+    }
+  }
+}
+
+// Initialize timing module instances
+const pairManager = new ExtensionPairManager();
+const latencyTracker = new LatencyTracker();
+const audioBufferManager = new AudioBufferManager();
+const dashboardTCPAPI = new DashboardTCPAPI();
+
+console.log('[Server] ✓ AudioBufferManager initialized (ready for Step 4)');
+
+// Auto-pair 7777 and 8888 on startup
+pairManager.registerPair('7777', '8888');
+
+// Start TCP API server
+dashboardTCPAPI.startServer(6001);
+
+// STEP 3: Extension buffer settings storage
+// Store per-extension buffer settings from dashboard
+const extensionBufferSettings = new Map();
+
+// Initialize with defaults (autoSync: true per user request)
+extensionBufferSettings.set('7777', { autoSync: true, manualLatencyMs: 0 });
+extensionBufferSettings.set('8888', { autoSync: true, manualLatencyMs: 0 });
+
+console.log('[TimingModule] Step 1: Classes initialized (not yet integrated into pipeline)');
+console.log('[TimingModule] Step 3: Buffer settings storage initialized (autoSync: ON by default)');
+// ============================================================================
+// END OF TIMING & BUFFERING MODULE CLASSES
+// ============================================================================
+
 // Store active rooms and participants
 const rooms = new Map();
 const participants = new Map();
@@ -152,21 +791,27 @@ const participants = new Map();
 const userProfiles = new Map(); // key: userId_language, value: { profile, uloLayer }
 
 // QA Settings: Per-extension language configuration
-// Extension 7000: English → French (DEFAULT)
-// Extension 7001: French → English (OPPOSITE - for bidirectional translation)
+// Extension 7777: English → French (DEFAULT)
+// Extension 7888: French → English (OPPOSITE - for bidirectional translation)
 global.qaConfigs = new Map();
-global.qaConfigs.set('7000', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
-global.qaConfigs.set('7001', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
+global.qaConfigs.set('7777', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
+global.qaConfigs.set('7888', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
 
 // Helper function to get config for extension (with fallback)
 function getQaConfig(extension) {
-  return global.qaConfigs.get(extension) || global.qaConfigs.get('7000');
+  return global.qaConfigs.get(extension) || global.qaConfigs.get('7777');
 }
 
 // Store streaming Deepgram connections per socket
 const streamingConnections = new Map(); // key: socket.id, value: { connection, customVocab }
+// Per-extension audio gain factors (key: extension, value: gainFactor)
+const extensionGainFactors = new Map(); // Default 1.2x for all
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
-const humeAudioBuffers = new Map(); // key: socket.id, value: circular buffer for playback
+const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
+const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
+const humeLatencyPerExtension = new Map(); // key: extension, value: latest Hume latency in ms
+const humeStartTimestamps = new Map(); // key: extension, value: timestamp when last audio chunk was sent to Hume
+const HUME_BUFFER_SIZE = 50; // 50 chunks = ~1 second at 20ms per chunk
 
 // Language mapping for services
 const languageMap = {
@@ -465,6 +1110,7 @@ async function createStreamingConnection(socket, participant) {
         humeConnections.delete(socket.id);
       }
       humeAudioBuffers.delete(socket.id);
+      socketToExtension.delete(socket.id);
       socket.emit('pipeline-log', {
         type: 'client',
         stage: 'error',
@@ -493,6 +1139,7 @@ async function createStreamingConnection(socket, participant) {
         humeConnections.delete(socket.id);
       }
       humeAudioBuffers.delete(socket.id);
+      socketToExtension.delete(socket.id);
   });
 
   // Handle transcription results
@@ -686,25 +1333,36 @@ async function initializeHumeClient(socketId) {
         energy: metrics.energy,
         socketId: socketId
       });
-      
-      const socket = io.sockets.sockets.get(socketId);
-      console.log('[DEBUG] Socket lookup result:', socket ? 'FOUND' : 'NOT FOUND');
-      
-      if (socket) {
-        console.log('[DEBUG] ✅ Emitting emotion_detected to browser');
-        socket.emit('emotion_detected', {
+
+      // Get extension for this socket
+      const extension = socketToExtension.get(socketId);
+
+      if (extension) {
+        // Calculate Hume latency (time from audio sent to Hume → metrics received)
+        const startTime = humeStartTimestamps.get(extension);
+        if (startTime) {
+          const humeLatency = Date.now() - startTime;
+          humeLatencyPerExtension.set(extension, humeLatency);
+          console.log(`[Hume] Latency for extension ${extension}: ${humeLatency}ms`);
+        }
+
+        console.log('[DEBUG] ✅ Broadcasting emotion_detected to all clients for extension:', extension);
+        // Broadcast to ALL clients (including dashboard) - similar to how TTS works
+        global.io.emit('emotion_detected', {
+          extension: String(extension), // Add extension field for filtering
           arousal: metrics.arousal,
           valence: metrics.valence,
           energy: metrics.energy,
           timestamp: metrics.timestamp
         });
-        console.log('[DEBUG] Emotion event emitted successfully');
+        console.log('[DEBUG] Emotion event broadcasted successfully');
       } else {
-        console.error('[DEBUG] ❌ Socket not found for socketId:', socketId);
+        console.error('[DEBUG] ❌ Extension not found for socketId:', socketId);
       }
     });
     
     humeConnections.set(socketId, humeClient);
+    humeAudioBuffers.set(socketId, []); // Initialize empty buffer for this socket
     console.log(`[Hume] Client initialized for socket ${socketId}`);
     return humeClient;
   } catch (error) {
@@ -764,21 +1422,52 @@ function addWavHeader(pcmBuffer) {
  */
 async function processGatewayAudio(socket, extension, audioBuffer, language) {
   try {
+    // ═══════════════════════════════════════════════════════════════
+    // TIMING INITIALIZATION - STEP 2: Timing Collection (Measure Only)
+    // ═══════════════════════════════════════════════════════════════
+    const timing = {
+      extension,
+      t0_gatewayReceived: Date.now(),
+      stages: {},
+      parallel: {}
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 1: Gateway → ASR
+    // ═══════════════════════════════════════════════════════════════
+    timing.t1_asrStarted = Date.now();
+    timing.stages.audiosocket_to_asr = timing.t1_asrStarted - timing.t0_gatewayReceived;
+
+    latencyTracker.updateStageLatency(extension, 'audiosocket_to_asr', timing.stages.audiosocket_to_asr);
+    console.log('[Timing] Stage 1 (Gateway→ASR) for ' + extension + ': ' + timing.stages.audiosocket_to_asr + 'ms');
+
     // Step 1: Transcribe (ASR)
     console.log(`[Pipeline] Transcribing ${audioBuffer.length} bytes from extension ${extension}...`);
     // Amplify audio to improve Deepgram transcription accuracy
-    const amplifiedAudio = amplifyAudio(audioBuffer, 1.2);
+    // Use per-extension gain factor if set, otherwise default to 1.2
+    const gainFactor = extensionGainFactors.get(extension) || 1.2;
+    const amplifiedAudio = amplifyAudio(audioBuffer, gainFactor);
     // Add WAV header to raw PCM data for Deepgram
     const wavAudio = addWavHeader(amplifiedAudio);
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 2: ASR Processing (Deepgram)
+    // ═══════════════════════════════════════════════════════════════
+    const asrStart = Date.now();
     const { text: transcription, confidence } = await transcribeAudio(wavAudio, language);
-    
+    timing.t2_asrCompleted = Date.now();
+    timing.stages.asr = timing.t2_asrCompleted - asrStart;
+
+    latencyTracker.updateStageLatency(extension, 'asr', timing.stages.asr);
+    console.log('[Timing] Stage 2 (ASR) for ' + extension + ': ' + timing.stages.asr + 'ms');
+
     if (!transcription || transcription.trim() === '') {
       console.log(`[Pipeline] No transcription for extension ${extension}`);
       return;
     }
-    
+
     console.log(`[Pipeline] Transcription from ${extension}: "${transcription}" (confidence: ${confidence})`);
-    
+
     // Emit transcription to dashboard
     global.io.emit('transcriptionFinal', {
       extension: extension,
@@ -787,40 +1476,378 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
       confidence: confidence,
       timestamp: Date.now()
     });
-    
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 3: ASR → MT
+    // ═══════════════════════════════════════════════════════════════
+    timing.t3_mtStarted = Date.now();
+    timing.stages.asr_to_mt = timing.t3_mtStarted - timing.t2_asrCompleted;
+
+    latencyTracker.updateStageLatency(extension, 'asr_to_mt', timing.stages.asr_to_mt);
+    console.log('[Timing] Stage 3 (ASR→MT) for ' + extension + ': ' + timing.stages.asr_to_mt + 'ms');
+
     // Step 2: Translate
     const targetLang = extension === '7777' ? 'fr' : 'en'; // 7777 is English->French, 8888 is French->English
     console.log(`[Pipeline] Translating ${language} -> ${targetLang}: "${transcription}"`);
-    
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 4: MT Processing (DeepL)
+    // ═══════════════════════════════════════════════════════════════
+    const mtStart = Date.now();
     const translation = await translateText(transcription, language, targetLang);
-    console.log(`[Pipeline] Translation: "${translation}"`);
-    
+    timing.t4_mtCompleted = Date.now();
+    timing.stages.mt = timing.t4_mtCompleted - mtStart;
+
+    latencyTracker.updateStageLatency(extension, 'mt', timing.stages.mt);
+    console.log('[Timing] Stage 4 (MT) for ' + extension + ': ' + timing.stages.mt + 'ms');
+
+    console.log(`[Pipeline] Translation: "${translation}" (${timing.stages.mt}ms)`);
+
     // Emit translation to dashboard
     global.io.emit('translationComplete', {
       extension: extension,
-      originalText: transcription,
-      translatedText: translation,
+      original: transcription,
+      translation: translation,
       sourceLang: language,
       targetLang: targetLang,
       timestamp: Date.now()
     });
-    
-    // Step 3: TTS (TODO: Generate audio from translation and send back to Gateway)
-    // For now, just log - full TTS integration requires ElevenLabs service
-    console.log(`[Pipeline] TTS generation for extension ${extension} (placeholder)`);
-    
-    // TODO: Generate TTS audio and send to Gateway
-    // const ttsAudio = await generateTTS(translation, targetLang);
-    // socket.emit('translatedAudio', {
-    //   extension: extension,
-    //   audio: ttsAudio,
-    //   timestamp: Date.now()
-    // });
-    
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 5: MT → TTS
+    // ═══════════════════════════════════════════════════════════════
+    timing.t5_ttsStarted = Date.now();
+    timing.stages.mt_to_tts = timing.t5_ttsStarted - timing.t4_mtCompleted;
+
+    latencyTracker.updateStageLatency(extension, 'mt_to_tts', timing.stages.mt_to_tts);
+    console.log('[Timing] Stage 5 (MT→TTS) for ' + extension + ': ' + timing.stages.mt_to_tts + 'ms');
+
+    // Step 3: TTS - Generate audio from translation
+    console.log(`[Pipeline] Generating TTS for extension ${extension}: "${translation}"`);
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 6: TTS Processing (ElevenLabs)
+    // ═══════════════════════════════════════════════════════════════
+    const ttsStart = Date.now();
+    const ttsAudio = await synthesizeSpeech(translation, targetLang);
+    timing.t6_ttsCompleted = Date.now();
+    timing.stages.tts = timing.t6_ttsCompleted - ttsStart;
+
+    latencyTracker.updateStageLatency(extension, 'tts', timing.stages.tts);
+    console.log('[Timing] Stage 6 (TTS) for ' + extension + ': ' + timing.stages.tts + 'ms - ' + (ttsAudio ? ttsAudio.length : 0) + ' bytes');
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 7: TTS → LS (Latency Sync preparation)
+    // ═══════════════════════════════════════════════════════════════
+    timing.t7_lsStarted = Date.now();
+    timing.stages.tts_to_ls = timing.t7_lsStarted - timing.t6_ttsCompleted;
+
+    latencyTracker.updateStageLatency(extension, 'tts_to_ls', timing.stages.tts_to_ls);
+    console.log('[Timing] Stage 7 (TTS→LS) for ' + extension + ': ' + timing.stages.tts_to_ls + 'ms');
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 8: LS (Latency Sync - Buffer Calculation)
+    // STEP 4.1 & 4.2: Retrieve settings and calculate buffer delay
+    // ═══════════════════════════════════════════════════════════════
+    const pairedExtension = pairManager.getPairedExtension(extension);
+
+    // SUB-TASK 4.1: Retrieve Buffer Settings
+    const settings = extensionBufferSettings.get(extension) || { autoSync: false, manualLatencyMs: 0 };
+    const autoSync = settings.autoSync;
+    const manualLatencyMs = settings.manualLatencyMs;
+
+    console.log(`[Buffer Apply] Extension ${extension} settings: autoSync=${autoSync}, manualLatency=${manualLatencyMs}ms`);
+
+    // SUB-TASK 4.2: Calculate Total Buffer Delay
+    const latencyDifference = latencyTracker.getCurrentLatencyDifference(extension, pairedExtension);
+    let totalBufferMs = manualLatencyMs; // Always add manual adjustment
+
+    if (autoSync && latencyDifference !== null && latencyDifference < 0) {
+      // This extension is FASTER (negative latency diff) - needs buffer to sync
+      const autoSyncBufferMs = Math.abs(latencyDifference);
+      totalBufferMs += autoSyncBufferMs;
+      console.log(`[Buffer Apply] Extension ${extension} is FASTER by ${Math.round(autoSyncBufferMs)}ms`);
+      console.log(`[Buffer Apply] Auto-sync buffer: +${Math.round(autoSyncBufferMs)}ms`);
+    } else if (autoSync && latencyDifference !== null && latencyDifference > 0) {
+      // This extension is SLOWER (positive latency diff) - no auto-sync buffer needed
+      console.log(`[Buffer Apply] Extension ${extension} is SLOWER by ${Math.round(latencyDifference)}ms - no auto-sync buffer needed`);
+    } else if (latencyDifference === null) {
+      console.log(`[Buffer Apply] No latency data yet for synchronization`);
+    }
+
+    console.log(`[Buffer Apply] Total buffer: ${Math.round(totalBufferMs)}ms (manual: ${manualLatencyMs}ms, auto: ${Math.round(totalBufferMs - manualLatencyMs)}ms)`);
+
+    // For now, don't actually apply the buffer yet (will be done in Step 4.4)
+    const bufferDelayMs = 0; // Step 4.4 will replace this with actual buffer application
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 4.3: CONVERT MP3 TO PCM16
+    // Convert ElevenLabs MP3 audio to PCM16 format for Gateway/Asterisk
+    // ═══════════════════════════════════════════════════════════════
+    let pcmAudioBuffer = null;
+    if (ttsAudio) {
+      try {
+        console.log(`[Audio Convert] Converting ${ttsAudio.length} bytes MP3 to PCM16...`);
+        pcmAudioBuffer = await convertMp3ToPcm16(ttsAudio);
+        console.log(`[Audio Convert] ✓ Conversion complete: ${pcmAudioBuffer.length} bytes PCM16`);
+      } catch (error) {
+        console.error(`[Audio Convert] ✗ Conversion failed for extension ${extension}:`, error.message);
+        pcmAudioBuffer = null;
+      }
+    } else {
+      console.log(`[Audio Convert] No TTS audio to convert for extension ${extension}`);
+    }
+
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 4.4 & 4.5: APPLY BUFFER AND SEND TO GATEWAY
+    // Apply calculated buffer delay and emit audio back to Gateway
+    // ═══════════════════════════════════════════════════════════════
+    if (pcmAudioBuffer && pcmAudioBuffer.length > 0) {
+      console.log(`[Buffer Send] Applying ${Math.round(totalBufferMs)}ms buffer to ${pcmAudioBuffer.length} bytes PCM16 for extension ${pairedExtension}`);
+      
+      audioBufferManager.bufferAndSend(
+        pairedExtension,           // Target extension (paired partner)
+        pcmAudioBuffer,            // PCM16 audio data
+        totalBufferMs,             // Buffer delay in milliseconds
+        (targetExtension, delayedAudio) => {
+          // Callback executed after buffer delay
+          console.log(`[Buffer Send] ✓ Sending ${delayedAudio.length} bytes PCM16 to Gateway for extension ${targetExtension}`);
+          
+          // SUB-TASK 4.5: Emit translatedAudio (camelCase) to Gateway
+          global.io.emit('translatedAudio', {
+            extension: String(targetExtension),
+            audio: delayedAudio,         // Buffer object (PCM16 data)
+            format: 'pcm16',             // Audio format
+            sampleRate: 16000,           // Sample rate
+            channels: 1,                 // Mono
+            timestamp: Date.now(),
+            bufferApplied: totalBufferMs,
+            sourceExtension: extension   // Original extension that generated this translation
+          });
+          
+          console.log(`[Buffer Send] ✓ translatedAudio emitted to Gateway for extension ${targetExtension} (buffered ${Math.round(totalBufferMs)}ms)`);
+        }
+      );
+    } else {
+      console.log(`[Buffer Send] ⚠ No PCM audio available to send for extension ${extension}`);
+    }
+
+    timing.t8_lsCompleted = Date.now();
+    timing.stages.ls = timing.t8_lsCompleted - timing.t7_lsStarted;
+
+    latencyTracker.updateStageLatency(extension, 'ls', timing.stages.ls);
+    console.log('[Timing] Stage 8 (LS) for ' + extension + ': ' + timing.stages.ls + 'ms');
+
+    // ═══════════════════════════════════════════════════════════════
+    // STAGE 9: LS → Bridge (Send to gateway)
+    // ═══════════════════════════════════════════════════════════════
+    // Emit TTS audio to dashboard
+    console.log(`[TTS DEBUG] Emitting translated-audio for extension: ${extension} (type: ${typeof extension})`);
+    global.io.emit('translated-audio', {
+      extension: String(extension),
+      original: transcription,
+      translation: translation,
+      audio: ttsAudio ? ttsAudio.toString('base64') : null,
+      audioFormat: 'mp3',  // ElevenLabs returns MP3
+      sourceLang: language,
+      targetLang: targetLang,
+      timestamp: Date.now(),
+      timing: {
+        tts: timing.stages.tts
+      }
+    });
+
+    timing.t9_bridgeSent = Date.now();
+    timing.stages.ls_to_bridge = timing.t9_bridgeSent - timing.t8_lsCompleted;
+
+    latencyTracker.updateStageLatency(extension, 'ls_to_bridge', timing.stages.ls_to_bridge);
+    console.log('[Timing] Stage 9 (LS→Bridge) for ' + extension + ': ' + timing.stages.ls_to_bridge + 'ms');
+
+    // ═══════════════════════════════════════════════════════════════
+    // CALCULATE TOTAL E2E LATENCY
+    // ═══════════════════════════════════════════════════════════════
+    timing.serialTotal = timing.stages.audiosocket_to_asr +
+                        timing.stages.asr +
+                        timing.stages.asr_to_mt +
+                        timing.stages.mt +
+                        timing.stages.mt_to_tts +
+                        timing.stages.tts +
+                        timing.stages.tts_to_ls +
+                        timing.stages.ls +
+                        timing.stages.ls_to_bridge;
+
+    // Get Hume parallel pipeline latency (if available)
+    const humeLatency = humeLatencyPerExtension.get(extension) || 0;
+    timing.parallelTotal = humeLatency;
+    timing.e2eTotal = Math.max(timing.serialTotal, timing.parallelTotal);
+
+    if (humeLatency > 0) {
+      console.log(`[Timing] Hume parallel pipeline latency for ${extension}: ${humeLatency}ms`);
+    }
+
+    console.log('[Timing] ═══════════════════════════════════════════════');
+    console.log('[Timing] Extension ' + extension + ' E2E Total: ' + Math.round(timing.e2eTotal) + 'ms');
+    console.log('[Timing]   - Serial: ' + Math.round(timing.serialTotal) + 'ms');
+    console.log('[Timing]   - Parallel: ' + Math.round(timing.parallelTotal) + 'ms');
+    console.log('[Timing] ═══════════════════════════════════════════════');
+
+    // Update latency tracker with E2E total
+    const direction = extension + '→' + pairedExtension;
+    latencyTracker.updateLatency(direction, timing.e2eTotal);
+
+    // ═══════════════════════════════════════════════════════════════
+    // OLD STEP 2 CODE - REPLACED BY STEP 4.1 & 4.2 ABOVE
+    // Buffer calculation now happens in STAGE 8 with dashboard settings
+    // ═══════════════════════════════════════════════════════════════
+    // Use totalBufferMs calculated above in STAGE 8
+    const targetBufferMs = totalBufferMs; // For dashboard compatibility
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 3: EMIT DASHBOARD UPDATES
+    // ═══════════════════════════════════════════════════════════════
+    // Determine if parallel path is blocking (for now, always false since Hume not integrated)
+    const isParallelBlocking = false;
+
+    incrementUtteranceCount(extension);
+
+    // Emit complete latency update to dashboard
+    emitLatencyUpdate(extension, timing, bufferDelayMs, targetBufferMs, latencyDifference, isParallelBlocking);
+
+    // STEP 2 FIX: Also emit inverted latency difference to paired extension for consistency
+    // This ensures both dashboards always show mathematically consistent mirror values
+    if (latencyDifference !== null) {
+      emitLatencyUpdateToPairedExtension(pairedExtension, -latencyDifference);
+    }
+
+    // Emit individual stage timings via TCP API AND Socket.IO
+    const stages = [
+      { name: 'audiosocket_to_asr', duration: timing.stages.audiosocket_to_asr, label: 'Gateway → ASR' },
+      { name: 'asr', duration: timing.stages.asr, label: 'ASR (Deepgram)' },
+      { name: 'asr_to_mt', duration: timing.stages.asr_to_mt, label: 'ASR → MT' },
+      { name: 'mt', duration: timing.stages.mt, label: 'MT (DeepL)' },
+      { name: 'mt_to_tts', duration: timing.stages.mt_to_tts, label: 'MT → TTS' },
+      { name: 'tts', duration: timing.stages.tts, label: 'TTS (ElevenLabs)' },
+      { name: 'tts_to_ls', duration: timing.stages.tts_to_ls, label: 'TTS → LS' },
+      { name: 'ls', duration: timing.stages.ls, label: 'LS (Latency Sync)' },
+      { name: 'ls_to_bridge', duration: timing.stages.ls_to_bridge, label: 'LS → Bridge' }
+    ];
+
+    stages.forEach(stage => {
+      dashboardTCPAPI.broadcastStage(extension, stage.name, stage.duration, stage.label);
+      io.emit('stage_timing', {
+        type: 'STAGE_TIMING',
+        extension,
+        stage: stage.name,
+        duration: stage.duration,
+        stageName: stage.label,
+        timestamp: Date.now()
+      });
+    });
+
+    // Broadcast buffer calculation (STEP 4) - shows target buffer even if not applied yet
+    if (targetBufferMs > 0) {
+      dashboardTCPAPI.broadcastBufferCalculation(extension, targetBufferMs, pairedExtension, latencyDifference);
+    }
+
+    // Note: Buffer not applied yet in Step 4, so bufferDelayMs = 0
+    if (bufferDelayMs > 0) {
+      dashboardTCPAPI.broadcastBufferApplied(extension, bufferDelayMs, 'sync_to_' + pairedExtension, latencyDifference);
+    }
+
   } catch (error) {
     console.error(`[Pipeline] Error in processGatewayAudio for ${extension}:`, error);
   }
 }
+
+// ============================================================================
+// STEP 3: Dashboard Event Emitters
+// ============================================================================
+
+// Utterance counter for statistics
+const utteranceCounts = new Map(); // extension → count
+
+function getUtteranceCount(extension) {
+  return utteranceCounts.get(extension) || 0;
+}
+
+function incrementUtteranceCount(extension) {
+  const count = (utteranceCounts.get(extension) || 0) + 1;
+  utteranceCounts.set(extension, count);
+  return count;
+}
+
+// Dashboard latency update emitter
+function emitLatencyUpdate(extension, timing, appliedBufferMs, targetBufferMs, latencyDifference, isParallelBlocking) {
+  const pairedExtension = pairManager.getPairedExtension(extension);
+
+  const data = {
+    extension: extension,
+
+    latencies: latencyTracker.getAllLatencies(extension),
+
+    buffer: {
+      current: appliedBufferMs,        // Currently applied buffer (0 until STEP 5)
+      target: targetBufferMs,           // Calculated target buffer from STEP 4
+      adjustment: latencyDifference !== null ? Math.round(latencyDifference) : 0,  // SIGNED latency difference for dashboard bar (positive=slower, negative=faster)
+      reason: 'sync_to_' + pairedExtension
+    },
+
+    displaySerialTotal: timing.serialTotal,
+    displayParallelTotal: timing.parallelTotal,
+    displaySerialTotalWithSync: timing.serialTotal + appliedBufferMs,
+
+    parallelBlocking: isParallelBlocking,
+
+    stats: {
+      utteranceCount: getUtteranceCount(extension),
+      avgUtteranceLatency: Math.round(latencyTracker.getAverageLatency(extension + '→' + pairedExtension))
+    }
+  };
+
+  // Add E2E latency values
+  data.latencies.e2e = {
+    current: timing.e2eTotal,
+    avg: data.stats.avgUtteranceLatency
+  };
+  data.latencies.serial_total = {
+    current: timing.serialTotal,
+    avg: timing.serialTotal
+  };
+  data.latencies.parallel_total = {
+    current: timing.parallelTotal,
+    avg: timing.parallelTotal
+  };
+
+  // Emit via Socket.IO to dashboard
+  global.io.emit('latencyUpdate', data);
+
+  // Broadcast via TCP API
+  dashboardTCPAPI.broadcastLatencyUpdate(data);
+
+  console.log('[Dashboard] Emitted latency update for ' + extension + ' (E2E: ' + Math.round(timing.e2eTotal) + 'ms, Diff: ' + data.buffer.adjustment + 'ms)');
+}
+
+// Helper function to emit latency difference update to paired extension only
+// This ensures both dashboards always show mathematically consistent mirror values
+function emitLatencyUpdateToPairedExtension(pairedExtension, invertedLatencyDifference) {
+  const data = {
+    extension: pairedExtension,
+    buffer: {
+      adjustment: Math.round(invertedLatencyDifference)  // Inverted difference for paired extension
+    }
+  };
+
+  // Emit via Socket.IO to dashboard
+  global.io.emit('latencyUpdate', data);
+
+  console.log('[Dashboard] Emitted paired latency update for ' + pairedExtension + ' (Diff: ' + data.buffer.adjustment + 'ms)');
+}
+
+// ============================================================================
+// END OF STEP 3 FUNCTIONS
+// ============================================================================
 
 
 io.on('connection', (socket) => {
@@ -837,7 +1864,7 @@ io.on('connection', (socket) => {
   // Register extension from Gateway
   socket.on('registerExtension', (data) => {
     console.log(`[Gateway] Extension ${data.extension} registered (${data.language})`);
-    
+
     // Store Gateway connection info
     gatewayConnections.set(data.extension, {
       extension: data.extension,
@@ -846,7 +1873,14 @@ io.on('connection', (socket) => {
       sampleRate: data.sampleRate,
       socketId: socket.id
     });
-    
+
+    // Store reverse mapping: socketId -> extension (for Hume emotion events)
+    socketToExtension.set(socket.id, data.extension);
+    console.log(`[Gateway] Socket ${socket.id} mapped to extension ${data.extension}`);
+
+    // Initialize Hume AI client for emotion detection
+    initializeHumeClient(socket.id).catch(err => console.error("[Hume] Init error:", err));
+
     socket.emit('registrationConfirmed', {
       extension: data.extension,
       status: 'ready'
@@ -868,7 +1902,85 @@ io.on('connection', (socket) => {
     
     const buffer = gatewayAudioBuffers.get(extension);
     const audioChunk = Buffer.isBuffer(audio) ? audio : Buffer.from(audio);
-    
+    console.log("[RMS DEBUG] audioChunk.length:", audioChunk.length);
+    console.log("[RMS DEBUG] audioChunk.length:", audioChunk.length);
+
+    // Fork audio to Hume AI for emotion detection (buffered for better speech detection)
+    const humeClient = humeConnections.get(socket.id);
+    if (humeClient && humeClient.connected) {
+      const humeBuffer = humeAudioBuffers.get(socket.id);
+      if (humeBuffer) {
+        humeBuffer.push(audioChunk);
+
+        // Send to Hume only when buffer reaches threshold (50 chunks = ~1 second)
+        if (humeBuffer.length >= HUME_BUFFER_SIZE) {
+          const combinedBuffer = Buffer.concat(humeBuffer);
+
+          // Record timestamp when audio is sent to Hume
+          const extension = socketToExtension.get(socket.id);
+          if (extension) {
+            humeStartTimestamps.set(extension, Date.now());
+          }
+
+          humeClient.sendAudio(combinedBuffer);
+          console.log(`[Hume] Sent ${HUME_BUFFER_SIZE} chunks (${combinedBuffer.length} bytes, ~1 second buffer) for extension ${extension}`);
+
+          // Reset buffer for next batch
+          humeAudioBuffers.set(socket.id, []);
+        }
+      }
+    }
+
+    // Calculate enhanced audio metrics (RMS, peak, clipping) for professional monitoring
+    let rmsLevel = 0;
+    let peakLevel = 0;
+    let clippingCount = 0;
+
+    if (audioChunk.length > 0) {
+      let sumSquares = 0;
+      let maxSample = 0;
+
+      for (let i = 0; i < audioChunk.length; i += 2) {
+        const sample = audioChunk.readInt16LE(i);
+        const absSample = Math.abs(sample);
+
+        // RMS calculation
+        sumSquares += sample * sample;
+
+        // Peak calculation
+        if (absSample > maxSample) {
+          maxSample = absSample;
+        }
+
+        // Clipping detection (samples at or near max int16 value)
+        if (absSample >= 32767 || absSample >= 32500) {
+          clippingCount++;
+        }
+      }
+
+      const sampleCount = audioChunk.length / 2;
+      const rms = Math.sqrt(sumSquares / sampleCount);
+      console.log("[RMS DEBUG] sumSquares:", sumSquares, "sampleCount:", sampleCount, "rms:", rms, "rmsLevel:", Math.min(100, Math.round((rms / 32768) * 100)));
+      console.log("[RMS DEBUG] sumSquares:", sumSquares, "sampleCount:", sampleCount, "rms:", rms, "rmsLevel:", Math.min(100, Math.round((rms / 32768) * 100)));
+
+      // Normalize to 0-100 for RMS
+      rmsLevel = Math.min(100, Math.round((rms / 32768) * 100));
+      console.log("[RMS DEBUG] Final rmsLevel:", rmsLevel, "peakLevel:", peakLevel, "clippingCount:", clippingCount);
+
+      // Normalize peak to 0-100
+      peakLevel = Math.min(100, Math.round((maxSample / 32768) * 100));
+    }
+
+    // Emit monitoring event for Extension Monitor card with enhanced audio metrics
+    global.io.emit('transcriptionPartial', {
+      extension: extension,
+      bytes: audioChunk.length,
+      timestamp: timestamp || Date.now(),
+      uuid: gatewayConnections.get(extension)?.socketId || socket.id,
+      audioLevel: rmsLevel,
+      peakLevel: peakLevel,
+      clipping: clippingCount
+    });
     // Add chunk to buffer
     buffer.chunks.push(audioChunk);
     buffer.totalBytes += audioChunk.length;
@@ -990,6 +2102,12 @@ io.on('connection', (socket) => {
         // Fork audio to Hume AI for emotion detection
         const humeClient = humeConnections.get(socket.id);
         if (humeClient && humeClient.connected) {
+          // Record timestamp when audio is sent to Hume
+          const extension = socketToExtension.get(socket.id);
+          if (extension) {
+            humeStartTimestamps.set(extension, Date.now());
+          }
+
           humeClient.sendAudio(Buffer.from(audioBuffer));
         }
       } catch (error) {
@@ -1191,6 +2309,113 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Handle volume control requests from dashboard
+  socket.on('setVolume', (data) => {
+    const { extension, volumeTX } = data;
+    console.log(`[Volume Control] Request to set extension ${extension} TX gain to ${volumeTX} dB`);
+
+    // Convert dB to linear gain factor: gainFactor = 10^(dB/20)
+    const gainFactor = Math.pow(10, volumeTX / 20);
+
+    // Store the gain factor for this extension
+    extensionGainFactors.set(extension, gainFactor);
+
+    console.log(`[Volume Control] ✓ Extension ${extension} PCM gain set to ${gainFactor.toFixed(3)}x (${volumeTX} dB)`);
+  });
+
+  // ========================================
+  // STEP 1: Latency & Sync Dashboard Event Handlers (Logging Only)
+  // ========================================
+
+  // Handle Auto Sync toggle from dashboard
+  socket.on('setAutoSync', (data) => {
+    const { extension, enabled } = data;
+    console.log(`[Latency Dashboard] setAutoSync received for extension ${extension}:`, enabled);
+
+    // STEP 3: Store the setting
+    const settings = extensionBufferSettings.get(extension) || { autoSync: false, manualLatencyMs: 0 };
+    settings.autoSync = enabled;
+    extensionBufferSettings.set(extension, settings);
+    console.log(`[Buffer Settings] Extension ${extension} autoSync set to ${enabled}`);
+
+    socket.emit('autoSyncConfirmed', {
+      extension,
+      enabled,
+      status: 'acknowledged'
+    });
+  });
+
+  // Handle Manual Latency adjustment from dashboard
+  socket.on('setManualLatency', (data) => {
+    const { extension, latencyMs } = data;
+    console.log(`[Latency Dashboard] setManualLatency received for extension ${extension}:`, latencyMs, 'ms');
+
+    // STEP 3: Store the setting
+    const settings = extensionBufferSettings.get(extension) || { autoSync: false, manualLatencyMs: 0 };
+    settings.manualLatencyMs = latencyMs;
+    extensionBufferSettings.set(extension, settings);
+    console.log(`[Buffer Settings] Extension ${extension} manualLatencyMs set to ${latencyMs}ms`);
+
+    socket.emit('manualLatencyConfirmed', {
+      extension,
+      latencyMs,
+      status: 'acknowledged'
+    });
+  });
+
+  // Handle Audio Monitor request from dashboard
+  socket.on('requestAudioMonitor', (data) => {
+    const { extension } = data;
+    console.log(`[Latency Dashboard] requestAudioMonitor received for extension ${extension}`);
+
+    // Step 1: Just log, implementation will come in Step 5
+    socket.emit('audioMonitorStatus', {
+      extension,
+      status: 'not_implemented',
+      message: 'Audio monitoring will be implemented in Step 5'
+    });
+  });
+
+  // ============================================================================
+  // TEST MODE CONTROL - Socket.IO event handlers
+  // ============================================================================
+
+  // Start test mode - send looping test audio to target extension
+  socket.on('startTestMode', (data) => {
+    const { targetExtension } = data;
+    console.log(`[Test Mode] Start request received for extension ${targetExtension}`);
+
+    const result = startTestMode(targetExtension);
+
+    // Broadcast status to all connected dashboards
+    io.emit('testModeStatus', {
+      ...result,
+      ...getTestModeStatus()
+    });
+  });
+
+  // Stop test mode
+  socket.on('stopTestMode', () => {
+    console.log(`[Test Mode] Stop request received`);
+
+    const result = stopTestMode();
+
+    // Broadcast status to all connected dashboards
+    io.emit('testModeStatus', {
+      ...result,
+      ...getTestModeStatus()
+    });
+  });
+
+  // Get current test mode status
+  socket.on('getTestModeStatus', () => {
+    const status = getTestModeStatus();
+    socket.emit('testModeStatus', {
+      success: true,
+      ...status
+    });
+  });
+
   socket.on('disconnect', () => {
     const participant = participants.get(socket.id);
 
@@ -1212,6 +2437,7 @@ io.on('connection', (socket) => {
         humeConnections.delete(socket.id);
       }
       humeAudioBuffers.delete(socket.id);
+      socketToExtension.delete(socket.id);
     }
 
     if (participant) {

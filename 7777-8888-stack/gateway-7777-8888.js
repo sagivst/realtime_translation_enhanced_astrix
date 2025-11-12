@@ -60,6 +60,9 @@ const translationSockets = new Map();
 // Track remote RTP endpoints for sending translated audio back to Asterisk
 const remoteEndpoints = new Map();
 
+// RTP state tracking per extension
+const rtpState = new Map(); // { sequenceNumber, timestamp, ssrc }
+
 /**
  * Properly parse RTP packet and extract PCM payload
  * RTP Header structure:
@@ -107,9 +110,32 @@ function extractPCMFromRTP(rtpPacket) {
     payload = payload.slice(0, payload.length - paddingLength);
   }
 
-  // Log first packet details for debugging
-  if (Math.random() < 0.001) {
-    console.log(`[RTP] Packet: total=${rtpPacket.length}B, header=${headerSize}B, payload=${payload.length}B, csrc=${csrcCount}, ext=${extension}, pad=${padding}`);
+  // PT=10 (L16) per RFC 3551 requires BIG-ENDIAN
+  // Asterisk sends PT=10 in big-endian, we need little-endian for Deepgram
+  const payloadType = rtpPacket[1] & 0x7F; // Extract PT (7 bits)
+
+  // ALWAYS log PT on first few packets
+  if (!global.ptLogged || global.ptLogCount < 10) {
+    console.log(`[RTP] Incoming PT=${payloadType}, total=${rtpPacket.length}B, header=${headerSize}B, payload=${payload.length}B`);
+    global.ptLogged = true;
+    global.ptLogCount = (global.ptLogCount || 0) + 1;
+  }
+
+  // Convert from big-endian (PT=10 from Asterisk) to little-endian (for Deepgram)
+  if (payloadType === 10) {
+    const swapped = Buffer.alloc(payload.length);
+    for (let i = 0; i < payload.length; i += 2) {
+      if (i + 1 < payload.length) {
+        swapped[i] = payload[i + 1];     // High byte
+        swapped[i + 1] = payload[i];     // Low byte
+      }
+    }
+    payload = swapped;
+
+    if (!global.swapLogged) {
+      console.log(`[RTP] PT=10 detected, swapping ${payload.length} bytes from big-endian to little-endian`);
+      global.swapLogged = true;
+    }
   }
 
   // Check for clipping in RTP payload (sample every 100th packet)
@@ -128,6 +154,40 @@ function extractPCMFromRTP(rtpPacket) {
 
   return payload;
 }
+
+/**
+ * Scale PCM audio samples to normalize volume
+ * This is the bullet-proof method recommended in the whisper document
+ * @param {Buffer} pcmBuffer - PCM16 audio data
+ * @param {number} gainFactor - Gain multiplier (0.79 = -2dB, 0.70 = -3dB, 1.26 = +2dB)
+ * @returns {Buffer} - Scaled PCM audio
+ */
+function scalePCM(pcmBuffer, gainFactor = 0.79) {
+  const scaled = Buffer.alloc(pcmBuffer.length);
+  let maxSample = 0;
+  let clippedSamples = 0;
+  
+  for (let i = 0; i < pcmBuffer.length; i += 2) {
+    let sample = pcmBuffer.readInt16LE(i);
+    maxSample = Math.max(maxSample, Math.abs(sample));
+    
+    let scaledSample = Math.round(sample * gainFactor);
+    
+    // Prevent clipping
+    if (scaledSample > 32767) { scaledSample = 32767; clippedSamples++; }
+    else if (scaledSample < -32768) { scaledSample = -32768; clippedSamples++; }
+    
+    scaled.writeInt16LE(scaledSample, i);
+  }
+  
+  // Always log to verify scaling is working
+  if (maxSample > 30000 || clippedSamples > 0) {
+    console.log(`[PCM Scale] Gain: ${gainFactor.toFixed(2)}x, Max input: ${maxSample}, Clipped: ${clippedSamples}/${pcmBuffer.length/2} samples (${(clippedSamples/(pcmBuffer.length/2)*100).toFixed(2)}%)`);
+  }
+  return scaled;
+}
+
+
 /**
  * Initialize WebSocket connection to Translation Server for a specific extension
  * Per Gateway_Translation_Server_Integration.md:
@@ -180,6 +240,12 @@ function initializeTranslationSocket(extension) {
   socket.on('translatedAudio', (data) => {
     // data should contain PCM audio buffer
     // Convert back to RTP and send to Asterisk
+    forwardTranslatedAudioToAsterisk(extension, data);
+  });
+
+  // Also listen for 'translated-audio' (with dashes) - Conference Server uses both formats
+  socket.on('translated-audio', (data) => {
+    console.log(`[WebSocket ${extension}] Received translated-audio event (${data.audio ? data.audio.length : 0} bytes)`);
     forwardTranslatedAudioToAsterisk(extension, data);
   });
 
@@ -238,13 +304,85 @@ function forwardAudioToTranslationServer(extension, rtpPacket) {
   if (!pcmPayload) return; // Invalid or empty RTP packet
 
   // Send PCM audio to Translation Server
+  // Scale PCM to normalize volume (bullet-proof method from whisper doc)
+  // Using 0.79x gain (≈ -2 dB) to prevent clipping and optimize for Deepgram
+  const scaledPCM = scalePCM(pcmPayload, 0.79);
+  
   socket.emit('audioStream', {
     extension: extension,
-    audio: pcmPayload,
+    audio: scaledPCM,
     timestamp: Date.now(),
     format: 'pcm16',
     sampleRate: 16000
   });
+}
+
+/**
+ * Create proper RTP packet with PCM16 payload
+ * Using PT=96 (dynamic) for 16kHz PCM16 mono
+ *
+ * RTP Header structure (12 bytes):
+ * - Byte 0: V(2) | P(1) | X(1) | CC(4) = 0x80 (version 2, no padding/extension/csrc)
+ * - Byte 1: M(1) | PT(7) = 0x60 (PT=96, no marker)
+ * - Bytes 2-3: Sequence number (big-endian)
+ * - Bytes 4-7: Timestamp (big-endian, increments by 320 for 20ms @ 16kHz)
+ * - Bytes 8-11: SSRC (synchronization source ID)
+ * - Bytes 12+: Payload (PCM16 audio)
+ */
+function createRTPPacket(extension, pcmPayload) {
+  // Initialize RTP state for this extension if needed
+  if (!rtpState.has(extension)) {
+    rtpState.set(extension, {
+      sequenceNumber: Math.floor(Math.random() * 65536), // Random initial sequence
+      timestamp: Math.floor(Math.random() * 0xFFFFFFFF), // Random initial timestamp
+      ssrc: 0x12345678 + parseInt(extension) // Unique SSRC per extension
+    });
+    console.log(`[RTP Init ${extension}] Sequence: ${rtpState.get(extension).sequenceNumber}, Timestamp: ${rtpState.get(extension).timestamp}, SSRC: 0x${rtpState.get(extension).ssrc.toString(16)}`);
+  }
+
+  const state = rtpState.get(extension);
+
+  // Create RTP header (12 bytes)
+  const rtpHeader = Buffer.alloc(12);
+
+  // Byte 0: Version 2, no padding, no extension, no CSRC
+  rtpHeader[0] = 0x80;
+
+  // Byte 1: No marker, PT=10 (L16 per RFC 3551)
+  rtpHeader[1] = 10; // PT=10 L16
+
+  // Bytes 2-3: Sequence number (big-endian)
+  rtpHeader.writeUInt16BE(state.sequenceNumber, 2);
+
+  // Bytes 4-7: Timestamp (big-endian)
+  rtpHeader.writeUInt32BE(state.timestamp, 4);
+
+  // Bytes 8-11: SSRC
+  rtpHeader.writeUInt32BE(state.ssrc, 8);
+
+  // PT=10 (L16) requires BIG-ENDIAN per RFC 3551
+  // Convert PCM payload from little-endian (from Deepgram) to big-endian (for Asterisk PT=10)
+  const bigEndianPayload = Buffer.alloc(pcmPayload.length);
+  for (let i = 0; i < pcmPayload.length; i += 2) {
+    if (i + 1 < pcmPayload.length) {
+      bigEndianPayload[i] = pcmPayload[i + 1];     // High byte
+      bigEndianPayload[i + 1] = pcmPayload[i];     // Low byte
+    }
+  }
+
+  // Increment state for next packet
+  state.sequenceNumber = (state.sequenceNumber + 1) & 0xFFFF; // Wrap at 65535
+  state.timestamp += 320; // 20ms @ 16kHz = 320 samples
+
+  // Create complete RTP packet with BIG-ENDIAN payload (RFC 3551 PT=10 requirement)
+  const rtpPacket = Buffer.concat([rtpHeader, bigEndianPayload]);
+
+  // Periodic logging (every 100th packet)
+  if (state.sequenceNumber % 100 === 0) {
+    console.log(`[RTP Send ${extension}] Seq: ${state.sequenceNumber}, TS: ${state.timestamp}, Payload: ${pcmPayload.length}B, Total: ${rtpPacket.length}B`);
+  }
+
+  return rtpPacket;
 }
 
 /**
@@ -263,22 +401,57 @@ function forwardTranslatedAudioToAsterisk(extension, audioData) {
     return;
   }
 
-  // TODO: Proper RTP encapsulation (add 12-byte RTP header)
-  // For now, forward raw PCM (this may need adjustment based on Asterisk expectations)
-  
-  const pcmBuffer = Buffer.isBuffer(audioData.audio) ? audioData.audio : Buffer.from(audioData.audio);
-  
-  // Create simplified RTP packet (this is a placeholder - proper RTP headers needed)
-  const rtpPacket = Buffer.concat([
-    Buffer.alloc(12), // Placeholder for RTP header
-    pcmBuffer
-  ]);
+  // Extract PCM buffer from audioData
+  const pcmBuffer = Buffer.isBuffer(audioData.audioBuffer)
+    ? audioData.audioBuffer
+    : (Buffer.isBuffer(audioData.audio) ? audioData.audio : Buffer.from(audioData.audio));
 
-  udpSocket.send(rtpPacket, remote.port, remote.address, (err) => {
-    if (err) {
-      console.error(`[${extension}] Error sending translated audio to Asterisk:`, err.message);
+  if (!pcmBuffer || pcmBuffer.length === 0) {
+    console.log(`[${extension}] Empty audio buffer, skipping`);
+    return;
+  }
+
+  console.log(`[${extension}] Received translated audio: ${pcmBuffer.length} bytes (${(pcmBuffer.length / 32000).toFixed(2)}s)`);
+
+  // CRITICAL: Split audio into 20ms RTP packets (640 bytes = 320 samples @ 16kHz PCM16)
+  const CHUNK_SIZE = 640; // 20ms @ 16kHz PCM16 mono
+  const chunks = [];
+
+  for (let offset = 0; offset < pcmBuffer.length; offset += CHUNK_SIZE) {
+    const chunk = pcmBuffer.slice(offset, Math.min(offset + CHUNK_SIZE, pcmBuffer.length));
+    chunks.push(chunk);
+  }
+
+  console.log(`[${extension}] Sending ${chunks.length} RTP packets (20ms each)`);
+
+  // Send packets sequentially with proper 20ms pacing using recursive setTimeout
+  let packetIndex = 0;
+
+  function sendNextPacket() {
+    if (packetIndex >= chunks.length) {
+      return; // All packets sent
     }
-  });
+
+    const chunk = chunks[packetIndex];
+    const rtpPacket = createRTPPacket(extension, chunk);
+
+    udpSocket.send(rtpPacket, remote.port, remote.address, (err) => {
+      if (err) {
+        console.error(`[${extension}] Error sending RTP packet ${packetIndex + 1}/${chunks.length}:`, err.message);
+      }
+    });
+
+    packetIndex++;
+
+    // Send packets every 20ms to match the 320-sample (20ms) timestamp increments
+    // This alignment is critical for Asterisk's jitter buffer
+    if (packetIndex < chunks.length) {
+      setTimeout(sendNextPacket, 20);
+    }
+  }
+
+  // Start sending immediately
+  sendNextPacket();
 }
 
 /**

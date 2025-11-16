@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  asterisk:
+    build:
+      context: .
+      dockerfile: asterisk-docker/Dockerfile
+    container_name: asterisk-translation
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "10000-10100:10000-10100/udp"
+    volumes:
+      - ./docker-config/asterisk:/etc/asterisk:ro
+      - asterisk-logs:/var/log/asterisk
+      - asterisk-media:/tmp/asterisk_media
+    networks:
+      - translation-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  translation-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: translation-service
+    depends_on:
+      - asterisk
+      - xtts-service
+    ports:
+      - "3000:3000"
+      - "9090:9090"  # Prometheus metrics
+    volumes:
+      - asterisk-media:/tmp/asterisk_media
+      - ./voice-profiles:/app/voice-profiles
+    environment:
+      - NODE_ENV=production
+      - ASTERISK_HOST=asterisk
+      - ASTERISK_ARI_PORT=8088
+      - ASTERISK_ARI_USERNAME=asterisk
+      - ASTERISK_ARI_PASSWORD=asterisk
+      - XTTS_SERVICE_URL=http://xtts-service:8000
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - DEEPL_API_KEY=${DEEPL_API_KEY}
+      - MAX_CONCURRENT_CHANNELS=50
+      - METRICS_PORT=9090
+    networks:
+      - translation-net
+    restart: unless-stopped
+
+  xtts-service:
+    build:
+      context: .
+      dockerfile: xtts-docker/Dockerfile
+    container_name: xtts-service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./voice-profiles:/app/voice-profiles
+      - xtts-models:/app/models
+    environment:
+      - COQUI_TOS_AGREED=1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - translation-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./docker-config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - translation-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker-config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker-config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - translation-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  asterisk-logs:
+  asterisk-media:
+  xtts-models:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  translation-net:
+    driver: bridge

@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'translation-system'
+
+scrape_configs:
+  - job_name: 'translation-service'
+    static_configs:
+      - targets: ['translation-service:9090']
+        labels:
+          service: 'translation'
+          environment: 'production'
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['translation-service:9090']
+        labels:
+          service: 'node-metrics'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

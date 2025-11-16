@@ -1,0 +1,51 @@
+# Node modules
+node_modules/
+npm-debug.log
+
+# Python virtual environments
+venv-xtts/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts
+asterisk-build/
+*.o
+*.so
+*.a
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Tests (exclude from production image)
+tests/
+*.test.js
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+.DS_Store
+
+# Docker files
+docker-compose.yml
+Dockerfile
+.dockerignore

@@ -1,0 +1,904 @@
+/**
+ * Asterisk ARI Handler for Real-Time Translation
+ *
+ * Handles incoming SIP calls via Asterisk ARI, streams audio bidirectionally,
+ * processes through translation pipeline, and delivers to conference participants
+ */
+
+const ariClient = require('ari-client');
+const { Transform } = require('stream');
+const AudioPlaybackHandler = require('./audio-playback-handler');
+// DISABLED: const RTPAudioReceiver = require('./rtp-audio-receiver');
+const DeepgramStreamingClient = require('./deepgram-streaming-client');
+
+class AsteriskARIHandler {
+    constructor(options) {
+        this.server = options;
+        this.ari = null;
+        this.bridges = new Map(); // roomId -> Asterisk bridge
+        this.channels = new Map(); // channelId -> channel info
+        this.activeRooms = new Map(); // roomId -> { participants: [], bridge: Bridge }
+        this.playbackHandlers = new Map(); // channelId -> AudioPlaybackHandler
+        // DISABLED:         this.audioReceivers = new Map(); // channelId -> RTPAudioReceiver
+        this.deepgramSessions = new Map(); // channelId -> DeepgramStreamingClient
+
+        // Translation services
+        this.translationServices = options.translationServices || null;
+
+        // Get configuration from environment variables or use defaults
+        const asteriskHost = process.env.ASTERISK_HOST || 'localhost';
+        const asteriskPort = process.env.ASTERISK_ARI_PORT || '8088';
+        const asteriskUsername = process.env.ASTERISK_ARI_USERNAME || 'translation-app';
+        const asteriskPassword = process.env.ASTERISK_ARI_PASSWORD || 'translation123';
+
+        this.config = {
+            url: `http://${asteriskHost}:${asteriskPort}`,
+            username: asteriskUsername,
+            password: asteriskPassword,
+            applicationName: 'translation-app'
+        };
+    }
+
+    async connect() {
+        try {
+            console.log('[ARI] Connecting to Asterisk ARI...');
+            
+            this.ari = await ariClient.connect(
+                this.config.url,
+                this.config.username,
+                this.config.password
+            );
+
+            console.log('[ARI] ✓ Connected to Asterisk ARI');
+            
+            // Register event handlers
+            this.ari.on('StasisStart', (event, channel) => this.handleStasisStart(event, channel));
+            this.ari.on('StasisEnd', (event, channel) => this.handleStasisEnd(event, channel));
+            this.ari.on('ChannelDtmfReceived', (event, channel) => this.handleDTMF(event, channel));
+            
+            // Start the Stasis application
+            this.ari.start(this.config.applicationName);
+            
+            console.log(`[ARI] ✓ Stasis application "${this.config.applicationName}" started`);
+            console.log('[ARI] 📞 Ready to accept SIP calls');
+            
+        } catch (error) {
+            console.error('[ARI] ✗ Failed to connect to Asterisk:', error.message);
+            console.error('[ARI]   Make sure Asterisk is running with ARI enabled');
+            // Don't throw - allow server to run without ARI
+        }
+    }
+
+    async handleStasisStart(event, channel) {
+        console.log(`[ARI] 📞 Incoming call: ${channel.name} (${channel.caller.number})`);
+
+        // Skip snoop channels - they're automatically handled
+        if (channel.name.startsWith('Snoop/')) {
+            console.log(`[ARI] Skipping snoop channel: ${channel.name}`);
+            return;
+        }
+
+        // Skip ExternalMedia/UnicastRTP channels - they're internal RTP bridges
+        if (channel.name.startsWith('UnicastRTP/') || channel.name.includes('external-')) {
+            console.log(`[ARI] Skipping ExternalMedia channel: ${channel.name}`);
+            return;
+        }
+
+        try {
+            // Answer the call
+            await channel.answer();
+            console.log(`[ARI] ✓ Answered call: ${channel.name}`);
+
+            // Play confirmation beep (short ring tone as confirmation)
+            try {
+                const playback = this.ari.Playback();
+                // Use built-in ring indication for 1 second
+                await channel.play({ media: 'tone:ring' }, playback);
+                // Stop after 1 second
+                setTimeout(() => {
+                    playback.stop().catch(() => {});
+                }, 1000);
+                console.log(`[ARI] ✓ Playing confirmation tone`);
+            } catch (toneError) {
+                console.log(`[ARI] Could not play tone:`, toneError.message);
+            }
+
+            // Extract room info from channel variables or use default
+            const roomId = event.args[0] || 'default-room';
+            const language = event.args[1] || 'en';
+            const callerName = channel.caller.name || channel.caller.number || 'Anonymous';
+            
+            console.log(`[ARI] Caller: ${callerName}, Room: ${roomId}, Language: ${language}`);
+
+//             // Skip extension 7000 - handled by AudioSocket dialplan
+//             if (roomId === '7000') {
+//                 console.log('[ARI] Skipping extension 7000 - routing to AudioSocket');
+//                 await channel.continueInDialplan();
+//                 return;
+//             }
+
+            // Create audio playback handler for this channel
+            const playbackHandler = new AudioPlaybackHandler(channel.id, roomId);
+            this.playbackHandlers.set(channel.id, playbackHandler);
+
+            console.log(`[ARI] ✓ Created audio playback handler for ${callerName}`);
+
+            // Store channel info BEFORE creating receiver
+            const channelInfo = {
+                channel,
+                roomId,
+                language,
+                callerName,
+                userId: `sip-${channel.caller.number}`,
+                joinedAt: Date.now()
+            };
+            this.channels.set(channel.id, channelInfo);
+
+            // Create RTP audio receiver for this channel
+            const rtpPort = 10000 + (this.channels.size % 1000); // Dynamic port allocation
+            // DISABLED:             const audioReceiver = new RTPAudioReceiver({
+            // DISABLED:                 channelId: channel.id,
+            // DISABLED:                 language: language,
+            // DISABLED:                 port: rtpPort
+            // DISABLED:             });
+            // DISABLED: 
+            // DISABLED:             // Listen for audio segments and process through translation pipeline
+            // DISABLED:             audioReceiver.on('audio-segment', async (segment) => {
+            // DISABLED:                 const currentChannelInfo = this.channels.get(segment.channelId);
+            // DISABLED:                 if (currentChannelInfo) {
+            // DISABLED:                     await this.handleAudioSegment(segment, currentChannelInfo);
+            // DISABLED:                 }
+            // DISABLED:             });
+            // DISABLED: 
+            // DISABLED:             this.audioReceivers.set(channel.id, audioReceiver);
+            // DISABLED: 
+            console.log(`[ARI] ✓ Created RTP audio receiver for ${callerName} on port ${rtpPort}`);
+
+            // Create Deepgram streaming client for this channel (one WebSocket per speaker)
+            const deepgramApiKey = process.env.DEEPGRAM_API_KEY || (this.translationServices && this.translationServices.deepgramApiKey);
+            if (deepgramApiKey) {
+                try {
+                    const deepgramClient = new DeepgramStreamingClient(deepgramApiKey, {
+                        language: language,
+                        model: 'nova-2',
+                        interimResults: true,
+                        punctuate: true,
+                        endpointing: false // Let local VAD (silence detection) lead
+                    });
+
+                    // Connect to Deepgram WebSocket
+                    await deepgramClient.connect();
+                    console.log(`[ARI] ✓ Connected Deepgram streaming client for ${callerName} (language: ${language})`);
+
+                    // Store session
+                    this.deepgramSessions.set(channel.id, deepgramClient);
+
+                    // Wire up PCM frame streaming from RTP receiver to Deepgram
+                    audioReceiver.on('pcm-frame', (frame) => {
+                        if (deepgramClient.isHealthy()) {
+                            deepgramClient.streamFrame(frame.pcm, frame.sequenceNumber);
+                        }
+
+                        // Broadcast to live monitor clients for real-time playback
+                        if (this.server && this.server.io) {
+                            this.server.io.emit('live-pcm-frame', {
+                                pcm: frame.pcm,  // Will be sent as binary or base64
+                                channelId: frame.channelId,
+                                sequenceNumber: frame.sequenceNumber,
+                                timestamp: frame.timestamp,
+                                language: frame.language
+                            });
+                        }
+                    });
+
+                    console.log(`[ARI] ✓ Wired up PCM frame streaming to Deepgram for ${callerName}`);
+
+                    // Handle Deepgram transcript events
+                    deepgramClient.on('partial', (result) => {
+                        console.log(`[Deepgram] Partial (${callerName}): "${result.text}" (confidence: ${result.confidence})`);
+                        // Optionally emit to live monitor for real-time feedback
+                        if (this.server && this.server.io) {
+                            this.server.io.to(roomId).emit('transcriptionPartial', {
+                                userId: channelInfo.userId,
+                                username: callerName,
+                                text: result.text,
+                                confidence: result.confidence,
+                                language: language
+                            });
+                        }
+                    });
+
+                    deepgramClient.on('final', async (result) => {
+                        console.log(`[Deepgram] Final (${callerName}): "${result.text}" (confidence: ${result.confidence})`);
+
+                        if (!result.text || result.text.trim() === '') {
+                            console.log('[Deepgram] Empty final transcript, skipping');
+                            return;
+                        }
+
+                        // Process through translation pipeline
+                        await this.handleFinalTranscript(result.text, result.confidence, channel.id);
+                    });
+
+                    deepgramClient.on('error', (error) => {
+                        console.error(`[Deepgram] Error for ${callerName}:`, error.message);
+                    });
+
+                    deepgramClient.on('disconnected', () => {
+                        console.log(`[Deepgram] Disconnected for ${callerName}`);
+                    });
+
+                    deepgramClient.on('reconnected', () => {
+                        console.log(`[Deepgram] Reconnected for ${callerName}`);
+                    });
+
+                } catch (error) {
+                    console.error(`[ARI] Failed to setup Deepgram streaming for ${callerName}:`, error);
+                    console.error('[ARI] Falling back to buffered transcription');
+                }
+            } else {
+                console.warn('[ARI] No Deepgram API key found, streaming transcription disabled');
+            }
+
+            // CRITICAL: Start snooping BEFORE adding to bridge
+            // This captures clean participant audio, not conference mix
+            // DISABLED - ExternalMedia now handled by dialplan:             await this.startAudioStreaming(channel, roomId, language);
+            console.log(`[ARI] ✓ Started audio streaming BEFORE bridge (clean audio)`);
+
+            // Get or create bridge for this room
+            const bridge = await this.getOrCreateBridge(roomId);
+
+            // NOW add channel to bridge (participant can hear others)
+            await bridge.addChannel({ channel: channel.id });
+            console.log(`[ARI] ✓ Added ${callerName} to conference bridge for room ${roomId}`);
+
+            // Notify conference server about new participant
+            this.notifyParticipantJoined(roomId, {
+                userId: `sip-${channel.caller.number}`,
+                username: callerName,
+                language,
+                transport: 'asterisk-ari',
+                channelId: channel.id
+            });
+
+            // Update RTP destinations for all participants in the room
+            await this.updateRTPDestinationsForRoom(roomId);
+
+        } catch (error) {
+            console.error(`[ARI] Error handling incoming call:`, error);
+            try {
+                await channel.hangup();
+            } catch (e) {
+                // Channel may already be hung up
+            }
+        }
+    }
+
+    async handleStasisEnd(event, channel) {
+        const channelInfo = this.channels.get(channel.id);
+
+        if (channelInfo) {
+            console.log(`[ARI] 📴 Call ended: ${channelInfo.callerName} (${channel.name})`);
+
+            // Notify conference server
+            this.notifyParticipantLeft(channelInfo.roomId, channelInfo.userId);
+
+            // Clean up snoop bridge
+            if (channelInfo.snoopBridge) {
+                try {
+                    await channelInfo.snoopBridge.destroy();
+                    console.log(`[ARI] ✓ Cleaned up snoop bridge for ${channelInfo.callerName}`);
+                } catch (e) {
+                    // Bridge may already be destroyed
+                }
+            }
+
+            // Clean up ExternalMedia channel
+            if (channelInfo.externalMediaChannel) {
+                try {
+                    await channelInfo.externalMediaChannel.hangup();
+                    console.log(`[ARI] ✓ Cleaned up ExternalMedia channel for ${channelInfo.callerName}`);
+                } catch (e) {
+                    // Channel may already be hung up
+                }
+            }
+
+            // Clean up playback handler
+            const playbackHandler = this.playbackHandlers.get(channel.id);
+            if (playbackHandler) {
+                await playbackHandler.cleanup();
+                this.playbackHandlers.delete(channel.id);
+                console.log(`[ARI] ✓ Cleaned up playback handler for ${channelInfo.callerName}`);
+            }
+
+            // Clean up audio receiver (if enabled)
+            if (this.audioReceivers) {
+                const audioReceiver = this.audioReceivers.get(channel.id);
+                if (audioReceiver) {
+                    await audioReceiver.stop();
+                    this.audioReceivers.delete(channel.id);
+                    console.log(`[ARI] ✓ Cleaned up audio receiver for ${channelInfo.callerName}`);
+                }
+            }
+
+            // Clean up Deepgram streaming session
+            const deepgramClient = this.deepgramSessions.get(channel.id);
+            if (deepgramClient) {
+                try {
+                    await deepgramClient.disconnect();
+                    this.deepgramSessions.delete(channel.id);
+                    console.log(`[ARI] ✓ Disconnected Deepgram session for ${channelInfo.callerName}`);
+                } catch (error) {
+                    console.error(`[ARI] Error cleaning up Deepgram session for ${channelInfo.callerName}:`, error);
+                }
+            }
+
+            // Clean up channel info
+            this.channels.delete(channel.id);
+
+            // Update RTP destinations for remaining participants
+            await this.updateRTPDestinationsForRoom(channelInfo.roomId);
+
+            // Check if bridge should be destroyed
+            await this.cleanupBridgeIfEmpty(channelInfo.roomId);
+        }
+    }
+
+    async handleDTMF(event, channel) {
+        console.log(`[ARI] DTMF received: ${event.digit} on ${channel.name}`);
+        
+        // Handle DTMF commands
+        switch (event.digit) {
+            case '*':
+                // Mute/unmute
+                const channelInfo = this.channels.get(channel.id);
+                if (channelInfo) {
+                    channelInfo.muted = !channelInfo.muted;
+                    console.log(`[ARI] ${channelInfo.muted ? 'Muted' : 'Unmuted'} ${channelInfo.callerName}`);
+                }
+                break;
+            case '#':
+                // Hangup
+                await channel.hangup();
+                break;
+        }
+    }
+
+    async getOrCreateBridge(roomId) {
+        if (this.bridges.has(roomId)) {
+            return this.bridges.get(roomId);
+        }
+        
+        console.log(`[ARI] Creating new conference bridge for room: ${roomId}`);
+        
+        const bridge = this.ari.Bridge();
+        await bridge.create({ type: 'mixing', name: `translation-${roomId}` });
+        
+        this.bridges.set(roomId, bridge);
+        this.activeRooms.set(roomId, {
+            participants: [],
+            bridge,
+            createdAt: Date.now()
+        });
+        
+        return bridge;
+    }
+
+    async cleanupBridgeIfEmpty(roomId) {
+        const room = this.activeRooms.get(roomId);
+        if (!room) return;
+        
+        // Check if any channels are still in the bridge
+        const channelsInRoom = Array.from(this.channels.values())
+            .filter(ch => ch.roomId === roomId);
+        
+        if (channelsInRoom.length === 0) {
+            console.log(`[ARI] Room ${roomId} is empty, destroying bridge`);
+            
+            try {
+                await room.bridge.destroy();
+            } catch (e) {
+                // Bridge may already be destroyed
+            }
+            
+            this.bridges.delete(roomId);
+            this.activeRooms.delete(roomId);
+        }
+    }
+
+    async startAudioStreaming(channel, roomId, language) {
+        console.log(`[ARI] Starting audio streaming for ${channel.name} (BEFORE bridge for clean audio)`);
+
+        try {
+            // Get the audio receiver for this channel
+            const audioReceiver = this.audioReceivers.get(channel.id);
+            if (!audioReceiver) {
+                console.error(`[ARI] No audio receiver found for channel ${channel.id}`);
+                return;
+            }
+
+            // Start the RTP audio receiver
+            await audioReceiver.start();
+            console.log(`[ARI] ✓ Started RTP audio receiver on port ${audioReceiver.port}`);
+
+            // Create a snoop channel to capture audio
+            const snoopChannel = this.ari.Channel();
+
+            await channel.snoopChannel({
+                spy: 'in', // Capture INCOMING audio (from user's microphone)
+                whisper: 'out', // Allow sending audio TO participant (translations)
+                app: this.config.applicationName,
+                appArgs: `snoop,${roomId},${language}`
+            }, snoopChannel);
+
+            // Get the actual snoop channel ID from the snoopChannel object
+            const snoopChannelId = snoopChannel.id;
+
+            console.log(`[ARI] ✓ Created snoop channel: ${snoopChannelId}`);
+
+            // Store snoop channel reference
+            const channelInfo = this.channels.get(channel.id);
+            if (channelInfo) {
+                channelInfo.snoopChannelId = snoopChannelId;
+                channelInfo.snoopChannel = snoopChannel;
+            }
+
+            // Start external media for audio streaming and bridge snoop → ExternalMedia
+            await this.setupExternalMedia(snoopChannelId, roomId, language, channel.id, audioReceiver.port);
+
+        } catch (error) {
+            console.error(`[ARI] Error starting audio streaming:`, error);
+        }
+    }
+
+    async setupExternalMedia(snoopChannelId, roomId, language, parentChannelId, rtpPort) {
+        try {
+            // Create a new ExternalMedia channel (not on existing channel)
+            // ExternalMedia creates a NEW channel that connects to external RTP endpoint
+            const externalMediaChannel = this.ari.Channel();
+
+            // Generate unique channel ID for ExternalMedia
+            const channelId = `external-${parentChannelId}-${Date.now()}`;
+
+            await externalMediaChannel.externalMedia({
+                app: this.config.applicationName,
+                external_host: `127.0.0.1:${rtpPort}`, // RTP endpoint where our receiver listens
+                format: 'slin', // 16kHz signed linear PCM
+                channelId: channelId
+            });
+
+            console.log(`[ARI] ✓ ExternalMedia channel created: ${channelId} → 127.0.0.1:${rtpPort}`);
+
+            // CRITICAL: Create a bridge to connect snoop → ExternalMedia
+            // This allows audio to flow from snooped channel to our RTP receiver
+            const snoopBridge = this.ari.Bridge();
+            await snoopBridge.create({ type: 'mixing', name: `snoop-bridge-${parentChannelId}` });
+
+            console.log(`[ARI] ✓ Created snoop bridge to connect audio flow`);
+
+            // Add snoop channel to bridge
+            await snoopBridge.addChannel({ channel: snoopChannelId });
+            console.log(`[ARI] ✓ Added snoop channel to bridge`);
+
+            // Add ExternalMedia channel to bridge
+            await snoopBridge.addChannel({ channel: externalMediaChannel.id });
+            console.log(`[ARI] ✓ Added ExternalMedia to bridge - audio path complete`);
+
+            // Store reference to ExternalMedia channel and bridge
+            const parentChannelInfo = this.channels.get(parentChannelId);
+            if (parentChannelInfo) {
+                parentChannelInfo.externalMediaChannelId = externalMediaChannel.id;
+                parentChannelInfo.externalMediaChannel = externalMediaChannel;
+                parentChannelInfo.snoopBridge = snoopBridge;
+            }
+
+        } catch (error) {
+            console.error(`[ARI] ExternalMedia error:`, error);
+            console.log(`[ARI] ExternalMedia not available, audio capture may not work`);
+        }
+    }
+
+    async setupRecordingFallback(channel, roomId, language, parentChannelId) {
+        // Simpler approach: Use Asterisk's record function
+        // Record to a temp file, process it, then play back translations
+        
+        console.log(`[ARI] Using recording-based audio capture for ${channel.name}`);
+        
+        // Start recording
+        const liveRecording = this.ari.LiveRecording();
+        const recordingName = `translation-${roomId}-${Date.now()}`;
+        
+        await channel.record({
+            name: recordingName,
+            format: 'wav',
+            maxDurationSeconds: 3600, // 1 hour max
+            beep: false,
+            ifExists: 'overwrite'
+        }, liveRecording);
+        
+        console.log(`[ARI] ✓ Started recording: ${recordingName}`);
+    }
+
+    /**
+     * Handle final transcript from Deepgram streaming
+     * @param {string} transcription - Final transcription text
+     * @param {number} confidence - Confidence score
+     * @param {string} channelId - Channel ID
+     */
+    async handleFinalTranscript(transcription, confidence, channelId) {
+        if (!this.translationServices) {
+            console.warn('[ARI] Translation services not available');
+            return;
+        }
+
+        const channelInfo = this.channels.get(channelId);
+        if (!channelInfo) {
+            console.warn(`[ARI] Channel ${channelId} not found for transcript`);
+            return;
+        }
+
+        const { translateText, synthesizeSpeech, getUserProfile } = this.translationServices;
+        const pipelineStart = Date.now();
+
+        console.log('[ARI] Processing Deepgram final transcript:', {
+            channelId: channelId,
+            text: transcription,
+            confidence: confidence,
+            language: channelInfo.language
+        });
+
+        try {
+            // Apply HMLCP ULO layer
+            const { profile, uloLayer } = await getUserProfile(
+                channelInfo.userId,
+                channelInfo.language
+            );
+            const processedText = uloLayer.apply(transcription);
+            profile.addTextSample(transcription);
+
+            // Emit to live monitor
+            if (this.server && this.server.io) {
+                this.server.io.to(channelInfo.roomId).emit('transcriptionFinal', {
+                    userId: channelInfo.userId,
+                    username: channelInfo.callerName,
+                    text: processedText,
+                    confidence: confidence,
+                    language: channelInfo.language
+                });
+            }
+
+            // Get all other participants in the room
+            const channelsInRoom = Array.from(this.channels.values())
+                .filter(ch => ch.roomId === channelInfo.roomId && ch.channel.id !== channelInfo.channel.id);
+
+            if (channelsInRoom.length === 0) {
+                console.log('[ARI] No other participants in room, skipping translation');
+                return;
+            }
+
+            console.log(`[ARI] Translating for ${channelsInRoom.length} participant(s)`);
+
+            // Translate and synthesize for each participant
+            const translationPromises = channelsInRoom.map(async (targetChannel) => {
+                try {
+                    // Translate
+                    const transStart = Date.now();
+                    const translatedText = await translateText(
+                        processedText,
+                        channelInfo.language,
+                        targetChannel.language
+                    );
+                    const transDuration = Date.now() - transStart;
+
+                    console.log(`[ARI] Translated (${transDuration}ms): "${translatedText}"`);
+
+                    // Synthesize speech
+                    const ttsStart = Date.now();
+                    const audioData = await synthesizeSpeech(
+                        translatedText,
+                        targetChannel.language
+                    );
+                    const ttsDuration = Date.now() - ttsStart;
+
+                    if (!audioData) {
+                        console.warn('[ARI] TTS returned no audio data');
+                        return;
+                    }
+
+                    console.log(`[ARI] Synthesized (${ttsDuration}ms): ${audioData.length} bytes`);
+
+                    // Send to target participant
+                    await this.playAudioToChannel(targetChannel.channel.id, audioData, {
+                        sourceText: transcription,
+                        processedText: processedText,
+                        translatedText: translatedText,
+                        sourceLanguage: channelInfo.language,
+                        targetLanguage: targetChannel.language,
+                        speakerName: channelInfo.callerName
+                    });
+
+                    const totalLatency = Date.now() - pipelineStart;
+                    console.log(`[ARI] ✓ Complete pipeline: ${totalLatency}ms (Trans: ${transDuration}ms, TTS: ${ttsDuration}ms)`);
+
+                } catch (error) {
+                    console.error(`[ARI] Translation error for channel ${targetChannel.channel.id}:`, error);
+                }
+            });
+
+            await Promise.all(translationPromises);
+
+            const totalDuration = Date.now() - pipelineStart;
+            console.log(`[ARI] ✓ Processed Deepgram transcript for ${channelsInRoom.length} participant(s) in ${totalDuration}ms`);
+
+        } catch (error) {
+            console.error('[ARI] Error processing Deepgram transcript:', error);
+        }
+    }
+
+    /**
+     * Handle audio segment from RTP receiver - process through translation pipeline
+     * @param {Object} segment - Audio segment with metadata
+     * @param {Object} channelInfo - Channel information
+     */
+    async handleAudioSegment(segment, channelInfo) {
+        if (!this.translationServices) {
+            console.warn('[ARI] Translation services not available');
+            return;
+        }
+
+        const { transcribeAudio, translateText, synthesizeSpeech, getUserProfile, languageMap } = this.translationServices;
+        const pipelineStart = Date.now();
+
+        console.log('[ARI] Processing audio segment:', {
+            channelId: segment.channelId,
+            duration: segment.duration,
+            frames: segment.frames,
+            language: segment.language
+        });
+
+        try {
+            // Step 1: Transcribe audio (STT)
+            const sttStart = Date.now();
+            const { profile, uloLayer } = await getUserProfile(
+                channelInfo.userId,
+                channelInfo.language
+            );
+            const customVocab = uloLayer.generateCustomVocabulary();
+
+            // DEBUG: Log audio buffer details being sent to Deepgram
+            console.log('[ARI] 🔍 DEBUG: Sending to Deepgram:', {
+                audioSize: segment.audio.length,
+                duration: segment.duration,
+                frames: segment.frames,
+                language: segment.language,
+                reason: segment.reason,
+                timestamp: new Date(segment.timestamp).toISOString()
+            });
+
+            const { text: transcription, confidence } = await transcribeAudio(
+                segment.audio, // WAV format
+                segment.language,
+                customVocab
+            );
+            const sttDuration = Date.now() - sttStart;
+
+            // DEBUG: Log Deepgram response
+            console.log('[ARI] 🔍 DEBUG: Deepgram response:', {
+                transcription: transcription || '(empty)',
+                confidence: confidence,
+                length: transcription ? transcription.length : 0,
+                duration: sttDuration
+            });
+
+            if (!transcription || transcription.trim() === '') {
+                console.log('[ARI] Empty transcription, skipping');
+                return;
+            }
+
+            console.log(`[ARI] Transcribed (${sttDuration}ms): "${transcription}"`);
+
+            // Apply HMLCP ULO layer
+            const processedText = uloLayer.apply(transcription);
+            profile.addTextSample(transcription);
+
+            // Step 2: Get all other participants in the room
+            const channelsInRoom = Array.from(this.channels.values())
+                .filter(ch => ch.roomId === channelInfo.roomId && ch.channel.id !== channelInfo.channel.id);
+
+            if (channelsInRoom.length === 0) {
+                console.log('[ARI] No other participants in room, skipping translation');
+                return;
+            }
+
+            console.log(`[ARI] Translating for ${channelsInRoom.length} participant(s)`);
+
+            // Step 3: Translate and synthesize for each participant
+            const translationPromises = channelsInRoom.map(async (targetChannel) => {
+                try {
+                    // Translate
+                    const transStart = Date.now();
+                    const translatedText = await translateText(
+                        processedText,
+                        channelInfo.language,
+                        targetChannel.language
+                    );
+                    const transDuration = Date.now() - transStart;
+
+                    console.log(`[ARI] Translated (${transDuration}ms): "${translatedText}"`);
+
+                    // Synthesize speech
+                    const ttsStart = Date.now();
+                    const audioData = await synthesizeSpeech(
+                        translatedText,
+                        targetChannel.language
+                    );
+                    const ttsDuration = Date.now() - ttsStart;
+
+                    if (!audioData) {
+                        console.warn('[ARI] TTS returned no audio data');
+                        return;
+                    }
+
+                    console.log(`[ARI] Synthesized (${ttsDuration}ms): ${audioData.length} bytes`);
+
+                    // Step 4: Send to target participant via playback handler
+                    await this.playAudioToChannel(targetChannel.channel.id, audioData, {
+                        sourceText: transcription,
+                        processedText: processedText,
+                        translatedText: translatedText,
+                        sourceLanguage: channelInfo.language,
+                        targetLanguage: targetChannel.language,
+                        speakerName: channelInfo.callerName
+                    });
+
+                    const totalLatency = Date.now() - pipelineStart;
+                    console.log(`[ARI] ✓ Complete pipeline: ${totalLatency}ms (STT: ${sttDuration}ms, Trans: ${transDuration}ms, TTS: ${ttsDuration}ms)`);
+
+                } catch (error) {
+                    console.error(`[ARI] Translation error for channel ${targetChannel.channel.id}:`, error);
+                }
+            });
+
+            await Promise.all(translationPromises);
+
+            const totalDuration = Date.now() - pipelineStart;
+            console.log(`[ARI] ✓ Processed segment for ${channelsInRoom.length} participant(s) in ${totalDuration}ms`);
+
+        } catch (error) {
+            console.error('[ARI] Error processing audio segment:', error);
+        }
+    }
+
+    notifyParticipantJoined(roomId, participant) {
+        // Emit event to conference server's Socket.IO
+        if (this.server && this.server.io) {
+            this.server.io.to(roomId).emit('participantJoined', participant);
+            console.log(`[ARI] ✓ Notified room ${roomId} of new participant: ${participant.username}`);
+        }
+    }
+
+    notifyParticipantLeft(roomId, userId) {
+        if (this.server && this.server.io) {
+            this.server.io.to(roomId).emit('participantLeft', { userId });
+            console.log(`[ARI] ✓ Notified room ${roomId} that participant left: ${userId}`);
+        }
+    }
+
+    /**
+     * Play translated audio to a channel using RTP packets
+     * @param {string} channelId - Channel ID to play audio to
+     * @param {Buffer} mp3Buffer - MP3 audio buffer from TTS
+     * @param {Object} metadata - Translation metadata
+     */
+    async playAudioToChannel(channelId, mp3Buffer, metadata = {}) {
+        const channelInfo = this.channels.get(channelId);
+        if (!channelInfo) {
+            console.warn(`[ARI] Channel ${channelId} not found for audio playback`);
+            return;
+        }
+
+        const playbackHandler = this.playbackHandlers.get(channelId);
+        if (!playbackHandler) {
+            console.warn(`[ARI] Playback handler not found for channel ${channelId}`);
+            return;
+        }
+
+        try {
+            console.log(`[ARI] Playing translated audio to ${channelInfo.callerName} via RTP`);
+
+            // Use the playback handler to convert and send audio
+            await playbackHandler.handleSynthesizedAudio(mp3Buffer, metadata);
+
+            console.log(`[ARI] ✓ Queued translated audio for ${channelInfo.callerName}`);
+
+        } catch (error) {
+            console.error(`[ARI] Error playing audio to ${channelInfo.callerName}:`, error);
+        }
+    }
+
+    /**
+     * Update RTP destinations for all playback handlers in a room
+     * @param {string} roomId - Room ID
+     */
+    async updateRTPDestinationsForRoom(roomId) {
+        // Get all channels in this room
+        const channelsInRoom = Array.from(this.channels.values())
+            .filter(ch => ch.roomId === roomId);
+
+        if (channelsInRoom.length === 0) {
+            console.log(`[ARI] No channels in room ${roomId} to update RTP destinations`);
+            return;
+        }
+
+        console.log(`[ARI] Updating RTP destinations for ${channelsInRoom.length} participants in room ${roomId}`);
+
+        // For each channel, update its playback handler with destinations of OTHER participants
+        for (const channelInfo of channelsInRoom) {
+            const playbackHandler = this.playbackHandlers.get(channelInfo.channel.id);
+            if (!playbackHandler) continue;
+
+            // Get RTP destinations for other participants (not this one)
+            const otherParticipants = channelsInRoom
+                .filter(ch => ch.channel.id !== channelInfo.channel.id)
+                .map(ch => ({
+                    host: '127.0.0.1',  // Localhost for ExternalMedia
+                    port: 10000 + parseInt(ch.channel.id.substring(0, 4), 16) % 50000, // Dynamic port based on channel ID
+                    channelId: ch.channel.id,
+                    callerName: ch.callerName
+                }));
+
+            playbackHandler.updateDestinations(otherParticipants);
+
+            console.log(`[ARI] Updated RTP destinations for ${channelInfo.callerName}: ${otherParticipants.length} destination(s)`);
+        }
+    }
+
+    async disconnect() {
+        if (this.ari) {
+            console.log('[ARI] Disconnecting from Asterisk...');
+
+            // Clean up all Deepgram streaming sessions
+            for (const [channelId, deepgramClient] of this.deepgramSessions) {
+                try {
+                    await deepgramClient.disconnect();
+                    console.log(`[ARI] ✓ Disconnected Deepgram session for ${channelId}`);
+                } catch (error) {
+                    console.error(`[ARI] Error cleaning up Deepgram session for ${channelId}:`, error);
+                }
+            }
+            this.deepgramSessions.clear();
+
+            // Clean up all audio receivers (if enabled)
+            if (this.audioReceivers) {
+                for (const [channelId, audioReceiver] of this.audioReceivers) {
+                    try {
+                        await audioReceiver.stop();
+                    } catch (error) {
+                        console.error(`[ARI] Error cleaning up audio receiver for ${channelId}:`, error);
+                    }
+                }
+                this.audioReceivers.clear();
+            }
+
+            // Clean up all playback handlers
+            for (const [channelId, playbackHandler] of this.playbackHandlers) {
+                try {
+                    await playbackHandler.cleanup();
+                } catch (error) {
+                    console.error(`[ARI] Error cleaning up playback handler for ${channelId}:`, error);
+                }
+            }
+            this.playbackHandlers.clear();
+
+            // Clean up all bridges
+            for (const [roomId, room] of this.activeRooms) {
+                room.bridge.destroy().catch(() => {});
+            }
+
+            this.ari = null;
+            console.log('[ARI] ✓ Disconnected and cleaned up all resources');
+        }
+    }
+}
+
+module.exports = AsteriskARIHandler;

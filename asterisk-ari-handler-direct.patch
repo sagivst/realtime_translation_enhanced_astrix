@@ -1,0 +1,103 @@
+--- asterisk-ari-handler.js.old
++++ asterisk-ari-handler.js
+@@ -400,82 +400,45 @@
+     async startAudioStreaming(channel, roomId, language) {
+         console.log(`[ARI] Starting audio streaming for ${channel.name} (DIRECT - no snoop)`);
+ 
+         try {
+             // Get the audio receiver for this channel
+             const audioReceiver = this.audioReceivers.get(channel.id);
+             if (!audioReceiver) {
+                 console.error(`[ARI] No audio receiver found for channel ${channel.id}`);
+                 return;
+             }
+ 
+             // Start the RTP audio receiver
+             await audioReceiver.start();
+             console.log(`[ARI] ✓ Started RTP audio receiver on port ${audioReceiver.port}`);
+ 
+-            // Create a snoop channel to capture audio
+-            const snoopChannel = this.ari.Channel();
+-
+-            await channel.snoopChannel({
+-                spy: 'in', // Capture INCOMING audio (from user's microphone)
+-                whisper: 'out', // Allow sending audio TO participant (translations)
+-                app: this.config.applicationName,
+-                appArgs: `snoop,${roomId},${language}`
+-            }, snoopChannel);
+-
+-            // Get the actual snoop channel ID from the snoopChannel object
+-            const snoopChannelId = snoopChannel.id;
+-
+-            console.log(`[ARI] ✓ Created snoop channel: ${snoopChannelId}`);
+-
+-            // Store snoop channel reference
+-            const channelInfo = this.channels.get(channel.id);
+-            if (channelInfo) {
+-                channelInfo.snoopChannelId = snoopChannelId;
+-                channelInfo.snoopChannel = snoopChannel;
+-            }
+-
+-            // Start external media for audio streaming and bridge snoop → ExternalMedia
+-            await this.setupExternalMedia(snoopChannelId, roomId, language, channel.id, audioReceiver.port);
++            // Use ExternalMedia DIRECTLY on the SIP channel (no snoop)
++            await this.setupExternalMediaDirect(channel, roomId, language, audioReceiver.port);
+ 
+         } catch (error) {
+             console.error(`[ARI] Error starting audio streaming:`, error);
+         }
+     }
+ 
+-    async setupExternalMedia(snoopChannelId, roomId, language, parentChannelId, rtpPort) {
++    async setupExternalMediaDirect(channel, roomId, language, rtpPort) {
+         try {
+-            // Create a new ExternalMedia channel (not on existing channel)
+-            // ExternalMedia creates a NEW channel that connects to external RTP endpoint
+-            const externalMediaChannel = this.ari.Channel();
+-
+-            // Generate unique channel ID for ExternalMedia
+-            const channelId = `external-${parentChannelId}-${Date.now()}`;
+-
+-            await externalMediaChannel.externalMedia({
++            // Start ExternalMedia on the SIP channel directly
++            await channel.startSilence();
++            await channel.externalMedia({
+                 app: this.config.applicationName,
+-                external_host: `127.0.0.1:${rtpPort}`, // RTP endpoint where our receiver listens
+-                format: 'slin', // 16kHz signed linear PCM
+-                channelId: channelId
++                external_host: `127.0.0.1:${rtpPort}`,
++                format: 'ulaw',
++                direction: 'both'
+             });
+ 
+-            console.log(`[ARI] ✓ ExternalMedia channel created: ${channelId} → 127.0.0.1:${rtpPort}`);
+-
+-            // CRITICAL: Create a bridge to connect snoop → ExternalMedia
+-            // This allows audio to flow from snooped channel to our RTP receiver
+-            const snoopBridge = this.ari.Bridge();
+-            await snoopBridge.create({ type: 'mixing', name: `snoop-bridge-${parentChannelId}` });
+-
+-            console.log(`[ARI] ✓ Created snoop bridge to connect audio flow`);
+-
+-            // Add snoop channel to bridge
+-            await snoopBridge.addChannel({ channel: snoopChannelId });
+-            console.log(`[ARI] ✓ Added snoop channel to bridge`);
+-
+-            // Add ExternalMedia channel to bridge
+-            await snoopBridge.addChannel({ channel: externalMediaChannel.id });
+-            console.log(`[ARI] ✓ Added ExternalMedia to bridge - audio path complete`);
++            console.log(`[ARI] ✓ ExternalMedia DIRECT on SIP channel → 127.0.0.1:${rtpPort}`);
+ 
+             // Store reference to ExternalMedia channel and bridge
+-            const parentChannelInfo = this.channels.get(parentChannelId);
+-            if (parentChannelInfo) {
+-                parentChannelInfo.externalMediaChannelId = externalMediaChannel.id;
+-                parentChannelInfo.externalMediaChannel = externalMediaChannel;
+-                parentChannelInfo.snoopBridge = snoopBridge;
++            const channelInfo = this.channels.get(channel.id);
++            if (channelInfo) {
++                channelInfo.externalMediaActive = true;
+             }
+ 
+         } catch (error) {

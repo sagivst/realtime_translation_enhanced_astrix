@@ -1,0 +1,77 @@
+; Asterisk Dialplan Configuration
+; Extension 7000 - AudioSocket with Recording for Debugging
+; Extension 1000 - Conference Room
+; Conference Test Context - Plays audio for testing
+
+[default]
+; Extension 7000 - AudioSocket (exact match has priority over pattern)
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+
+; Route other inbound SIP calls to translation conference
+exten => _X.,1,NoOp(=== Inbound SIP Call ===)
+ same => n,Set(CALLERID(name)=${CALLERID(name)})
+ same => n,Set(CONFERENCE_ID=${EXTEN})
+ same => n,Goto(translation-conference,${EXTEN},1)
+
+[from-internal]
+exten => 8000,1,Goto(test-bridges,8000,1)
+ exten => 8001,1,Goto(test-bridges,8001,1)
+; Extension 7000 - AudioSocket
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+
+; Conference room 1000
+exten => 1000,1,Goto(translation-conference,1000,1)
+
+; Conference room 2000
+exten => 2000,1,Goto(translation-conference,2000,1)
+
+; Echo test
+exten => 8888,1,NoOp(Echo test)
+ same => n,Answer()
+ same => n,Playback(hello-world)
+ same => n,Echo()
+ same => n,Hangup()
+
+; Test audio extension (plays tone continuously)
+exten => 9999,1,NoOp(=== Audio Test ===)
+ same => n,Answer()
+ same => n,Playback(hello-world)
+ same => n,Playback(demo-congrats)
+ same => n,Wait(1)
+ same => n,Playback(hello-world)
+ same => n,Playback(demo-congrats)
+ same => n,Wait(1)
+ same => n,Goto(3)
+
+[public]
+exten => 7000,1,Goto(from-sip-custom,7000,1)
+
+; Extension 7001 - AudioSocket (port 5052)
+exten => 7001,1,Goto(from-sip-custom,7001,1)
+exten => _X.,1,NoOp(=== Default Context ===)
+ same => n,Playback(invalid)
+ same => n,Hangup()
+
+; AudioSocket extension for 7000 - WITH MULTI-LANGUAGE CONFERENCE BRIDGE AUTO-DIALING
+[from-sip-custom]
+; Extension 7000 - Enter Stasis for ARI Bridge + Snoop management
+exten => 7000,1,NoOp(=== Extension 7000: ARI Bridge + Snoop ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+ same => n,Set(CALL_UUID=${FILTER(a-zA-Z0-9-,${SHELL(uuidgen)})})
+ same => n,Stasis(translation-app,7000,${CALL_UUID})
+ same => n,Hangup()
+
+; Extension 7001 - Enter Stasis for ARI Bridge + Snoop management
+exten => 7001,1,NoOp(=== Extension 7001: ARI Bridge + Snoop ===)
+ same => n,Answer()
+ same => n,Playback(beep)
+ same => n,Set(CALL_UUID=${FILTER(a-zA-Z0-9-,${SHELL(uuidgen)})})
+ same => n,Stasis(translation-app,7001,${CALL_UUID})
+ same => n,Hangup()

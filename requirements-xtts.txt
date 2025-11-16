@@ -1,0 +1,9 @@
+TTS==0.22.0
+torch==2.5.1
+torchaudio==2.5.1
+transformers==4.56.2
+Flask==3.1.2
+SpeechBrain==1.0.3
+numpy<2.0
+scipy
+requests

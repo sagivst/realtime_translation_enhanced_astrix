@@ -1,0 +1,107 @@
+#!/bin/bash
+# Automatic Checkpoint System for DEV VM (20.170.155.53)
+# Creates backups before any server restart or manual checkpoint
+
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+APP_DIR="/home/azureuser/translation-app"
+BACKUP_DIR="$APP_DIR/checkpoints"
+CHECKPOINT_NAME="checkpoint-$TIMESTAMP"
+
+# Create backup directory if it doesn't exist
+mkdir -p "$BACKUP_DIR/$CHECKPOINT_NAME"
+
+echo "================================================"
+echo "📦 Creating Checkpoint: $CHECKPOINT_NAME"
+echo "================================================"
+echo "DEV VM: 20.170.155.53 (asterisk-dev-vm-clone)"
+echo "Time: $(date)"
+echo ""
+
+# List of critical files to backup
+FILES_TO_BACKUP=(
+    "conference-server.js"
+    "audiosocket-integration.js"
+    "audiosocket-orchestrator.js"
+    "asr-streaming-worker.js"
+    "asterisk-ari-handler.js"
+    "deepl-incremental-mt.js"
+    "elevenlabs-tts-service.js"
+    "hume-evi-adapter.js"
+    "confbridge-manager.js"
+    "frame-collector.js"
+    "pacing-governor.js"
+    "public/dashboard.html"
+    "public/dashboard-room2.html"
+    "package.json"
+    ".env"
+)
+
+# Backup each file
+BACKED_UP=0
+for file in "${FILES_TO_BACKUP[@]}"; do
+    if [ -f "$APP_DIR/$file" ]; then
+        # Create subdirectory structure in backup
+        DIRNAME=$(dirname "$file")
+        mkdir -p "$BACKUP_DIR/$CHECKPOINT_NAME/$DIRNAME"
+        
+        cp "$APP_DIR/$file" "$BACKUP_DIR/$CHECKPOINT_NAME/$file"
+        echo "  ✓ Backed up: $file"
+        ((BACKED_UP++))
+    fi
+done
+
+# Backup Asterisk config
+if [ -f "/etc/asterisk/extensions.conf" ]; then
+    mkdir -p "$BACKUP_DIR/$CHECKPOINT_NAME/asterisk"
+    sudo cp /etc/asterisk/extensions.conf "$BACKUP_DIR/$CHECKPOINT_NAME/asterisk/" 2>/dev/null || \
+        cp /etc/asterisk/extensions.conf "$BACKUP_DIR/$CHECKPOINT_NAME/asterisk/" 2>/dev/null
+    echo "  ✓ Backed up: /etc/asterisk/extensions.conf"
+    ((BACKED_UP++))
+fi
+
+# Create manifest file
+cat > "$BACKUP_DIR/$CHECKPOINT_NAME/MANIFEST.txt" << EOF
+Checkpoint: $CHECKPOINT_NAME
+Created: $(date)
+Server: DEV VM (20.170.155.53)
+VM Name: asterisk-dev-vm-clone
+Files Backed Up: $BACKED_UP
+
+Git Status:
+$(cd $APP_DIR && git status --short 2>/dev/null || echo "Git not initialized")
+
+Git Branch:
+$(cd $APP_DIR && git branch 2>/dev/null | grep '*' || echo "No branch")
+
+Last Commit:
+$(cd $APP_DIR && git log -1 --oneline 2>/dev/null || echo "No commits")
+
+Process Status:
+$(ps aux | grep 'node conference-server' | grep -v grep || echo "Server not running")
+EOF
+
+echo ""
+echo "📋 Manifest created: $BACKUP_DIR/$CHECKPOINT_NAME/MANIFEST.txt"
+echo ""
+
+# Calculate backup size
+BACKUP_SIZE=$(du -sh "$BACKUP_DIR/$CHECKPOINT_NAME" | cut -f1)
+echo "💾 Checkpoint size: $BACKUP_SIZE"
+echo "📁 Location: $BACKUP_DIR/$CHECKPOINT_NAME"
+echo ""
+
+# Clean up old checkpoints (keep last 10)
+echo "🧹 Cleaning up old checkpoints (keeping last 10)..."
+cd "$BACKUP_DIR"
+ls -dt checkpoint-* 2>/dev/null | tail -n +11 | xargs rm -rf 2>/dev/null
+REMAINING=$(ls -d checkpoint-* 2>/dev/null | wc -l)
+echo "  ✓ Total checkpoints: $REMAINING"
+echo ""
+
+echo "================================================"
+echo "✅ Checkpoint Created Successfully!"
+echo "================================================"
+echo ""
+echo "To restore this checkpoint:"
+echo "  bash /home/azureuser/translation-app/restore-checkpoint.sh $CHECKPOINT_NAME"
+echo ""

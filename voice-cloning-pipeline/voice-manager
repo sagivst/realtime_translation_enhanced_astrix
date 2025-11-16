@@ -1,0 +1,146 @@
+#!/bin/bash
+##############################################################################
+# Voice Manager CLI - Easy interface for managing voice profiles
+##############################################################################
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPTS_DIR="$PROJECT_DIR/voice-cloning-pipeline/scripts"
+
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+show_help() {
+    echo -e "${BLUE}Voice Manager CLI${NC}"
+    echo ""
+    echo "Usage: ./voice-manager <command>"
+    echo ""
+    echo "Commands:"
+    echo "  train-all          Start batch training for all 4 users"
+    echo "  monitor            Monitor training progress (auto-deploy when ready)"
+    echo "  status             Check status of all users"
+    echo "  dashboard          Launch web dashboard (http://localhost:5000)"
+    echo "  deploy <user-id>   Deploy endpoint for specific user"
+    echo "  export             Export results to JSON"
+    echo "  help               Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  ./voice-manager train-all"
+    echo "  ./voice-manager monitor"
+    echo "  ./voice-manager dashboard"
+    echo ""
+}
+
+train_all() {
+    echo -e "${BLUE}Starting batch training for all users...${NC}"
+    cd "$PROJECT_DIR"
+    source venv-voice/bin/activate
+    python3 "$SCRIPTS_DIR/batch_train_all_users.py"
+}
+
+monitor() {
+    echo -e "${BLUE}Starting training monitor...${NC}"
+    echo "This will check status every 5 minutes and auto-deploy when ready"
+    echo ""
+    cd "$PROJECT_DIR"
+    source venv-voice/bin/activate
+    python3 "$SCRIPTS_DIR/monitor_training.py"
+}
+
+status() {
+    echo -e "${BLUE}Checking status...${NC}"
+    cd "$PROJECT_DIR"
+
+    if [ -f "batch_training_results.json" ]; then
+        python3 -c "
+import json
+with open('batch_training_results.json', 'r') as f:
+    results = json.load(f)
+
+print('\nUser Status:')
+print('=' * 60)
+for r in results:
+    status = r.get('status', 'unknown')
+    icon = '✓' if status in ['completed', 'deployed'] else '⏳' if status == 'training_in_progress' else '✗' if 'failed' in status else '○'
+    print(f'{icon} {r[\"user_id\"]}: {status}')
+print('')
+"
+    else
+        echo -e "${YELLOW}No results found. Run 'train-all' first.${NC}"
+    fi
+}
+
+dashboard() {
+    echo -e "${BLUE}Starting web dashboard...${NC}"
+    echo "Dashboard will be available at: http://localhost:5000"
+    echo ""
+    cd "$PROJECT_DIR"
+    source venv-voice/bin/activate
+
+    # Install Flask if not installed
+    pip install flask --quiet
+
+    python3 voice-cloning-pipeline/dashboard.py
+}
+
+deploy_user() {
+    USER_ID=$1
+
+    if [ -z "$USER_ID" ]; then
+        echo -e "${YELLOW}Error: User ID required${NC}"
+        echo "Usage: ./voice-manager deploy <user-id>"
+        exit 1
+    fi
+
+    echo -e "${BLUE}Deploying endpoint for: $USER_ID${NC}"
+    cd "$PROJECT_DIR"
+    source venv-voice/bin/activate
+
+    # TODO: Implement single user deployment
+    echo "Not implemented yet. Use monitor for auto-deployment."
+}
+
+export_results() {
+    cd "$PROJECT_DIR"
+
+    if [ -f "batch_training_results.json" ]; then
+        OUTPUT="voice_training_export_$(date +%Y%m%d_%H%M%S).json"
+        cp batch_training_results.json "$OUTPUT"
+        echo -e "${GREEN}✓ Exported to: $OUTPUT${NC}"
+    else
+        echo -e "${YELLOW}No results to export${NC}"
+    fi
+}
+
+# Main command router
+case "$1" in
+    train-all)
+        train_all
+        ;;
+    monitor)
+        monitor
+        ;;
+    status)
+        status
+        ;;
+    dashboard)
+        dashboard
+        ;;
+    deploy)
+        deploy_user "$2"
+        ;;
+    export)
+        export_results
+        ;;
+    help|--help|-h|"")
+        show_help
+        ;;
+    *)
+        echo -e "${YELLOW}Unknown command: $1${NC}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac

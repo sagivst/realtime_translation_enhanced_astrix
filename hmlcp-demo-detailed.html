@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMLCP Streaming Translation System - Detailed Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.3em;
+            opacity: 0.9;
+        }
+
+        .architecture-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            margin-top: 15px;
+            display: inline-block;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+
+        .legend-client {
+            background: #fff3e0;
+            color: #e65100;
+            border: 2px solid #e65100;
+        }
+
+        .legend-external {
+            background: #ffe5e5;
+            color: #ff6b6b;
+            border: 2px solid #ff6b6b;
+        }
+
+        .legend-hmlcp {
+            background: #e5ffe5;
+            color: #2f9e44;
+            border: 2px solid #51cf66;
+        }
+
+        .legend-internal {
+            background: #e5f3ff;
+            color: #1971c2;
+            border: 2px solid #4dabf7;
+        }
+
+        .legend-storage {
+            background: #fff9db;
+            color: #e67700;
+            border: 2px solid #fcc419;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e9ecef;
+            margin: 0 40px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0;
+            transition: width 0.5s ease;
+        }
+
+        .data-flow {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .flow-container {
+            padding: 40px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .step {
+            margin-bottom: 30px;
+            padding: 25px;
+            border-radius: 15px;
+            background: #f8f9fa;
+            opacity: 0.3;
+            transform: translateX(-20px);
+            transition: all 0.5s ease;
+            border-left: 5px solid #ddd;
+        }
+
+        .step.active {
+            opacity: 1;
+            transform: translateX(0);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .step.client {
+            background: #fff3e0;
+            border-left-color: #e65100;
+        }
+
+        .step.client.active {
+            animation: pulse-orange 2s infinite;
+        }
+
+        .step.external {
+            background: #ffe5e5;
+            border-left-color: #ff6b6b;
+        }
+
+        .step.external.active {
+            animation: pulse-red 2s infinite;
+        }
+
+        .step.hmlcp {
+            background: #e5ffe5;
+            border-left-color: #51cf66;
+        }
+
+        .step.hmlcp.active {
+            animation: pulse-green 2s infinite;
+        }
+
+        .step.internal {
+            background: #e5f3ff;
+            border-left-color: #4dabf7;
+        }
+
+        .step.internal.active {
+            animation: pulse-blue 2s infinite;
+        }
+
+        .step.storage {
+            background: #fff9db;
+            border-left-color: #fcc419;
+        }
+
+        .step.storage.active {
+            animation: pulse-yellow 2s infinite;
+        }
+
+        @keyframes pulse-orange {
+            0%, 100% { box-shadow: 0 5px 20px rgba(230,81,0,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(230,81,0,0.6); }
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 5px 20px rgba(255,107,107,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(255,107,107,0.6); }
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 5px 20px rgba(81,207,102,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(81,207,102,0.6); }
+        }
+
+        @keyframes pulse-blue {
+            0%, 100% { box-shadow: 0 5px 20px rgba(77,171,247,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(77,171,247,0.6); }
+        }
+
+        @keyframes pulse-yellow {
+            0%, 100% { box-shadow: 0 5px 20px rgba(252,196,25,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(252,196,25,0.6); }
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .step-number {
+            font-size: 2em;
+            font-weight: bold;
+            min-width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            margin-right: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-size: 1.6em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .step-description {
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        .step-data {
+            color: #667eea;
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 12px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+            font-size: 1.05em;
+        }
+
+        .step-code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin-top: 15px;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+
+        .step-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .step-details.expanded {
+            max-height: 3000px;
+        }
+
+        .details-section {
+            background: rgba(0,0,0,0.03);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .details-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .details-content {
+            color: #555;
+            line-height: 1.8;
+            margin-bottom: 10px;
+        }
+
+        .details-list {
+            list-style: none;
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+
+        .details-list li {
+            padding: 5px 0;
+            position: relative;
+        }
+
+        .details-list li:before {
+            content: "▸";
+            position: absolute;
+            left: -15px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .file-ref {
+            background: #2d2d2d;
+            color: #4dabf7;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .metric {
+            background: #e5ffe5;
+            color: #2f9e44;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            margin: 5px 5px 5px 0;
+            font-weight: bold;
+        }
+
+        .drill-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .drill-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .drill-btn.expanded:after {
+            content: " ▲";
+        }
+
+        .drill-btn:not(.expanded):after {
+            content: " ▼";
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-client {
+            background: #e65100;
+            color: white;
+        }
+
+        .badge-external {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .badge-hmlcp {
+            background: #51cf66;
+            color: white;
+        }
+
+        .badge-internal {
+            background: #4dabf7;
+            color: white;
+        }
+
+        .badge-storage {
+            background: #fcc419;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .highlight {
+            background: #ffeb3b;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 HMLCP Streaming Translation System</h1>
+            <p>Real-Time Conference Translation with Human-Machine Language Calibration</p>
+            <div class="architecture-badge">
+                Streaming Chunking • Server-Side Reconstruction • ElevenLabs TTS
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item legend-client">🖥️ CLIENT LAYER</div>
+            <div class="legend-item legend-external">🔴 EXTERNAL APIs</div>
+            <div class="legend-item legend-hmlcp">🟢 HMLCP SYSTEM</div>
+            <div class="legend-item legend-internal">🔵 SERVER INTERNAL</div>
+            <div class="legend-item legend-storage">🟡 PERSISTENT STORAGE</div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
+        </div>
+
+        <div class="data-flow" id="dataFlow"></div>
+
+        <div class="flow-container" id="flowContainer">
+            <!-- Steps will be inserted here by JavaScript -->
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="prevStep()">← Previous</button>
+            <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+            <button class="btn btn-secondary" onclick="restart()">⟳ Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                type: 'client',
+                title: '🎤 Client Captures Audio Chunks',
+                description: 'Client browser captures audio in 1800ms chunks using WebRTC MediaRecorder. Each chunk is tagged with a unique utteranceId to group chunks from the same speech utterance. Chunks are streamed to server in real-time via WebSocket.',
+                data: '📊 Data Flow: Audio Chunk (1800ms PCM) + utteranceId + status',
+                code: `// CLIENT: public/js/conference-silence-detection.js:58-120
+
+const MAX_BUFFER_TIME_MS = 1800; // Chunk duration
+
+let currentUtteranceId = null;
+
+function startRecording() {
+  mediaRecorder.ondataavailable = (event) => {
+    if (event.data.size > 0) {
+      // Generate new utteranceId when starting speech
+      if (!currentUtteranceId) {
+        currentUtteranceId = Date.now() + '-' + Math.random();
+      }
+
+      // Send chunk with utteranceId
+      socket.emit('audio-chunk', {
+        audioData: event.data,
+        utteranceId: currentUtteranceId,
+        status: 'interim', // or 'complete' when done
+        language: userLanguage,
+        username: username
+      });
+    }
+  };
+
+  // Capture chunks every 1800ms
+  mediaRecorder.start(MAX_BUFFER_TIME_MS);
+}
+
+// When user stops speaking, mark final chunk
+function onSpeechEnd() {
+  socket.emit('audio-chunk', {
+    ...lastChunk,
+    status: 'complete' // Signal end of utterance
+  });
+  currentUtteranceId = null; // Reset for next utterance
+}`,
+                details: {
+                    layer: 'Client Browser (JavaScript)',
+                    technology: 'WebRTC MediaRecorder API + Socket.IO + Silence Detection',
+                    implementation: [
+                        'Audio captured using getUserMedia() microphone access',
+                        'MediaRecorder creates 1800ms chunks (optimal for STT quality)',
+                        'Each utterance gets unique ID: timestamp-random',
+                        'Chunks tagged with status: "interim" (speaking) or "complete" (done)',
+                        'Real-time WebSocket streaming to server',
+                        'Silence detection determines when user stops speaking',
+                        'utteranceId groups all chunks from same sentence'
+                    ],
+                    files: [
+                        'public/js/conference-silence-detection.js:58 - MAX_BUFFER_TIME_MS',
+                        'public/js/conference-silence-detection.js:217 - audio-chunk emit',
+                        'public/index.html - UI integration'
+                    ],
+                    performance: '~10ms chunk preparation | 1800ms per chunk',
+                    dataFormat: `{
+  audioData: Blob (PCM 16kHz),
+  utteranceId: "1760551234567-0.8234",
+  status: "interim" | "complete",
+  language: "en",
+  username: "User1"
+}`,
+                    whyStreaming: 'Streaming provides real-time feedback and reduces end-to-end latency. User sees transcription as they speak, not after they finish entire sentence.'
+                }
+            },
+            {
+                type: 'internal',
+                title: '📥 Server Receives & Buffers Chunks',
+                description: 'Server receives audio chunks and maintains an utterance buffer for each utteranceId. Chunks are accumulated until status="complete" is received. Each chunk is immediately transcribed for real-time feedback, but final processing waits for complete utterance.',
+                data: '📊 Data Flow: Audio Chunks → Utterance Buffer (Map by utteranceId)',
+                code: `// SERVER: conference-server.js:520-565
+
+// Map to store utterance buffers: utteranceId -> buffer
+const utteranceBuffers = new Map();
+
+socket.on('audio-chunk', async (data) => {
+  const { audioData, utteranceId, status } = data;
+
+  // Get or create buffer for this utterance
+  if (!utteranceBuffers.has(utteranceId)) {
+    utteranceBuffers.set(utteranceId, {
+      chunks: [],
+      startTime: Date.now(),
+      participant: participant
+    });
+  }
+
+  const buffer = utteranceBuffers.get(utteranceId);
+
+  // Transcribe this chunk immediately (for real-time feedback)
+  const transcription = await transcribeAudio(audioData, language);
+
+  // Add to buffer
+  buffer.chunks.push({
+    audio: audioData,
+    text: transcription,
+    timestamp: Date.now()
+  });
+
+  // Send interim transcription to client
+  socket.emit('interim-transcription', {
+    text: transcription,
+    utteranceId: utteranceId
+  });
+
+  // Check if utterance is complete
+  const shouldProcess = status === 'complete' ||
+    (Date.now() - buffer.startTime > 10000); // timeout
+
+  if (shouldProcess) {
+    // Reconstruct full sentence from chunks
+    const fullText = buffer.chunks.map(c => c.text).join(' ').trim();
+
+    // Process complete utterance (see next steps)
+    await processCompleteUtterance(fullText, utteranceId, participant);
+
+    // Clear buffer
+    utteranceBuffers.delete(utteranceId);
+  }
+});`,
+                details: {
+                    layer: 'Conference Server (Internal)',
+                    technology: 'Node.js + In-Memory Map Buffers',
+                    implementation: [
+                        'Utterance buffers stored in Map: utteranceId → {chunks[], startTime, participant}',
+                        'Each chunk transcribed immediately for real-time UI feedback',
+                        'Interim transcriptions sent to client as user speaks',
+                        'Chunks accumulated until status="complete" received',
+                        '10-second timeout prevents orphaned buffers',
+                        'Empty chunks (silence at end) handled gracefully',
+                        'Full sentence reconstructed by joining chunk transcriptions'
+                    ],
+                    files: [
+                        'conference-server.js:498 - utteranceBuffers Map declaration',
+                        'conference-server.js:520-602 - audio-chunk handler',
+                        'conference-server.js:543-602 - Complete utterance processing'
+                    ],
+                    performance: 'Buffer operations: <1ms | Map lookups: O(1)',
+                    bufferStructure: `Map {
+  "1760551234567-0.8234" => {
+    chunks: [
+      { audio: Buffer, text: "I need", timestamp: 1760551234567 },
+      { audio: Buffer, text: "to check", timestamp: 1760551236367 },
+      { audio: Buffer, text: "the server", timestamp: 1760551238167 }
+    ],
+    startTime: 1760551234567,
+    participant: { id: "abc", username: "User1", language: "en" }
+  }
+}`,
+                    optimization: 'Empty final chunks (transcription="") are detected and buffer is processed without adding empty string to fullText'
+                }
+            },
+            {
+                type: 'internal',
+                title: '📋 Load User Profile (BEFORE STT)',
+                description: 'When utterance is complete, server loads the user\'s HMLCP profile. Profile contains linguistic characteristics, phrase mappings, and bias terms. The ULO Layer generates custom vocabulary from bias terms to boost STT accuracy for technical terms.',
+                data: '📊 Data Flow: User Profile JSON → Custom Vocabulary Array',
+                code: `// SERVER: conference-server.js:543-565
+
+// When utterance is complete
+if (shouldProcess) {
+  const accumulatedText = utteranceBuffer.chunks
+    .map(c => c.text).join(' ').trim();
+
+  // Skip if buffer is empty
+  if (!accumulatedText || utteranceBuffer.chunks.length === 0) {
+    utteranceBuffers.delete(utteranceId);
+    return;
+  }
+
+  console.log(\`Processing complete utterance: "\${accumulatedText}"\`);
+
+  // HMLCP: Load user profile
+  const { profile, uloLayer, patternExtractor } =
+    await getUserProfile(participant.username, participant.language);
+
+  // Generate custom vocabulary for STT (if needed later)
+  const customVocab = uloLayer.generateCustomVocabulary();
+  // Returns: [{ phrase: "Kubernetes", boost: 25 }, ...]
+
+  // Apply ULO Layer to accumulated text
+  const processedText = uloLayer.apply(accumulatedText);
+
+  // Store sample for learning
+  profile.addTextSample(accumulatedText);
+
+  // Continue to translation...
+}`,
+                details: {
+                    layer: 'Conference Server (Internal)',
+                    technology: 'Node.js + HMLCP User Profile Manager',
+                    implementation: [
+                        'getUserProfile() loads from hmlcp/profiles/<userId>_<language>.json',
+                        'Profile cached in memory after first load (~10ms subsequent loads)',
+                        'ULO Layer initialized with phrase mappings and bias terms',
+                        'generateCustomVocabulary() creates Deepgram keyword list',
+                        'Each bias term gets boost value (default: 25)',
+                        'PatternExtractor ready for linguistic analysis',
+                        'Profile auto-saves every 5 minutes'
+                    ],
+                    files: [
+                        'conference-server.js:202-225 - getUserProfile helper',
+                        'hmlcp/user-profile.js - UserProfile class',
+                        'hmlcp/ulo-layer.js:generateCustomVocabulary()',
+                        'hmlcp/profiles/*.json - Persistent storage'
+                    ],
+                    performance: 'First load: ~10ms | Cached: <1ms',
+                    dataStructure: `{
+  userId: "user1",
+  language: "en",
+  biasTerms: ["Kubernetes", "PostgreSQL", "Azure", "Docker"],
+  phraseMap: {
+    "check the thing": "check the server status",
+    "restart the stuff": "restart the application",
+    "the kubernetes": "Kubernetes"
+  },
+  metrics: {
+    intentMatchRate: 95.5,
+    calibrationIndex: 0.92
+  }
+}`
+                }
+            },
+            {
+                type: 'hmlcp',
+                title: '🔄 ULO Layer Processing',
+                description: 'The User Linguistic Overlay (ULO) is the core of HMLCP. It applies personalized phrase mappings to transform the accumulated transcription into the user\'s intended meaning. Handles colloquialisms, shortcuts, domain-specific terms, and learned patterns.',
+                data: '📊 Data Flow: Accumulated Transcription → Processed Transcription (Intent-Aligned)',
+                code: `// SERVER: conference-server.js:566
+// HMLCP: Apply ULO layer for personalized linguistic processing
+const processedText = uloLayer.apply(accumulatedText);
+
+profile.addTextSample(accumulatedText);
+
+// ULO Layer Implementation (hmlcp/ulo-layer.js)
+class ULOLayer {
+  constructor(userProfile) {
+    this.phraseMap = userProfile.phraseMap || {};
+    this.biasTerms = userProfile.biasTerms || [];
+  }
+
+  apply(text) {
+    let processed = text;
+
+    // Apply all phrase mappings from user profile
+    for (const [pattern, replacement] of Object.entries(this.phraseMap)) {
+      const regex = new RegExp(pattern, 'gi');
+      processed = processed.replace(regex, replacement);
+    }
+
+    return processed;
+  }
+
+  learnFromCorrection(originalPhrase, correctedPhrase) {
+    // Add new mapping to phraseMap
+    this.phraseMap[originalPhrase] = correctedPhrase;
+    // Profile auto-saves every 5 minutes
+  }
+}`,
+                details: {
+                    layer: '🟢 HMLCP System - User Linguistic Overlay',
+                    technology: 'Pattern Matching + Machine Learning',
+                    implementation: [
+                        'Applies phrase mappings from user profile in sequence',
+                        'Case-insensitive regex matching for flexible recognition',
+                        'Transforms colloquialisms to formal intent',
+                        'Handles domain-specific shortcuts and abbreviations',
+                        'Stores raw transcription for pattern analysis',
+                        'Learning system improves over time with user corrections',
+                        'Performance: O(n*m) where n=text length, m=phrase mappings'
+                    ],
+                    files: [
+                        'conference-server.js:566 - ULO application',
+                        'hmlcp/ulo-layer.js:apply() - Core transformation',
+                        'hmlcp/ulo-layer.js:learnFromCorrection() - Learning'
+                    ],
+                    performance: '<1ms (simple string replacements)',
+                    examples: `Phrase Map Examples:
+┌────────────────────────────┬──────────────────────────────┐
+│ Accumulated Transcription  │ Processed Output             │
+├────────────────────────────┼──────────────────────────────┤
+│ "check the thing"          │ "check the server status"    │
+│ "the kubernetes cluster"   │ "Kubernetes cluster"         │
+│ "restart the stuff"        │ "restart the application"    │
+│ "db query performance"     │ "database query performance" │
+│ "ci cd pipeline failed"    │ "CI/CD pipeline failed"      │
+└────────────────────────────┴──────────────────────────────┘
+
+Real Example from Logs:
+Raw: "I need to check the thing in kubernetes"
+Processed: "I need to check the server status in Kubernetes"`,
+                    metrics: 'Intent Match Rate target: ≥95% | Calibration Index: ≥0.9'
+                }
+            },
+            {
+                type: 'internal',
+                title: '🔍 Same-Language Check',
+                description: 'Before translation, server checks if source and target participants speak the same language. If languages match, translation and TTS are skipped entirely. This prevents confusing audio playback when both users speak the same language but selected different custom voices.',
+                data: '📊 Decision: Translate + TTS OR Skip (if same language)',
+                code: `// SERVER: conference-server.js:578-597
+
+// For each target participant in the room
+const translationPromises = Array.from(room.participants)
+  .map(participantId => participants.get(participantId))
+  .filter(p => p && p.id !== socket.id)
+  .map(async (targetParticipant) => {
+    try {
+      // Skip if same language (no translation needed)
+      if (participant.language === targetParticipant.language) {
+        console.log(\`Skipping TTS for \${targetParticipant.username} - same language (\${participant.language})\`);
+        return;
+      }
+
+      // Different languages - proceed with translation & TTS
+      const transStart = Date.now();
+
+      const translatedText = await translateText(
+        processedText,
+        participant.language,
+        targetParticipant.language
+      );
+
+      // Continue to TTS...
+    }
+  });`,
+                details: {
+                    layer: '🔵 Server Internal - Optimization',
+                    technology: 'Simple Language Comparison',
+                    implementation: [
+                        'Compares participant.language === targetParticipant.language',
+                        'Early return skips translation and TTS entirely',
+                        'Saves API costs (DeepL + ElevenLabs credits)',
+                        'Reduces latency by ~1200ms when languages match',
+                        'Prevents confusing audio when testing with same language',
+                        'Users hear original audio directly without TTS artifacts'
+                    ],
+                    files: [
+                        'conference-server.js:583-587 - Same language check'
+                    ],
+                    performance: 'Comparison: <0.1ms',
+                    example: `Scenario 1: Both users speak English
+• User1: language="en"
+• User2: language="en"
+• Result: Skip translation & TTS ✓
+• User2 hears User1's original audio
+
+Scenario 2: Different languages
+• User1: language="en"
+• User2: language="es"
+• Result: Translate en→es, generate Spanish TTS ✓
+• User2 hears Spanish translation`,
+                    optimization: 'Prevents unnecessary API calls and improves performance when no translation needed'
+                }
+            },
+            {
+                type: 'external',
+                title: '🌐 DeepL Translation API',
+                description: 'The PROCESSED text (cleaned by ULO) is sent to DeepL for translation. This is crucial - DeepL receives the user\'s intended meaning, not the raw transcription, resulting in much more accurate translations.',
+                data: '📊 Data Flow: Processed Text (Source Lang) → Translated Text (Target Lang)',
+                code: `// SERVER: conference-server.js:591-597
+
+const transStart = Date.now();
+
+// Translate processed text (not raw transcription!)
+const translatedText = await translateText(
+  processedText,  // ← ULO-processed text
+  participant.language,
+  targetParticipant.language
+);
+
+const transDuration = Date.now() - transStart;
+
+// DeepL Integration (conference-server.js:140-165)
+async function translateText(text, sourceLang, targetLang) {
+  const response = await fetch('https://api-free.deepl.com/v2/translate', {
+    method: 'POST',
+    headers: {
+      'Authorization': \`DeepL-Auth-Key \${DEEPL_API_KEY}\`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      text: [text],
+      source_lang: sourceLang.toUpperCase(),
+      target_lang: targetLang.toUpperCase()
+    })
+  });
+
+  const data = await response.json();
+  return data.translations[0].text;
+}`,
+                details: {
+                    layer: '🔴 External API - DeepL',
+                    technology: 'DeepL Neural Machine Translation',
+                    implementation: [
+                        'Receives PROCESSED text from ULO (not raw transcription)',
+                        'Neural translation with deep context awareness',
+                        'Supports 30+ languages (10 in current config)',
+                        'Maintains technical term accuracy',
+                        'Preserves formatting and punctuation',
+                        'Returns high-quality natural translation',
+                        'Free tier: 500,000 characters/month'
+                    ],
+                    files: [
+                        'conference-server.js:591-597 - Translation invocation',
+                        'conference-server.js:140-165 - translateText function'
+                    ],
+                    performance: '~300-800ms per translation',
+                    languages: 'EN, ES, FR, DE, IT, PT, JA, KO, ZH, RU',
+                    integration: 'HMLCP ULO ensures accurate source text before translation',
+                    example: `WITHOUT HMLCP ULO:
+Raw Transcription: "I need to check the thing in kubernetes"
+DeepL Translation (en→es): "Necesito revisar la cosa en kubernetes"
+❌ POOR: "la cosa" (the thing) is vague
+
+WITH HMLCP ULO:
+Processed: "I need to check the server status in Kubernetes"
+DeepL Translation (en→es): "Necesito verificar el estado del servidor en Kubernetes"
+✓ EXCELLENT: Clear, technical, accurate`
+                }
+            },
+            {
+                type: 'external',
+                title: '🗣️ ElevenLabs Text-to-Speech',
+                description: 'Translated text is converted to natural-sounding speech using ElevenLabs API. System supports both default language-based voices and custom voice profiles. Uses eleven_multilingual_v2 model for high-quality multilingual synthesis.',
+                data: '📊 Data Flow: Translated Text + Voice Config → MP3 Audio Buffer',
+                code: `// SERVER: conference-server.js:601-610
+
+const ttsStart = Date.now();
+
+// Synthesize speech with custom voice if selected
+const audioBuffer = await synthesizeSpeech(
+  translatedText,
+  targetParticipant.language,
+  targetParticipant.customVoiceId // optional custom voice
+);
+
+const ttsDuration = Date.now() - ttsStart;
+
+// ElevenLabs Integration (conference-server.js:318-378)
+async function synthesizeSpeech(text, language, customVoiceId = null) {
+  let voiceId;
+  let voiceSettings;
+
+  // Use custom voice if provided, otherwise default for language
+  if (customVoiceId && customVoices.voices[customVoiceId]) {
+    const voiceConfig = customVoices.voices[customVoiceId];
+    voiceId = voiceConfig.voiceId;
+    voiceSettings = voiceConfig.settings;
+    console.log(\`Using custom voice: \${voiceConfig.name}\`);
+  } else {
+    voiceId = languageMap[language]?.voiceId || languageMap['en'].voiceId;
+    voiceSettings = {
+      stability: 0.5,
+      similarityBoost: 0.75,
+      style: 0.0,
+      useSpeakerBoost: true
+    };
+  }
+
+  console.log(\`Synthesizing: "\${text.substring(0, 50)}..."\`);
+
+  const result = await customElevenLabs.synthesize(
+    text,
+    voiceId,
+    voiceSettings
+  );
+
+  console.log(\`Generated \${result.audio.length} bytes of audio\`);
+  return result.audio;
+}`,
+                details: {
+                    layer: '🔴 External API - ElevenLabs',
+                    technology: 'ElevenLabs eleven_multilingual_v2 Neural TTS',
+                    implementation: [
+                        'Upgraded account with sufficient credits',
+                        'Model: eleven_multilingual_v2 (supports all languages)',
+                        'Default voices: Language-specific optimized voices',
+                        'Custom voices: User-selected from config/custom-voices.json',
+                        'Voice settings: stability, similarity_boost, style, speaker_boost',
+                        'Output format: MP3 audio buffer',
+                        'Returns audio buffer ready for streaming'
+                    ],
+                    files: [
+                        'conference-server.js:601-610 - TTS invocation',
+                        'conference-server.js:318-378 - synthesizeSpeech function',
+                        'lib/elevenlabs-service.js - ElevenLabs API wrapper',
+                        'config/custom-voices.json - Custom voice profiles'
+                    ],
+                    performance: '~600-1500ms per synthesis (varies by length)',
+                    voices: `Default Voice Mapping:
+• English (en): Rachel (voiceId: 21m00Tcm4TlvDq8ikWAM)
+• Spanish (es): Diego (voiceId: TxGEqnHWrfWFTfGW9XjX)
+• French (fr): Charlotte (voiceId: XB0fDUnXU5powFXDhCwa)
+• German (de): Hans (voiceId: 2EiwWnXFnvU5JabPnv8n)
+• Italian (it): Valentina
+• Portuguese (pt): Matilda
+• Japanese (ja): Yuki
+• Korean (ko): Seraphine
+• Chinese (zh): Mei
+• Russian (ru): Natasha
+
+Custom Voices (from config):
+• Velislava Chavdarova
+• Denitsa Dencheva
+• Nikolay Dimitrov
+• Simeon Georgiev`,
+                    customVoices: 'Users can select custom voices at join time. Voice preview available before joining.'
+                }
+            },
+            {
+                type: 'internal',
+                title: '🔊 Deliver to Target Client',
+                description: 'Synthesized audio and metadata sent to target participant via WebSocket. Includes original text, processed text, translated text, and complete timing breakdown. Client receives event, displays transcription, and plays audio.',
+                data: '📊 Data Flow: Audio Buffer + Metadata → Target Client Browser',
+                code: `// SERVER: conference-server.js:615-635
+
+// Send to specific target participant
+io.to(targetParticipant.id).emit('translated-speech', {
+  from: participant.username,
+  fromLanguage: participant.language,
+  toLanguage: targetParticipant.language,
+  originalText: accumulatedText,
+  processedText: processedText,
+  translatedText: translatedText,
+  audioData: audioBuffer.toString('base64'),
+  timing: {
+    translation: transDuration,
+    tts: ttsDuration,
+    total: Date.now() - utteranceBuffer.startTime
+  },
+  utteranceId: utteranceId
+});
+
+// CLIENT: public/js/conference-silence-detection.js
+socket.on('translated-speech', (data) => {
+  console.log(\`Received translation from \${data.from}: "\${data.translatedText}"\`);
+
+  // Display in translation feed
+  addTranslationToFeed(
+    data.from,
+    data.originalText,
+    data.translatedText,
+    data.fromLanguage,
+    data.toLanguage
+  );
+
+  // Convert base64 to audio and play
+  const audioBlob = base64ToBlob(data.audioData, 'audio/mpeg');
+  const audioUrl = URL.createObjectURL(audioBlob);
+  const audio = new Audio(audioUrl);
+  audio.play();
+
+  // Log timing metrics
+  console.log(\`Latency: \${data.timing.total}ms (trans: \${data.timing.translation}ms, tts: \${data.timing.tts}ms)\`);
+});`,
+                details: {
+                    layer: '🔵 Server Internal + Client Browser',
+                    technology: 'Socket.IO WebSocket + Web Audio API',
+                    implementation: [
+                        'Audio encoded as base64 for WebSocket transmission',
+                        'Targeted emit to specific participant (not broadcast)',
+                        'Complete timing metrics for latency monitoring',
+                        'Original, processed, and translated text included',
+                        'Client decodes base64 to audio blob',
+                        'Audio automatically played via HTML5 Audio API',
+                        'Text displayed in translation feed UI',
+                        'Timing logged to pipeline log'
+                    ],
+                    files: [
+                        'conference-server.js:615-635 - Server emit',
+                        'public/js/conference-silence-detection.js - Client handler'
+                    ],
+                    performance: '~10-50ms WebSocket transmission',
+                    metadata: `Transmitted Data Structure:
+{
+  from: "User1",
+  fromLanguage: "en",
+  toLanguage: "es",
+  originalText: "I need to check the thing",
+  processedText: "I need to check the server status",
+  translatedText: "Necesito verificar el estado del servidor",
+  audioData: "base64_encoded_mp3...",
+  timing: {
+    translation: 450,  // ms
+    tts: 890,         // ms
+    total: 2340       // ms (end-to-end latency)
+  },
+  utteranceId: "1760551234567-0.8234"
+}`,
+                    latencyTarget: '< 2000ms end-to-end (typical: 1500-2500ms)'
+                }
+            },
+            {
+                type: 'client',
+                title: '🔊 Client Plays Audio',
+                description: 'Client receives translated audio and plays it through speakers. Audio ducking mutes incoming audio while peer is speaking to prevent echo. Translation feed shows original and translated text side-by-side. Pipeline log displays timing metrics.',
+                data: '📊 User Experience: Hear translation + See transcription + Monitor latency',
+                code: `// CLIENT: public/js/conference-silence-detection.js
+
+socket.on('translated-speech', (data) => {
+  // 1. Display in translation feed
+  const feedEntry = \`
+    <div class="translation-entry">
+      <div class="speaker">\${data.from} (\${data.fromLanguage}→\${data.toLanguage})</div>
+      <div class="original">Original: "\${data.originalText}"</div>
+      <div class="processed">Processed: "\${data.processedText}"</div>
+      <div class="translated">Translated: "\${data.translatedText}"</div>
+      <div class="latency">Latency: \${data.timing.total}ms</div>
+    </div>
+  \`;
+  document.getElementById('translationFeed').insertAdjacentHTML('beforeend', feedEntry);
+
+  // 2. Play audio
+  const audioBlob = base64ToBlob(data.audioData, 'audio/mpeg');
+  const audioUrl = URL.createObjectURL(audioBlob);
+  const audio = new Audio(audioUrl);
+
+  audio.onplay = () => {
+    console.log('Playing audio:', data.translatedText.substring(0, 30));
+  };
+
+  audio.play();
+
+  // 3. Log to pipeline
+  addPipelineLog({
+    step: 'Audio Playback',
+    text: data.translatedText,
+    latency: data.timing.total,
+    breakdown: data.timing
+  });
+
+  // 4. Update latency stats
+  updateLatencyStats(data.timing.total);
+});`,
+                details: {
+                    layer: 'Client Browser (JavaScript)',
+                    technology: 'HTML5 Audio API + Web Audio API + DOM Manipulation',
+                    implementation: [
+                        'Base64 audio decoded to Blob',
+                        'Audio URL created with createObjectURL()',
+                        'HTML5 Audio element plays audio through speakers',
+                        'Translation feed updated with new entry',
+                        'Pipeline log records timing metrics',
+                        'Average latency calculated over 1-minute window',
+                        'Audio ducking prevents echo during playback',
+                        'Visual feedback: audio visualizer shows playback'
+                    ],
+                    files: [
+                        'public/js/conference-silence-detection.js - Audio playback',
+                        'public/index.html - Translation feed UI',
+                        'public/css/conference.css - Styling'
+                    ],
+                    performance: 'Audio decode: ~5ms | Playback start: ~20ms',
+                    ui: `User Interface Elements:
+• Translation Feed: Shows original + processed + translated text
+• Audio Visualizer: Visual representation of audio playback
+• Latency Stats: Last latency + 1-min average
+• Pipeline Log: Detailed step-by-step timing breakdown
+• Participant List: Shows who's speaking`,
+                    audioDucking: 'When peer is speaking, incoming audio is muted to prevent echo and feedback loops'
+                }
+            },
+            {
+                type: 'storage',
+                title: '💾 Auto-Save User Profiles',
+                description: 'Every 5 minutes, all loaded user profiles are automatically saved to persistent storage. Includes collected text samples, learned phrase mappings, updated metrics, and bias terms. Profiles survive server restarts.',
+                data: '📊 Data Flow: In-Memory Profile → JSON File (hmlcp/profiles/*.json)',
+                code: `// SERVER: conference-server.js:681-699
+
+// Auto-save all user profiles every 5 minutes
+setInterval(async () => {
+  console.log('[HMLCP] Auto-saving user profiles...');
+
+  let savedCount = 0;
+  for (const [key, { profile }] of userProfiles.entries()) {
+    try {
+      await profile.save();
+      savedCount++;
+    } catch (error) {
+      console.error(\`[HMLCP] Error saving profile \${key}:\`, error);
+    }
+  }
+
+  console.log(\`[HMLCP] Saved \${savedCount} user profiles\`);
+}, 5 * 60 * 1000); // Every 5 minutes
+
+// UserProfile.save() implementation (hmlcp/user-profile.js)
+async save() {
+  this.lastUpdated = new Date().toISOString();
+  const data = JSON.stringify(this, null, 2);
+  const filePath = \`./hmlcp/profiles/\${this.userId}_\${this.language}.json\`;
+  await fs.promises.writeFile(filePath, data, 'utf8');
+  console.log(\`[HMLCP] Saved profile: \${this.userId}_\${this.language}\`);
+}`,
+                details: {
+                    layer: '🟡 Persistent Storage - File System',
+                    technology: 'JSON Files + Node.js fs.promises',
+                    implementation: [
+                        'Profiles stored in hmlcp/profiles/ directory',
+                        'Filename format: <userId>_<language>.json',
+                        'Auto-save interval: 5 minutes (300000ms)',
+                        'All in-memory profiles written to disk',
+                        'lastUpdated timestamp automatically set',
+                        'Pretty-printed JSON (2-space indent) for readability',
+                        'Error handling prevents data loss',
+                        'Profiles loaded on-demand when user joins'
+                    ],
+                    files: [
+                        'conference-server.js:681-699 - Auto-save interval',
+                        'hmlcp/user-profile.js:save() - Persistence logic',
+                        'hmlcp/profiles/*.json - Stored profiles'
+                    ],
+                    performance: 'Async non-blocking write: ~5-10ms per profile',
+                    structure: `Profile JSON Structure:
+{
+  "userId": "user1",
+  "language": "en",
+  "created": "2025-10-12T20:00:00.000Z",
+  "lastUpdated": "2025-10-15T19:45:26.169Z",
+  "tone": "neutral",
+  "avgSentenceLength": 12,
+  "directness": 0.85,
+  "ambiguityTolerance": 0.3,
+  "lexicalBias": ["technical", "formal"],
+  "phraseMap": {
+    "check the thing": "check the server status",
+    "restart the stuff": "restart the application",
+    "the kubernetes": "Kubernetes"
+  },
+  "biasTerms": ["Kubernetes", "PostgreSQL", "Azure", "Docker", "MongoDB"],
+  "textSamples": [
+    "I need to check the server status",
+    "Restart the application please"
+  ],
+  "metrics": {
+    "intentMatchRate": 95.5,
+    "correctionFrequency": 0.05,
+    "semanticDrift": 0.02,
+    "calibrationIndex": 0.92
+  }
+}`,
+                    backup: 'Profiles persist across server restarts. On startup, profiles loaded from disk into memory cache.'
+                }
+            }
+        ];
+
+        let currentStep = 0;
+
+        function renderSteps() {
+            const container = document.getElementById('flowContainer');
+            container.innerHTML = steps.map((step, index) => {
+                const detailsHtml = step.details ? `
+                    <div class="step-details" id="details-${index}">
+                        <div class="details-section">
+                            <div class="details-title">🏗️ Layer & Technology</div>
+                            <div class="details-content">
+                                <strong>Layer:</strong> ${step.details.layer}<br>
+                                <strong>Technology:</strong> ${step.details.technology}
+                            </div>
+                        </div>
+
+                        <div class="details-section">
+                            <div class="details-title">⚙️ Implementation Details</div>
+                            <ul class="details-list">
+                                ${step.details.implementation.map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="details-section">
+                            <div class="details-title">📁 File References</div>
+                            <div class="details-content">
+                                ${step.details.files.map(file =>
+                                    `<div style="margin: 5px 0;"><span class="file-ref">${file}</span></div>`
+                                ).join('')}
+                            </div>
+                        </div>
+
+                        <div class="details-section">
+                            <div class="details-title">⚡ Performance</div>
+                            <div class="details-content">
+                                <span class="metric">${step.details.performance}</span>
+                            </div>
+                        </div>
+
+                        ${step.details.dataFormat ? `
+                            <div class="details-section">
+                                <div class="details-title">📊 Data Format</div>
+                                <div class="step-code">${step.details.dataFormat.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.bufferStructure ? `
+                            <div class="details-section">
+                                <div class="details-title">🗂️ Buffer Structure</div>
+                                <div class="step-code">${step.details.bufferStructure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.dataStructure ? `
+                            <div class="details-section">
+                                <div class="details-title">📊 Data Structure</div>
+                                <div class="step-code">${step.details.dataStructure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.structure ? `
+                            <div class="details-section">
+                                <div class="details-title">📊 Profile Structure</div>
+                                <div class="step-code">${step.details.structure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.example ? `
+                            <div class="details-section">
+                                <div class="details-title">💡 Example</div>
+                                <div class="step-code">${step.details.example.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.examples ? `
+                            <div class="details-section">
+                                <div class="details-title">💡 Examples</div>
+                                <div class="step-code">${step.details.examples.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.whyStreaming ? `
+                            <div class="details-section">
+                                <div class="details-title">❓ Why Streaming?</div>
+                                <div class="details-content">${step.details.whyStreaming}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.optimization ? `
+                            <div class="details-section">
+                                <div class="details-title">🚀 Optimization</div>
+                                <div class="details-content">${step.details.optimization}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.languages ? `
+                            <div class="details-section">
+                                <div class="details-title">🌍 Supported Languages</div>
+                                <div class="details-content">${step.details.languages}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.integration ? `
+                            <div class="details-section">
+                                <div class="details-title">🔗 HMLCP Integration</div>
+                                <div class="details-content">${step.details.integration}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.metrics ? `
+                            <div class="details-section">
+                                <div class="details-title">📈 Metrics</div>
+                                <div class="details-content">${step.details.metrics}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.voices ? `
+                            <div class="details-section">
+                                <div class="details-title">🎤 Voice Configuration</div>
+                                <div class="step-code">${step.details.voices.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.customVoices ? `
+                            <div class="details-section">
+                                <div class="details-title">🎭 Custom Voices</div>
+                                <div class="details-content">${step.details.customVoices}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.metadata ? `
+                            <div class="details-section">
+                                <div class="details-title">📦 Transmitted Metadata</div>
+                                <div class="step-code">${step.details.metadata.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.latencyTarget ? `
+                            <div class="details-section">
+                                <div class="details-title">🎯 Latency Target</div>
+                                <div class="details-content"><span class="metric">${step.details.latencyTarget}</span></div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.ui ? `
+                            <div class="details-section">
+                                <div class="details-title">🖥️ User Interface</div>
+                                <div class="step-code">${step.details.ui.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.audioDucking ? `
+                            <div class="details-section">
+                                <div class="details-title">🔇 Audio Ducking</div>
+                                <div class="details-content">${step.details.audioDucking}</div>
+                            </div>
+                        ` : ''}
+
+                        ${step.details.backup ? `
+                            <div class="details-section">
+                                <div class="details-title">💾 Backup & Recovery</div>
+                                <div class="details-content">${step.details.backup}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="step ${step.type}" id="step-${index}">
+                        <div class="step-header">
+                            <div class="step-number">${index + 1}</div>
+                            <div class="step-content">
+                                <div class="step-title">
+                                    ${step.title}
+                                    <span class="badge badge-${step.type}">
+                                        ${step.type === 'client' ? 'CLIENT LAYER' :
+                                          step.type === 'external' ? 'EXTERNAL API' :
+                                          step.type === 'hmlcp' ? 'HMLCP SYSTEM' :
+                                          step.type === 'storage' ? 'STORAGE' : 'SERVER INTERNAL'}
+                                    </span>
+                                </div>
+                                <div class="step-description">${step.description}</div>
+                                <div class="step-data">${step.data}</div>
+                                <div class="step-code">${step.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                                ${step.details ? `<button class="drill-btn" onclick="toggleDetails(${index})">Show Technical Details</button>` : ''}
+                                ${detailsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleDetails(index) {
+            const details = document.getElementById(`details-${index}`);
+            const btn = details.previousElementSibling;
+
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                btn.textContent = 'Show Technical Details';
+                btn.classList.remove('expanded');
+            } else {
+                details.classList.add('expanded');
+                btn.textContent = 'Hide Technical Details';
+                btn.classList.add('expanded');
+            }
+        }
+
+        function updateStep() {
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+
+            for (let i = 0; i <= currentStep; i++) {
+                document.getElementById(`step-${i}`).classList.add('active');
+            }
+
+            const progress = ((currentStep + 1) / steps.length) * 100;
+            document.getElementById('progress').style.width = progress + '%';
+
+            const dataFlow = document.getElementById('dataFlow');
+            if (currentStep < steps.length) {
+                dataFlow.textContent = `Step ${currentStep + 1}/${steps.length}: ${steps[currentStep].title}`;
+            }
+
+            const currentStepElement = document.getElementById(`step-${currentStep}`);
+            if (currentStepElement) {
+                currentStepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        function restart() {
+            currentStep = 0;
+            updateStep();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextStep();
+            if (e.key === 'ArrowLeft') prevStep();
+            if (e.key === 'Home') restart();
+        });
+
+        renderSteps();
+        updateStep();
+    </script>
+</body>
+</html>

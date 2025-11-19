@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stage Timing Test</title>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <h1>Stage Timing Test</h1>
+    <div id="log" style="font-family: monospace; white-space: pre;"></div>
+    <script>
+        const socket = io();
+        const log = document.getElementById('log');
+
+        socket.on('connect', () => {
+            log.textContent += 'Connected to Socket.IO\n';
+            socket.emit('subscribe', { room: 'monitoring' });
+        });
+
+        socket.on('stage_timing', (msg) => {
+            log.textContent += JSON.stringify(msg, null, 2) + '\n';
+        });
+
+        socket.on('pipelineComplete', (msg) => {
+            log.textContent += 'pipelineComplete: ' + JSON.stringify(msg) + '\n';
+        });
+    </script>
+</body>
+</html>

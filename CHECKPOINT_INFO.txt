@@ -1,0 +1,70 @@
+========================================
+FULL DIRECTORY CHECKPOINT v8.1
+========================================
+Checkpoint: 20251119-182933
+Created: Wed Nov 19 06:29:45 PM UTC 2025
+Description: working-5555-6666-gateway-before-merge-and-all-old-projects
+Total Files: 3526
+Total Size: 109M
+
+=== BACKUP TYPE ===
+Type: FULL DIRECTORY BACKUP + System Configs
+Source: /home/azureuser/translation-app/
+Method: rsync with exclusions
+
+=== EXCLUDED FROM BACKUP ===
+- node_modules/ (can regenerate with npm install)
+- checkpoints/ (don't backup backups)
+- .git/ (git handles version control)
+- *.log files (logs can be regenerated)
+- *.wav files (temporary audio files)
+- *.backup, *.bak, *.old, *.tmp files
+- Homer/Grafana data directories (too large, regenerated)
+
+=== INCLUDED IN BACKUP ===
+✓ ALL JavaScript files (*.js)
+✓ ALL HTML files (*.html)
+✓ ALL configuration files (.env, package.json, etc.)
+✓ ALL shell scripts (*.sh)
+✓ ALL subdirectories (public/, 7777-8888-stack/, etc.)
+✓ ALL Asterisk configurations (/etc/asterisk/*.conf)
+✓ ALL Homer configurations (/opt/homer-app/, /opt/homer-docker/, /opt/homer-ui/)
+✓ ALL Grafana configurations (/etc/grafana/)
+✓ ANY new files added to the directory
+
+=== ASTERISK CONFIGURATION FILES ===
+- sip.conf
+- extensions.conf
+- modules.conf
+- ari.conf
+- http.conf
+- pjsip.conf
+- pjsip_users.conf
+- rtp.conf
+
+=== HOMER CONFIGURATION FILES ===
+- homer-app.yaml
+- Homer Docker all-in-one setup
+- Homer UI configuration files
+
+=== GRAFANA CONFIGURATION FILES ===
+- grafana.ini
+- Provisioning configs
+- Dashboard configs
+
+FILE_LISTINGS
+
+=== TO RESTORE THIS CHECKPOINT ===
+  ./restore-checkpoint.sh checkpoint-20251119-182933
+
+=== NOTES ===
+- This is a FULL directory backup (v8.1)
+- All files are captured automatically
+- New files added to the directory are automatically included
+- After restore, run: cd /home/azureuser/translation-app && npm install
+- System configs (Asterisk/Homer/Grafana) will be restored to their original locations
+
+=== FILE LISTING ===
+JavaScript Files: 355 files
+HTML Files: 112 files
+Shell Scripts: 27 files

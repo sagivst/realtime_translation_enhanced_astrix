@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency & Sync Control</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .extension-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Latency Difference Bar */
+        .latency-bar-container {
+            position: relative;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .latency-bar-center {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: #fff;
+            z-index: 2;
+        }
+
+        .latency-bar-value {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            transition: left 0.3s ease;
+            z-index: 3;
+        }
+
+        .latency-value-display {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .latency-bar-fill {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            transition: all 0.3s ease;
+            z-index: 1;
+        }
+
+        .latency-bar-fill.positive {
+            background: linear-gradient(90deg, rgba(76, 175, 80, 0.5) 0%, rgba(76, 175, 80, 0.8) 100%);
+        }
+
+        .latency-bar-fill.negative {
+            background: linear-gradient(90deg, rgba(244, 67, 54, 0.8) 0%, rgba(244, 67, 54, 0.5) 100%);
+        }
+
+        .latency-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* Auto Sync Button */
+        .sync-button {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+
+        .sync-button.inactive {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+
+        .sync-button.inactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .sync-button.active {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: #fff;
+        }
+
+        .sync-button.active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Sliders */
+        .slider-container {
+            margin-bottom: 30px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .slider-value {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        .status-indicator.connected {
+            background: #4caf50;
+            box-shadow: 0 0 10px #4caf50;
+        }
+
+        .status-indicator.disconnected {
+            background: #f44336;
+            box-shadow: 0 0 10px #f44336;
+        }
+
+        .info-text {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 5px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Latency & Sync Control</h1>
+            <div style="margin-top: 10px;">
+                <span class="extension-badge" id="extBadge">Extension: Loading...</span>
+                <span class="status-indicator connected" id="statusIndicator"></span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-title">Latency Difference</div>
+
+            <!-- Latency Bar -->
+            <div class="latency-bar-container">
+                <div class="latency-bar-center"></div>
+                <div class="latency-bar-fill" id="latencyBarFill"></div>
+                <div class="latency-bar-value" id="latencyBarValue">
+                    <div class="latency-value-display" id="latencyValue">0ms</div>
+                </div>
+            </div>
+            <div class="latency-bar-labels">
+                <span>-500ms (Slower)</span>
+                <span>0ms (Synced)</span>
+                <span>+500ms (Faster)</span>
+            </div>
+
+            <!-- Auto Sync Button -->
+            <button class="sync-button inactive" id="autoSyncButton" onclick="toggleAutoSync()">
+                Start Automatic Sync
+            </button>
+
+            <!-- Manual Latency Slider -->
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Manual Latency Adjustment</span>
+                    <span class="slider-value" id="manualLatencyValue">0ms</span>
+                </div>
+                <input type="range" min="0" max="500" value="0" class="slider" id="manualLatencySlider">
+                <div class="info-text">Add manual buffer to compensate for latency (0-500ms)</div>
+            </div>
+
+            <!-- Speaker Volume Slider -->
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>Monitor Speaker Volume</span>
+                    <span class="slider-value" id="speakerVolumeValue">0%</span>
+                </div>
+                <input type="range" min="0" max="100" value="0" class="slider" id="speakerVolumeSlider">
+                <div class="info-text">Adjust volume to hear the audio stream before it's sent to the opposite extension</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-title">Current Status</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Auto Sync</div>
+                    <div style="font-size: 18px; font-weight: 600;" id="autoSyncStatus">Inactive</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Manual Buffer</div>
+                    <div style="font-size: 18px; font-weight: 600;" id="manualBufferStatus">0ms</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Total Adjustment</div>
+                    <div style="font-size: 18px; font-weight: 600;" id="totalAdjustmentStatus">0ms</div>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Monitor Volume</div>
+                    <div style="font-size: 18px; font-weight: 600;" id="monitorVolumeStatus">Muted</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get extension from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const extension = urlParams.get('ext') || '7777';
+        document.getElementById('extBadge').textContent = `Extension: ${extension}`;
+
+        // Socket.IO connection
+        const socket = io();
+
+        // State
+        let autoSyncEnabled = false;
+        let manualLatencyMs = 0;
+        let currentLatencyDiff = 0;
+        let audioContext = null;
+        let gainNode = null;
+
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            console.log('[Socket.IO] Connected');
+            document.getElementById('statusIndicator').className = 'status-indicator connected';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('[Socket.IO] Disconnected');
+            document.getElementById('statusIndicator').className = 'status-indicator disconnected';
+        });
+
+        // Listen for latency updates
+        socket.on('latencyUpdate', (data) => {
+            if (data.extension !== extension) return;
+
+            // Update latency difference from server
+            if (data.buffer && data.buffer.adjustment !== undefined) {
+                updateLatencyBar(data.buffer.adjustment);
+            }
+        });
+
+        // Toggle Auto Sync
+        function toggleAutoSync() {
+            autoSyncEnabled = !autoSyncEnabled;
+            const button = document.getElementById('autoSyncButton');
+            const status = document.getElementById('autoSyncStatus');
+
+            if (autoSyncEnabled) {
+                button.textContent = 'Stop Automatic Sync';
+                button.className = 'sync-button active';
+                status.textContent = 'Active';
+                status.style.color = '#4caf50';
+
+                // Notify server to enable auto sync
+                socket.emit('setAutoSync', { extension, enabled: true });
+                console.log('[Auto Sync] Enabled for extension', extension);
+            } else {
+                button.textContent = 'Start Automatic Sync';
+                button.className = 'sync-button inactive';
+                status.textContent = 'Inactive';
+                status.style.color = 'rgba(255, 255, 255, 0.7)';
+
+                // Notify server to disable auto sync
+                socket.emit('setAutoSync', { extension, enabled: false });
+                console.log('[Auto Sync] Disabled for extension', extension);
+            }
+
+            updateTotalAdjustment();
+        }
+
+        // Manual Latency Slider
+        document.getElementById('manualLatencySlider').addEventListener('input', (e) => {
+            manualLatencyMs = parseInt(e.target.value);
+            document.getElementById('manualLatencyValue').textContent = manualLatencyMs + 'ms';
+            document.getElementById('manualBufferStatus').textContent = manualLatencyMs + 'ms';
+
+            // Send to server
+            socket.emit('setManualLatency', { extension, latencyMs: manualLatencyMs });
+            console.log('[Manual Latency] Set to', manualLatencyMs, 'ms for extension', extension);
+
+            updateTotalAdjustment();
+        });
+
+        // Speaker Volume Slider
+        document.getElementById('speakerVolumeSlider').addEventListener('input', (e) => {
+            const volume = parseInt(e.target.value);
+            document.getElementById('speakerVolumeValue').textContent = volume + '%';
+            document.getElementById('monitorVolumeStatus').textContent = volume === 0 ? 'Muted' : volume + '%';
+
+            // Initialize Web Audio API if not already done
+            if (!audioContext && volume > 0) {
+                initAudioMonitor();
+            }
+
+            // Set gain
+            if (gainNode) {
+                gainNode.gain.value = volume / 100;
+                console.log('[Speaker Volume] Set to', volume + '%');
+            }
+        });
+
+        // Initialize Web Audio API for monitoring
+        function initAudioMonitor() {
+            console.log('[Audio Monitor] Initializing Web Audio API...');
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioContext.createGain();
+            gainNode.gain.value = 0;
+
+            // Connect to destination (speakers)
+            gainNode.connect(audioContext.destination);
+
+            // Request audio stream from server via Socket.IO
+            socket.emit('requestAudioMonitor', { extension });
+            console.log('[Audio Monitor] Requested audio stream for extension', extension);
+        }
+
+        // Receive audio data from server (will be implemented in backend)
+        socket.on('audioMonitorData', (data) => {
+            if (!audioContext || !gainNode) return;
+
+            // Decode and play audio through gain node
+            // This will be implemented when backend sends audio chunks
+            console.log('[Audio Monitor] Received audio chunk');
+        });
+
+        // Update latency bar visualization
+        function updateLatencyBar(latencyMs) {
+            currentLatencyDiff = latencyMs;
+            const maxLatency = 500; // -500ms to +500ms range
+
+            // Update value display
+            const sign = latencyMs > 0 ? '+' : '';
+            document.getElementById('latencyValue').textContent = sign + latencyMs.toFixed(0) + 'ms';
+
+            // Calculate position (50% = center)
+            const percentage = 50 + (latencyMs / maxLatency) * 50;
+            const clampedPercentage = Math.max(0, Math.min(100, percentage));
+
+            const valueElement = document.getElementById('latencyBarValue');
+            valueElement.style.left = clampedPercentage + '%';
+
+            // Update bar fill
+            const fillElement = document.getElementById('latencyBarFill');
+            if (latencyMs > 0) {
+                // Positive (faster) - fill from center to right
+                fillElement.className = 'latency-bar-fill positive';
+                fillElement.style.left = '50%';
+                fillElement.style.width = Math.min((latencyMs / maxLatency) * 50, 50) + '%';
+            } else if (latencyMs < 0) {
+                // Negative (slower) - fill from left to center
+                const width = Math.min((Math.abs(latencyMs) / maxLatency) * 50, 50);
+                fillElement.className = 'latency-bar-fill negative';
+                fillElement.style.left = (50 - width) + '%';
+                fillElement.style.width = width + '%';
+            } else {
+                // Zero - no fill
+                fillElement.style.width = '0%';
+            }
+        }
+
+        // Update total adjustment display
+        function updateTotalAdjustment() {
+            let total = manualLatencyMs;
+            if (autoSyncEnabled) {
+                total += currentLatencyDiff;
+            }
+            document.getElementById('totalAdjustmentStatus').textContent = total + 'ms';
+        }
+
+        // Initialize
+        console.log('[Latency & Sync] Dashboard initialized for extension', extension);
+    </script>
+</body>
+</html>

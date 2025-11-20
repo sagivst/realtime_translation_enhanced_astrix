@@ -1,15 +1,15 @@
 /**
- * ARI ExternalMedia Handler for Extensions 7777/8888
+ * ARI ExternalMedia Handler for Extensions 9007/9008
  *
  * This handler follows Asterisk_Open-Source_Integration.md exactly:
  * - Creates ExternalMedia channels via ARI REST API
  * - Uses encapsulation: none
  * - Format: slin16 (16kHz PCM)
  * - Direction: both (bidirectional)
- * - Ports: 5000 (for 7777), 5001 (for 8888)
+ * - Ports: 5000 (for 9007), 5001 (for 9008)
  *
  * PARALLEL SYSTEM:
- * - Extensions 7777/8888 use ExternalMedia (ports 5000/5001)
+ * - Extensions 9007/9008 use ExternalMedia (ports 5000/5001)
  * - Extensions 7000/7001 use AudioSocket (ports 5050/5051/5052) - UNTOUCHED
  */
 
@@ -25,13 +25,13 @@ const ARI_APP_NAME = 'translation-test';  // Must match Stasis() app in dialplan
 // ExternalMedia configuration per extension
 // Using ports 6000/6001 for audio monitor, 5000/5001 for ARI handler
 const EXTERNAL_MEDIA_CONFIG = {
-  '7777': {
-    extension: '7777',
+  '9007': {
+    extension: '9007',
     udpPort: 5000,
     externalHost: '127.0.0.1:5000'  // Send RTP to monitor on port 6000
   },
-  '8888': {
-    extension: '8888',
+  '9008': {
+    extension: '9008',
     udpPort: 5001,
     externalHost: '127.0.0.1:5001'  // Send RTP to monitor on port 6001
   }
@@ -69,7 +69,7 @@ function initializeUDPListeners() {
 
       if (CROSSOVER_MODE) {
         // CROSSOVER MODE: Route audio to the other extension
-        const targetExt = ext === '7777' ? '8888' : '7777';
+        const targetExt = ext === '9007' ? '9008' : '9007';
         const targetSocket = udpSockets.get(targetExt);
         const targetRemote = remoteEndpoints.get(targetExt);
 
@@ -174,8 +174,8 @@ async function handleStasisStart(event, client) {
   // Extract extension from args
   let extensionNum;
   if (event.args && event.args.length > 0) {
-    const extension = event.args[0];  // ext7777 or ext8888
-    extensionNum = extension.replace('ext', '');  // 7777 or 8888
+    const extension = event.args[0];  // ext9007 or ext9008
+    extensionNum = extension.replace('ext', '');  // 9007 or 9008
   } else {
     console.log('[WARN] No args in StasisStart event, ignoring');
     return;
@@ -290,12 +290,12 @@ async function handleChannelEnd(event, client) {
  * Main entry point
  */
 async function main() {
-  console.log('\n=== ARI ExternalMedia Handler for Extensions 7777/8888 ===');
+  console.log('\n=== ARI ExternalMedia Handler for Extensions 9007/9008 ===');
   console.log('Following: Asterisk_Open-Source_Integration.md');
   console.log('');
   console.log('Configuration:');
-  console.log('  - Extension 7777 -> UDP port 5000');
-  console.log('  - Extension 8888 -> UDP port 5001');
+  console.log('  - Extension 9007 -> UDP port 5000');
+  console.log('  - Extension 9008 -> UDP port 5001');
   console.log('  - Format: slin16 (16kHz PCM)');
   console.log('  - Direction: both (bidirectional)');
   console.log('  - Encapsulation: none (raw RTP)');
@@ -303,14 +303,14 @@ async function main() {
 
   if (CROSSOVER_MODE) {
     console.log('🔀 CROSSOVER DEBUG MODE ENABLED');
-    console.log('  Audio routing: 7777 ↔ 8888');
-    console.log('  Speak on 7777 → Hear on 8888');
-    console.log('  Speak on 8888 → Hear on 7777');
+    console.log('  Audio routing: 9007 ↔ 9008');
+    console.log('  Speak on 9007 → Hear on 9008');
+    console.log('  Speak on 9008 → Hear on 9007');
     console.log('');
   } else {
     console.log('PARALLEL SYSTEM:');
     console.log('  - Extensions 7000/7001 use AudioSocket (ports 5050-5052) - UNTOUCHED');
-    console.log('  - Extensions 7777/8888 use ExternalMedia (ports 5000-5001) - NEW');
+    console.log('  - Extensions 9007/9008 use ExternalMedia (ports 5000-5001) - NEW');
     console.log('');
   }
 
@@ -335,7 +335,7 @@ async function main() {
 
     console.log('');
     console.log('ARI ExternalMedia Handler is READY');
-    console.log('Waiting for calls to extensions 7777 or 8888...');
+    console.log('Waiting for calls to extensions 9007 or 9008...');
     console.log('');
 
   } catch (err) {

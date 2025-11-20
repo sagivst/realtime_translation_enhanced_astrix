@@ -86,9 +86,9 @@ console.log('[Server] ℹ OLD Timing client disabled - using embedded timing mod
 global.activeSessions = new Map();
 console.log('[Phase2] Global session registry initialized');
 
-// [DISABLED FOR 7777/8888] // Start AudioSocket server (for Asterisk integration on port 5050)
-// [DISABLED FOR 7777/8888] // IMPORTANT: Must load AFTER global.io is set
-// [DISABLED FOR 7777/8888] require("./audiosocket-integration");
+// [DISABLED FOR 9007/9008] // Start AudioSocket server (for Asterisk integration on port 5050)
+// [DISABLED FOR 9007/9008] // IMPORTANT: Must load AFTER global.io is set
+// [DISABLED FOR 9007/9008] require("./audiosocket-integration");
 
 // ========================================================================
 // OLD INJECT_AUDIO HANDLER - DISABLED 2025-11-12
@@ -166,8 +166,8 @@ if (elevenlabsApiKey) {
 // ============================================================================
 // Test audio files (PCM16, 16kHz, mono) for format testing
 const TEST_AUDIO_FILES = {
-  '7777': path.join(__dirname, 'test-audio-en.pcm'),  // English test tone (440 Hz)
-  '8888': path.join(__dirname, 'test-audio-fr.pcm')   // French test tone (550 Hz)
+  '9007': path.join(__dirname, 'test-audio-en.pcm'),  // English test tone (440 Hz)
+  '9008': path.join(__dirname, 'test-audio-fr.pcm')   // French test tone (550 Hz)
 };
 
 // Test mode state
@@ -181,7 +181,7 @@ const testModeState = {
 
 /**
  * Load test audio file for the target extension
- * @param {string} targetExtension - Extension to send test audio to ('7777' or '8888')
+ * @param {string} targetExtension - Extension to send test audio to ('9007' or '9008')
  * @returns {Buffer|null} - PCM16 audio buffer or null if file not found
  */
 function loadTestAudio(targetExtension) {
@@ -208,7 +208,7 @@ function loadTestAudio(targetExtension) {
 
 /**
  * Start test mode - sends test audio in a continuous loop to target extension
- * @param {string} targetExtension - Extension to send test audio to ('7777' or '8888')
+ * @param {string} targetExtension - Extension to send test audio to ('9007' or '9008')
  */
 function startTestMode(targetExtension) {
   if (testModeState.enabled) {
@@ -557,7 +557,7 @@ class DashboardTCPAPI {
     this.heartbeatInterval = null;
   }
 
-  startServer(port = 6201) {
+  startServer(port = 6211) {
     this.server = net.createServer((socket) => {
       this.handleClientConnection(socket);
     });
@@ -763,19 +763,19 @@ const dashboardTCPAPI = new DashboardTCPAPI();
 
 console.log('[Server] ✓ AudioBufferManager initialized (ready for Step 4)');
 
-// Auto-pair 7777 and 8888 on startup
-pairManager.registerPair('7777', '8888');
+// Auto-pair 9007 and 9008 on startup
+pairManager.registerPair('9007', '9008');
 
 // Start TCP API server
-dashboardTCPAPI.startServer(6201);
+dashboardTCPAPI.startServer(6211);
 
 // STEP 3: Extension buffer settings storage
 // Store per-extension buffer settings from dashboard
 const extensionBufferSettings = new Map();
 
 // Initialize with defaults (autoSync: true per user request)
-extensionBufferSettings.set('7777', { autoSync: true, manualLatencyMs: 0 });
-extensionBufferSettings.set('8888', { autoSync: true, manualLatencyMs: 0 });
+extensionBufferSettings.set('9007', { autoSync: true, manualLatencyMs: 0 });
+extensionBufferSettings.set('9008', { autoSync: true, manualLatencyMs: 0 });
 
 console.log('[TimingModule] Step 1: Classes initialized (not yet integrated into pipeline)');
 console.log('[TimingModule] Step 3: Buffer settings storage initialized (autoSync: ON by default)');
@@ -791,15 +791,15 @@ const participants = new Map();
 const userProfiles = new Map(); // key: userId_language, value: { profile, uloLayer }
 
 // QA Settings: Per-extension language configuration
-// Extension 7777: English → French (DEFAULT)
+// Extension 9007: English → French (DEFAULT)
 // Extension 7888: French → English (OPPOSITE - for bidirectional translation)
 global.qaConfigs = new Map();
-global.qaConfigs.set('7777', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
+global.qaConfigs.set('9007', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
 global.qaConfigs.set('7888', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
 
 // Helper function to get config for extension (with fallback)
 function getQaConfig(extension) {
-  return global.qaConfigs.get(extension) || global.qaConfigs.get('7777');
+  return global.qaConfigs.get(extension) || global.qaConfigs.get('9007');
 }
 
 // Store streaming Deepgram connections per socket
@@ -1487,7 +1487,7 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     console.log('[Timing] Stage 3 (ASR→MT) for ' + extension + ': ' + timing.stages.asr_to_mt + 'ms');
 
     // Step 2: Translate
-    const targetLang = extension === '7777' ? 'fr' : 'en'; // 7777 is English->French, 8888 is French->English
+    const targetLang = extension === '9007' ? 'fr' : 'en'; // 9007 is English->French, 9008 is French->English
     console.log(`[Pipeline] Translating ${language} -> ${targetLang}: "${transcription}"`);
 
     // ═══════════════════════════════════════════════════════════════
@@ -1855,7 +1855,7 @@ io.on('connection', (socket) => {
 
   // ========================================
   // PHASE 2C: Gateway WebSocket Handlers
-  // Handle events from ExternalMedia Gateway (extensions 7777/8888)
+  // Handle events from ExternalMedia Gateway (extensions 9007/9008)
   // ========================================
   
   // Track Gateway connections by extension
@@ -2669,7 +2669,7 @@ app.post('/api/hmlcp/save', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3010;
 const HOST = '0.0.0.0'; // Listen on all network interfaces
 
 server.listen(PORT, HOST, () => {

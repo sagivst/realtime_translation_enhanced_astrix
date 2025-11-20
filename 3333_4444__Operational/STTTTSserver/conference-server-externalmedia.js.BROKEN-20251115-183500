@@ -18,6 +18,10 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
 const { applyDefaultProfile } = require('./hmlcp/default-profiles');
 
+// Audio Sample Rate Configuration
+const AUDIO_SAMPLE_RATE = parseInt(process.env.AUDIO_SAMPLE_RATE || '16000');
+console.log("[Config] Audio Sample Rate:", AUDIO_SAMPLE_RATE, "Hz");
+
 
 const app = express();
 
@@ -525,8 +529,9 @@ async function convertMp3ToPcm16(mp3Buffer) {
     // Write MP3 to temporary file
     fs.writeFileSync(inputFile, mp3Buffer);
 
-    // Convert: MP3 → PCM16, 16kHz, mono, signed 16-bit little-endian
-    const ffmpegCommand = `ffmpeg -i ${inputFile} -f s16le -acodec pcm_s16le -ar 16000 -ac 1 ${outputFile}`;
+    // Convert: MP3 → PCM16, configured sample rate (AUDIO_SAMPLE_RATE), mono, signed 16-bit little-endian
+    const ffmpegCommand = `ffmpeg -i ${inputFile} -f s16le -acodec pcm_s16le -ar ${AUDIO_SAMPLE_RATE} -ac 1 ${outputFile}`;
+    console.log(`[FFmpeg] Executing: ${ffmpegCommand}`);
     await execPromise(ffmpegCommand);
 
     // Read PCM data
@@ -557,7 +562,7 @@ class DashboardTCPAPI {
     this.heartbeatInterval = null;
   }
 
-  startServer(port = 6201) {
+  startServer(port = 6001) {
     this.server = net.createServer((socket) => {
       this.handleClientConnection(socket);
     });
@@ -767,7 +772,7 @@ console.log('[Server] ✓ AudioBufferManager initialized (ready for Step 4)');
 pairManager.registerPair('7777', '8888');
 
 // Start TCP API server
-dashboardTCPAPI.startServer(6201);
+dashboardTCPAPI.startServer(6001);
 
 // STEP 3: Extension buffer settings storage
 // Store per-extension buffer settings from dashboard
@@ -849,6 +854,37 @@ function createWavHeader(pcmData) {
 }
 
 // ========================================
+
+// ========================================
+// Audio Downsampler (48kHz → 16kHz for Deepgram)
+// ========================================
+function downsample48kTo16k(pcmBuffer) {
+  // If already at 16kHz (or not 48kHz), return as-is
+  if (AUDIO_SAMPLE_RATE === 16000) {
+    console.log('[Downsample] Audio already at 16kHz, skipping downsampling');
+    return pcmBuffer;
+  }
+
+  if (AUDIO_SAMPLE_RATE !== 48000) {
+    console.error(`[Downsample] Unsupported sample rate: ${AUDIO_SAMPLE_RATE}Hz`);
+    return pcmBuffer;
+  }
+
+  const ratio = 3; // 48kHz / 16kHz = 3
+  const samples48k = pcmBuffer.length / 2; // PCM16 = 2 bytes per sample
+  const samples16k = Math.floor(samples48k / ratio);
+  const pcm16k = Buffer.alloc(samples16k * 2);
+
+  // Take every 3rd sample
+  for (let i = 0; i < samples16k; i++) {
+    const srcIndex = i * ratio * 2; // Every 3rd sample (x2 for bytes)
+    pcm16k.writeInt16LE(pcmBuffer.readInt16LE(srcIndex), i * 2);
+  }
+
+  console.log(`[Downsample] 48kHz → 16kHz: ${pcmBuffer.length} bytes → ${pcm16k.length} bytes`);
+  return pcm16k;
+}
+
 // Audio Amplifier (fixes low volume issue)
 // ========================================
 function amplifyAudio(pcmBuffer, gainFactor = 1.0) {
@@ -895,6 +931,9 @@ async function transcribeAudio(audioBuffer, language, customVocab = []) {
     const options = {
       model: 'nova-2',
       language: languageMap[language]?.deepgram || 'en-US',
+      encoding: 'linear16',
+      sample_rate: 16000,
+      channels: 1,
       smart_format: true,
       punctuate: true,
       utterances: false
@@ -1034,6 +1073,53 @@ async function synthesizeSpeech(text, language) {
   }
 }
 
+/**
+ * STEP 2: Streaming synthesis function
+ * Uses ElevenLabs streaming API with native PCM16 output
+ * Returns complete buffer for backward compatibility
+ */
+async function synthesizeSpeechStreaming(text, language) {
+  if (!elevenlabsTTS) {
+    console.warn('ElevenLabs TTS not configured');
+    return null;
+  }
+
+  try {
+    const voiceId = elevenlabsVoiceId || 'XPwQNE5RX9Rdhyx0DWcI';
+
+    // Call ElevenLabs streaming API with PCM16 output
+    const stream = await elevenlabsTTS.synthesizeStreaming(text, voiceId, {
+      modelId: 'eleven_multilingual_v2',
+      output_format: 'pcm_16000', // Native 16kHz PCM16 - no conversion!
+      optimizeStreamingLatency: 3 // 0-4, higher = faster
+    });
+
+    // Collect stream chunks into complete buffer
+    const chunks = [];
+
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+
+      stream.on('end', () => {
+        const completeBuffer = Buffer.concat(chunks);
+        console.log(`[ElevenLabs Streaming] Received ${completeBuffer.length} bytes PCM16 audio`);
+        resolve(completeBuffer);
+      });
+
+      stream.on('error', (error) => {
+        console.error('ElevenLabs streaming error:', error);
+        reject(error);
+      });
+    });
+
+  } catch (error) {
+    console.error('ElevenLabs streaming synthesis error:', error);
+    return null;
+  }
+}
+
 // HMLCP: Get or create user profile with ULO layer
 async function getUserProfile(userId, language) {
   const key = `${userId}_${language}`;
@@ -1080,6 +1166,9 @@ async function createStreamingConnection(socket, participant) {
   const options = {
     model: 'nova-2',
     language: languageMap[participant.language]?.deepgram || 'en-US',
+    encoding: 'linear16',
+    sample_rate: 16000,
+    channels: 1,
     smart_format: true,
     punctuate: true,
     interim_results: false,  // Only get final results for accuracy
@@ -1223,9 +1312,9 @@ async function createStreamingConnection(socket, participant) {
             const transEnd = Date.now();
             const transDuration = transEnd - transStart;
 
-            // TTS
+            // TTS - Using streaming API
             const ttsStart = Date.now();
-            const audioData = await synthesizeSpeech(
+            const audioData = await synthesizeSpeechStreaming(
               translatedText,
               targetParticipant.language
             );
@@ -1446,7 +1535,9 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     // Amplify audio to improve Deepgram transcription accuracy
     // Use per-extension gain factor if set, otherwise default to 1.2
     const gainFactor = extensionGainFactors.get(extension) || 1.2;
-    const amplifiedAudio = amplifyAudio(audioBuffer, gainFactor);
+    // Downsample 48kHz → 16kHz for Deepgram (if needed)
+    const downsampledAudio = downsample48kTo16k(audioBuffer);
+    const amplifiedAudio = amplifyAudio(downsampledAudio, gainFactor);
     // Add WAV header to raw PCM data for Deepgram
     const wavAudio = addWavHeader(amplifiedAudio);
 
@@ -1522,14 +1613,14 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     latencyTracker.updateStageLatency(extension, 'mt_to_tts', timing.stages.mt_to_tts);
     console.log('[Timing] Stage 5 (MT→TTS) for ' + extension + ': ' + timing.stages.mt_to_tts + 'ms');
 
-    // Step 3: TTS - Generate audio from translation
+    // Step 3: TTS - Generate audio from translation using STREAMING API
     console.log(`[Pipeline] Generating TTS for extension ${extension}: "${translation}"`);
 
     // ═══════════════════════════════════════════════════════════════
-    // STAGE 6: TTS Processing (ElevenLabs)
+    // STAGE 6: TTS Processing (ElevenLabs STREAMING - Step 2)
     // ═══════════════════════════════════════════════════════════════
     const ttsStart = Date.now();
-    const ttsAudio = await synthesizeSpeech(translation, targetLang);
+    const ttsAudio = await synthesizeSpeechStreaming(translation, targetLang);
     timing.t6_ttsCompleted = Date.now();
     timing.stages.tts = timing.t6_ttsCompleted - ttsStart;
 
@@ -1550,6 +1641,9 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     // STEP 4.1 & 4.2: Retrieve settings and calculate buffer delay
     // ═══════════════════════════════════════════════════════════════
     const pairedExtension = pairManager.getPairedExtension(extension);
+
+    // STEP 4.4: DEBUG - Log routing decision
+    console.log(`[ROUTING DEBUG] Extension ${extension} → pairedExtension ${pairedExtension} (${extension} mic should go to ${pairedExtension} speaker)`);
 
     // SUB-TASK 4.1: Retrieve Buffer Settings
     const settings = extensionBufferSettings.get(extension) || { autoSync: false, manualLatencyMs: 0 };
@@ -1589,7 +1683,8 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
       try {
         console.log(`[Audio Convert] Converting ${ttsAudio.length} bytes MP3 to PCM16...`);
         pcmAudioBuffer = await convertMp3ToPcm16(ttsAudio);
-        console.log(`[Audio Convert] ✓ Conversion complete: ${pcmAudioBuffer.length} bytes PCM16`);
+        console.log(`[Audio Convert] AUDIO_SAMPLE_RATE = ${AUDIO_SAMPLE_RATE}Hz`);
+        console.log(`[Audio Convert] ✓ Conversion complete: ${pcmAudioBuffer.length} bytes PCM16 @ ${AUDIO_SAMPLE_RATE}Hz`);
       } catch (error) {
         console.error(`[Audio Convert] ✗ Conversion failed for extension ${extension}:`, error.message);
         pcmAudioBuffer = null;
@@ -1601,37 +1696,29 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
 
 
     // ═══════════════════════════════════════════════════════════════
-    // STEP 4.4 & 4.5: APPLY BUFFER AND SEND TO GATEWAY
-    // Apply calculated buffer delay and emit audio back to Gateway
+    // STEP 4.6.1: IMMEDIATE SEND TO GATEWAY (NO BUFFER DELAY)
+    // Send audio immediately to Gateway without artificial buffering
+    // This matches Blueprint architecture for real-time RTP streaming
     // ═══════════════════════════════════════════════════════════════
     if (pcmAudioBuffer && pcmAudioBuffer.length > 0) {
-      console.log(`[Buffer Send] Applying ${Math.round(totalBufferMs)}ms buffer to ${pcmAudioBuffer.length} bytes PCM16 for extension ${pairedExtension}`);
-      
-      audioBufferManager.bufferAndSend(
-        pairedExtension,           // Target extension (paired partner)
-        pcmAudioBuffer,            // PCM16 audio data
-        totalBufferMs,             // Buffer delay in milliseconds
-        (targetExtension, delayedAudio) => {
-          // Callback executed after buffer delay
-          console.log(`[Buffer Send] ✓ Sending ${delayedAudio.length} bytes PCM16 to Gateway for extension ${targetExtension}`);
-          
-          // SUB-TASK 4.5: Emit translatedAudio (camelCase) to Gateway
-          global.io.emit('translatedAudio', {
-            extension: String(targetExtension),
-            audio: delayedAudio,         // Buffer object (PCM16 data)
-            format: 'pcm16',             // Audio format
-            sampleRate: 16000,           // Sample rate
-            channels: 1,                 // Mono
-            timestamp: Date.now(),
-            bufferApplied: totalBufferMs,
-            sourceExtension: extension   // Original extension that generated this translation
-          });
-          
-          console.log(`[Buffer Send] ✓ translatedAudio emitted to Gateway for extension ${targetExtension} (buffered ${Math.round(totalBufferMs)}ms)`);
-        }
-      );
+      console.log(`[Immediate Send] Sending ${pcmAudioBuffer.length} bytes PCM16 IMMEDIATELY to extension ${pairedExtension} (NO buffer delay)`);
+      console.log(`[ROUTING DEBUG] Emitting: extension=${extension} (source/talker) → targetExtension=${pairedExtension} (destination/listener)`);
+
+      // Emit translatedAudio immediately (no delay)
+      global.io.emit('translatedAudio', {
+        extension: String(pairedExtension),
+        audio: pcmAudioBuffer,          // Direct buffer, no delay
+        format: 'pcm16',                // Audio format
+        sampleRate: AUDIO_SAMPLE_RATE,  // Sample rate (dynamic: 16kHz or 48kHz)
+        channels: 1,                    // Mono
+        timestamp: Date.now(),
+        bufferApplied: 0,               // NO artificial buffer delay
+        sourceExtension: extension      // Original extension that generated this translation
+      });
+
+      console.log(`[Immediate Send] ✓ translatedAudio emitted IMMEDIATELY to Gateway for extension ${pairedExtension}`);
     } else {
-      console.log(`[Buffer Send] ⚠ No PCM audio available to send for extension ${extension}`);
+      console.log(`[Immediate Send] ⚠ No PCM audio available to send for extension ${extension}`);
     }
 
     timing.t8_lsCompleted = Date.now();
@@ -2169,7 +2256,7 @@ io.on('connection', (socket) => {
             const transDuration = transEnd - transStart;
 
             const ttsStart = Date.now();
-            const audioData = await synthesizeSpeech(
+            const audioData = await synthesizeSpeechStreaming(
               translatedText,
               targetParticipant.language
             );

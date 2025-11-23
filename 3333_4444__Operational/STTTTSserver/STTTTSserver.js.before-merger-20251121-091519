@@ -3,6 +3,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const socketIo = require('socket.io');
+const dgram = require('dgram');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config({ path: '.env.externalmedia' });
@@ -806,10 +807,6 @@ function getQaConfig(extension) {
 const streamingConnections = new Map(); // key: socket.id, value: { connection, customVocab }
 // Per-extension audio gain factors (key: extension, value: gainFactor)
 const extensionGainFactors = new Map(); // Default 1.2x for all
-// Initialize with proper gain reduction
-extensionGainFactors.set("3333", 0.002);
-extensionGainFactors.set("4444", 0.002);
-console.log("[GAIN] Initialized extensions 3333/4444 with gain 0.002");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
 const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
 const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
@@ -1911,6 +1908,14 @@ io.on('connection', (socket) => {
 
     // Fork audio to Hume AI for emotion detection (buffered for better speech detection)
     const humeClient = humeConnections.get(socket.id);
+    // Broadcast audio to all dashboard clients for monitoring
+    global.io.emit('audioStream', {
+      extension: extension,
+      buffer: audioChunk,
+      sampleRate: data.sampleRate || 16000,
+      channels: data.channels || 1,
+      timestamp: timestamp || Date.now()
+    });
     if (humeClient && humeClient.connected) {
       const humeBuffer = humeAudioBuffers.get(socket.id);
       if (humeBuffer) {
@@ -2673,7 +2678,109 @@ app.post('/api/hmlcp/save', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3010;
+
+// ============================================================================
+// UDP TRANSPORT FOR EXTENSIONS 3333 & 4444
+// Copied from conf-server-phase1.js pattern for low-latency audio transport
+// ============================================================================
+
+const UDP_CONFIG = {
+  port3333In: 6300,    // Receive PCM from gateway-3333
+  port3333Out: 6301,   // Send translated PCM to gateway-3333
+  port4444In: 6302,    // Receive PCM from gateway-4444
+  port4444Out: 6303,   // Send translated PCM to gateway-4444
+  gatewayHost: '127.0.0.1',
+  frameSizeBytes: 640  // 20ms PCM16 @ 16kHz
+};
+
+// Create UDP sockets for audio transport
+const socket3333In = dgram.createSocket('udp4');
+const socket3333Out = dgram.createSocket('udp4');
+const socket4444In = dgram.createSocket('udp4');
+const socket4444Out = dgram.createSocket('udp4');
+
+// Stats tracking for UDP
+let udpStats = {
+  from3333: 0,
+  to3333: 0,
+  from4444: 0,
+  to4444: 0,
+  startTime: Date.now()
+};
+
+// UDP message handler for Extension 3333 (receives English audio)
+socket3333In.on('message', (msg, rinfo) => {
+  udpStats.from3333++;
+  
+  if (udpStats.from3333 <= 3) {
+    console.log(`[UDP] ✓ Gateway-3333 connected: ${msg.length} bytes/frame`);
+  }
+  
+  // Broadcast to Socket.IO for dashboard monitoring
+  // This allows existing Socket.IO clients to visualize the audio
+  global.io.emit('audioStream', {
+    extension: '3333',
+    buffer: msg,
+    sampleRate: 16000,
+    channels: 1,
+    timestamp: Date.now(),
+    transport: 'udp'
+  });
+});
+
+// UDP message handler for Extension 4444 (receives French audio)
+socket4444In.on('message', (msg, rinfo) => {
+  udpStats.from4444++;
+  
+  if (udpStats.from4444 <= 3) {
+    console.log(`[UDP] ✓ Gateway-4444 connected: ${msg.length} bytes/frame`);
+  }
+  
+  global.io.emit('audioStream', {
+    extension: '4444',
+    buffer: msg,
+    sampleRate: 16000,
+    channels: 1,
+    timestamp: Date.now(),
+    transport: 'udp'
+  });
+});
+
+// Bind UDP sockets
+socket3333In.bind(UDP_CONFIG.port3333In, () => {
+  console.log(`[UDP] ✓ Listening for Extension 3333 on UDP ${UDP_CONFIG.port3333In}`);
+});
+
+socket4444In.bind(UDP_CONFIG.port4444In, () => {
+  console.log(`[UDP] ✓ Listening for Extension 4444 on UDP ${UDP_CONFIG.port4444In}`);
+});
+
+// Stats logging every 30 seconds
+setInterval(() => {
+  const uptime = Math.floor((Date.now() - udpStats.startTime) / 1000);
+  console.log(`[UDP Stats] Uptime=${uptime}s, RX_3333=${udpStats.from3333}, TX_3333=${udpStats.to3333}, RX_4444=${udpStats.from4444}, TX_4444=${udpStats.to4444}`);
+}, 30000);
+
+// Helper function to send translated audio back via UDP
+function sendTranslatedAudioUDP(extension, audioBuffer) {
+  if (extension === '3333') {
+    socket3333Out.send(audioBuffer, UDP_CONFIG.port3333Out, UDP_CONFIG.gatewayHost, (err) => {
+      if (!err) udpStats.to3333++;
+    });
+  } else if (extension === '4444') {
+    socket4444Out.send(audioBuffer, UDP_CONFIG.port4444Out, UDP_CONFIG.gatewayHost, (err) => {
+      if (!err) udpStats.to4444++;
+    });
+  }
+}
+
+// Make UDP sender globally available
+global.sendTranslatedAudioUDP = sendTranslatedAudioUDP;
+
+console.log('[UDP] ✓ UDP transport layer initialized for Extensions 3333 & 4444');
+
+// ============================================================================
+const PORT = process.env.PORT || 3020;
 const HOST = '0.0.0.0'; // Listen on all network interfaces
 
 server.listen(PORT, HOST, () => {
@@ -2734,286 +2841,3 @@ server.listen(PORT, HOST, () => {
   console.log('  - ULO Layer: Active for real-time adaptation');
   console.log('  - Pattern Extraction: Available via API');
 });
-// ============================================================================
-// UDP PCM SOCKET INTEGRATION
-// Merged from: 3333_4444__Operational/Gateway/conf-server-phase1.js
-//
-// PURPOSE: Use proven PCM sockets with gateway-3333-buffered.js and
-//          gateway-4444-buffered.js for real-time translation
-//
-// CHANGES FROM conf-server-phase1.js:
-// - REMOVED: Direct cross-patch logic (lines 186, 221)
-// - REMOVED: WebSocket server (port 3020 conflict with Socket.IO)
-// - ADDED: Audio buffering for translation
-// - ADDED: Translation pipeline integration (STT → Translate → TTS)
-// - REPLACED: broadcastAudio() → global.io.emit()
-// ============================================================================
-
-const dgram = require('dgram');
-
-// Configuration (from conf-server-phase1.js lines 28-40)
-const UDP_PCM_CONFIG = {
-  port3333In: 6120,
-  port3333Out: 6121,
-  port4444In: 6122,
-  port4444Out: 6123,
-  gatewayHost: '127.0.0.1',
-  sampleRate: 16000,
-  channels: 1,
-  frameSizeMs: 5,  // Changed from 20ms to 5ms to match gateway output
-  frameSizeBytes: 160,  // Changed from 640 to 160 bytes (actual gateway frame size)
-  bufferThreshold: 8000  // Reduced from 32000 to 8000 for faster processing (0.5 seconds of audio)
-};
-
-// Socket Creation (from conf-server-phase1.js lines 62-65)
-const socket3333In = dgram.createSocket('udp4');
-const socket3333Out = dgram.createSocket('udp4');
-const socket4444In = dgram.createSocket('udp4');
-const socket4444Out = dgram.createSocket('udp4');
-
-// Statistics
-let udpPcmStats = {
-  from3333Packets: 0,
-  to3333Packets: 0,
-  from4444Packets: 0,
-  to4444Packets: 0,
-  translationRequests: 0,
-  translationSuccesses: 0,
-  translationErrors: 0,
-  startTime: Date.now()
-};
-
-// Audio Buffering
-const udpAudioBuffers = new Map();
-udpAudioBuffers.set('3333', {
-  chunks: [],
-  totalBytes: 0,
-  language: 'en',
-  lastProcessed: Date.now()
-});
-udpAudioBuffers.set('4444', {
-  chunks: [],
-  totalBytes: 0,
-  language: 'fr',
-  lastProcessed: Date.now()
-});
-
-// Extension 3333 Handler (based on conf-server-phase1.js lines 175-196)
-socket3333In.on('message', async (msg, rinfo) => {
-  udpPcmStats.from3333Packets++;
-
-  if (udpPcmStats.from3333Packets <= 5) {
-    console.log(`[UDP-3333] Gateway connected: ${msg.length} bytes/frame (packet #${udpPcmStats.from3333Packets})`);
-    // Validate PCM format - check for signed 16-bit samples
-    if (msg.length === 160) {
-      const sample1 = msg.readInt16LE(0);
-      const sample2 = msg.readInt16LE(80);
-      console.log(`[UDP-3333] PCM sample check: ${sample1}, ${sample2} (expected range: -32768 to 32767)`);
-    }
-  }
-
-  if (global.io) {
-    global.io.emit('audioStream', {
-      extension: '3333',
-      buffer: msg,
-      sampleRate: UDP_PCM_CONFIG.sampleRate,
-      channels: UDP_PCM_CONFIG.channels,
-      timestamp: Date.now(),
-      transport: 'udp-pcm',
-      source: 'microphone'
-    });
-  }
-
-  const buffer = udpAudioBuffers.get('3333');
-  buffer.chunks.push(Buffer.from(msg));
-  buffer.totalBytes += msg.length;
-
-  if (buffer.totalBytes >= UDP_PCM_CONFIG.bufferThreshold) {
-    const combinedBuffer = Buffer.concat(buffer.chunks);
-    buffer.chunks = [];
-    buffer.totalBytes = 0;
-    buffer.lastProcessed = Date.now();
-
-    console.log(`[UDP-3333] Processing ${combinedBuffer.length} bytes`);
-    await processUdpPcmAudio('3333', combinedBuffer, 'en');
-  }
-});
-
-socket3333In.on('error', (err) => {
-  console.error(`[UDP-3333] Socket error:`, err.message);
-  udpPcmStats.translationErrors++;
-});
-
-// Extension 4444 Handler (based on conf-server-phase1.js lines 210-231)
-socket4444In.on('message', async (msg, rinfo) => {
-  udpPcmStats.from4444Packets++;
-
-  if (udpPcmStats.from4444Packets <= 5) {
-    console.log(`[UDP-4444] Gateway connected: ${msg.length} bytes/frame (packet #${udpPcmStats.from4444Packets})`);
-    // Validate PCM format - check for signed 16-bit samples
-    if (msg.length === 160) {
-      const sample1 = msg.readInt16LE(0);
-      const sample2 = msg.readInt16LE(80);
-      console.log(`[UDP-4444] PCM sample check: ${sample1}, ${sample2} (expected range: -32768 to 32767)`);
-    }
-  }
-
-  if (global.io) {
-    global.io.emit('audioStream', {
-      extension: '4444',
-      buffer: msg,
-      sampleRate: UDP_PCM_CONFIG.sampleRate,
-      channels: UDP_PCM_CONFIG.channels,
-      timestamp: Date.now(),
-      transport: 'udp-pcm',
-      source: 'microphone'
-    });
-  }
-
-  const buffer = udpAudioBuffers.get('4444');
-  buffer.chunks.push(Buffer.from(msg));
-  buffer.totalBytes += msg.length;
-
-  if (buffer.totalBytes >= UDP_PCM_CONFIG.bufferThreshold) {
-    const combinedBuffer = Buffer.concat(buffer.chunks);
-    buffer.chunks = [];
-    buffer.totalBytes = 0;
-    buffer.lastProcessed = Date.now();
-
-    console.log(`[UDP-4444] Processing ${combinedBuffer.length} bytes`);
-    await processUdpPcmAudio('4444', combinedBuffer, 'fr');
-  }
-});
-
-socket4444In.on('error', (err) => {
-  console.error(`[UDP-4444] Socket error:`, err.message);
-  udpPcmStats.translationErrors++;
-});
-
-// UDP-to-Translation Integration Function
-// Connects UDP sockets TO existing translation functions in STTTTSserver.js
-async function processUdpPcmAudio(sourceExtension, pcmBuffer, sourceLang) {
-  try {
-    udpPcmStats.translationRequests++;
-
-    const targetExtension = sourceExtension === '3333' ? '4444' : '3333';
-    const targetLang = sourceLang === 'en' ? 'fr' : 'en';
-
-    console.log(`[UDP-${sourceExtension}] Starting translation: ${sourceLang} → ${targetLang}`);
-
-    // Calls EXISTING functions from STTTTSserver.js
-    const wavAudio = addWavHeader(pcmBuffer);
-    const transcriptionResult = await transcribeAudio(wavAudio, sourceLang);
-
-    if (!transcriptionResult || !transcriptionResult.text || transcriptionResult.text.trim() === '') {
-      console.log(`[UDP-${sourceExtension}] No speech detected`);
-      return;
-    }
-    console.log(`[UDP-${sourceExtension}] Transcribed: "${transcriptionResult.text}" (confidence: ${transcriptionResult.confidence})`);
-
-    const translatedText = await translateText(transcriptionResult.text, sourceLang, targetLang);
-    console.log(`[UDP-${sourceExtension}→${targetExtension}] Translated: "${translatedText}"`);
-
-    const mp3Buffer = await synthesizeSpeech(translatedText, targetLang);
-    console.log(`[UDP-${sourceExtension}→${targetExtension}] Generated ${mp3Buffer.length} bytes MP3`);
-
-    const translatedPcm = await convertMp3ToPcm16(mp3Buffer);
-    console.log(`[UDP-${sourceExtension}→${targetExtension}] Converted to ${translatedPcm.length} bytes PCM`);
-
-    await sendUdpPcmAudio(targetExtension, translatedPcm);
-
-    udpPcmStats.translationSuccesses++;
-    console.log(`[UDP-${sourceExtension}→${targetExtension}] ✓ Translation complete`);
-
-  } catch (error) {
-    console.error(`[UDP-${sourceExtension}] Translation error:`, error.message);
-    udpPcmStats.translationErrors++;
-  }
-}
-
-// Send Function - Fixed for 5ms frame timing
-async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
-  const socket = targetExtension === '3333' ? socket3333Out : socket4444Out;
-  const port = targetExtension === '3333' ? UDP_PCM_CONFIG.port3333Out : UDP_PCM_CONFIG.port4444Out;
-
-  const frameSize = UDP_PCM_CONFIG.frameSizeBytes;
-  const totalFrames = Math.floor(pcmBuffer.length / frameSize);
-
-  console.log(`[UDP-${targetExtension}] Sending ${pcmBuffer.length} bytes (${totalFrames} frames)`);
-
-  for (let i = 0; i < totalFrames; i++) {
-    const frame = pcmBuffer.slice(i * frameSize, (i + 1) * frameSize);
-
-    await new Promise((resolve, reject) => {
-      socket.send(frame, port, UDP_PCM_CONFIG.gatewayHost, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          if (targetExtension === '3333') {
-            udpPcmStats.to3333Packets++;
-          } else {
-            udpPcmStats.to4444Packets++;
-          }
-          resolve();
-        }
-      });
-    });
-
-    // Use correct frame timing: 5ms per frame (160 bytes = 5ms at 16kHz)
-    await new Promise(resolve => setTimeout(resolve, UDP_PCM_CONFIG.frameSizeMs));
-  }
-
-  console.log(`[UDP-${targetExtension}] ✓ Sent ${totalFrames} frames`);
-}
-
-// Socket Binding
-socket3333In.bind(UDP_PCM_CONFIG.port3333In, () => {
-  console.log(`[UDP-3333] ✓ Listening on UDP ${UDP_PCM_CONFIG.port3333In}`);
-});
-
-socket3333In.on('listening', () => {
-  const addr = socket3333In.address();
-  console.log(`[UDP-3333] Bound to ${addr.address}:${addr.port}`);
-});
-
-socket3333Out.bind(() => {
-  console.log(`[UDP-3333] ✓ Ready to send via UDP ${UDP_PCM_CONFIG.port3333Out}`);
-});
-
-socket4444In.bind(UDP_PCM_CONFIG.port4444In, () => {
-  console.log(`[UDP-4444] ✓ Listening on UDP ${UDP_PCM_CONFIG.port4444In}`);
-});
-
-socket4444In.on('listening', () => {
-  const addr = socket4444In.address();
-  console.log(`[UDP-4444] Bound to ${addr.address}:${addr.port}`);
-});
-
-socket4444Out.bind(() => {
-  console.log(`[UDP-4444] ✓ Ready to send via UDP ${UDP_PCM_CONFIG.port4444Out}`);
-});
-
-console.log('\n' + '='.repeat(60));
-console.log('  UDP PCM TRANSLATION SOCKETS ACTIVE');
-console.log('='.repeat(60));
-console.log('Extension 3333 (EN): IN=6120, OUT=6121');
-console.log('Extension 4444 (FR): IN=6122, OUT=6123');
-console.log('='.repeat(60) + '\n');
-
-// Statistics Logging
-setInterval(() => {
-  const uptime = Math.floor((Date.now() - udpPcmStats.startTime) / 1000);
-  const successRate = udpPcmStats.translationRequests > 0
-    ? (udpPcmStats.translationSuccesses / udpPcmStats.translationRequests * 100).toFixed(1)
-    : 0;
-
-  console.log('\n' + '='.repeat(60));
-  console.log('  UDP PCM STATS');
-  console.log('='.repeat(60));
-  console.log(`Uptime: ${uptime}s`);
-  console.log(`3333: RX=${udpPcmStats.from3333Packets}, TX=${udpPcmStats.to3333Packets}`);
-  console.log(`4444: RX=${udpPcmStats.from4444Packets}, TX=${udpPcmStats.to4444Packets}`);
-  console.log(`Translations: ${udpPcmStats.translationRequests} requests, ${udpPcmStats.translationSuccesses} OK (${successRate}%)`);
-  console.log(`Errors: ${udpPcmStats.translationErrors}`);
-  console.log('='.repeat(60) + '\n');
-}, 30000);

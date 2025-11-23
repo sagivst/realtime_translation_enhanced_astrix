@@ -1493,7 +1493,7 @@
                     <div class="audio-controls">
                         <div class="volume-control">
                             <span>🔊</span>
-                            <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="0">
+                            <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="100">
                             <span id="incomingVolumeLabel">0%</span>
                         </div>
                     </div>
@@ -1815,7 +1815,7 @@
         
             <div class="transcription-window" id="transcriptionWindow">
                 <div class="transcript-empty">
-                    🎤 Waiting for transcriptions... Call extension 7000 to start.
+                    🎤 Waiting for transcriptions... Call extension 3333 to start.
                 </div>
             </div>
         </div>
@@ -2089,9 +2089,9 @@
         // Socket.IO connection
         const socket = io();
 
-        // Get extension from URL parameter (e.g., ?ext=7000)
+        // Get extension from URL parameter (e.g., ?ext=3333)
         const urlParams = new URLSearchParams(window.location.search);
-        const filterExtension = urlParams.get('ext'); // '7000' or '7001' or null
+        const filterExtension = urlParams.get('ext'); // '3333' or '4444' or null
 
         console.log('[Dashboard] Filtering for extension:', filterExtension || 'ALL');
 
@@ -2102,7 +2102,7 @@
             // Add visual indicator at top
             const header = document.querySelector('.header h1');
             if (header) {
-                const badge = filterExtension === '7000' ? '📞 Caller' : '📱 Answerer';
+                const badge = filterExtension === '3333' ? '📞 Caller' : '📱 Answerer';
                 header.textContent = `Extension ${filterExtension} (${badge})`;
             }
         }
@@ -2284,7 +2284,7 @@
                 window.extensionMonitorData.packetCount++;
                 if (document.getElementById('extensionNumber') && data.extension) {
                     document.getElementById('extensionNumber').textContent = data.extension;
-                    document.getElementById('extensionNumber').style.color = data.extension === '7000' ? '#667eea' : '#51cf66';
+                    document.getElementById('extensionNumber').style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
                 }
                 if (document.getElementById('callUuid') && data.uuid) {
                     document.getElementById('callUuid').textContent = data.uuid;
@@ -2296,9 +2296,9 @@
                     document.getElementById('lastPacketTime').textContent = new Date().toLocaleTimeString();
                 }
                 if (document.getElementById('extensionBadge') && data.extension) {
-                    const badge = data.extension === '7000' ? '📞 CALLER' : '📱 ANSWERER';
+                    const badge = data.extension === '3333' ? '📞 CALLER' : '📱 ANSWERER';
                     document.getElementById('extensionBadge').textContent = 'EXT ' + data.extension + ' - ' + badge;
-                    document.getElementById('extensionBadge').style.color = data.extension === '7000' ? '#667eea' : '#51cf66';
+                    document.getElementById('extensionBadge').style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
                 }
                 console.log('[Dashboard] Received transcriptionPartial:', data);
                 addTranscript(data, 'partial');
@@ -2320,7 +2320,7 @@
                 // Update outbound stream card
                 if (document.getElementById('outboundExtensionNumber') && data.extension) {
                     document.getElementById('outboundExtensionNumber').textContent = data.extension;
-                    document.getElementById('outboundExtensionNumber').style.color = data.extension === '7000' ? '#5b6fd8' : '#764ba2';
+                    document.getElementById('outboundExtensionNumber').style.color = data.extension === '3333' ? '#5b6fd8' : '#764ba2';
                 }
                 if (document.getElementById('outboundBridgeId') && data.uuid) {
                     document.getElementById('outboundBridgeId').textContent = String(data.uuid).substring(0, 30) + '...';
@@ -2929,7 +2929,7 @@
             const MAX_ADJUSTMENT = 300; // Max adjustment for visual scale (ms)
             const absAdjustment = Math.abs(adjustment);
 
-            // Update pairing extension from reason (e.g., "sync_to_7001")
+            // Update pairing extension from reason (e.g., "sync_to_4444")
             if (reason && reason.startsWith('sync_to_')) {
                 const targetExtension = reason.replace('sync_to_', '');
                 if (pairingExt) {
@@ -3204,7 +3204,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             // Initialize Web Audio API context if not already created
             if (!outgoingAudioContext) {
                 outgoingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: data.sampleRate || 8000
+                    sampleRate: data.sampleRate || 16000
                 });
                 outgoingNextPlayTime = outgoingAudioContext.currentTime;
                 
@@ -3359,6 +3359,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             if (filterExtension && data.extension !== filterExtension) {
                 return; // Skip audio from other extensions
             }
+            // DEBUG: Log incoming audioStream data            console.log("[DEBUG AudioStream] Received event:", {                extension: data.extension,                bufferType: typeof data.buffer,                bufferLength: data.buffer ? data.buffer.length || data.buffer.byteLength : 0,                sampleRate: data.sampleRate,                channels: data.channels,                timestamp: data.timestamp            });                        // CHECK AND RECREATE AudioContext if sample rate mismatch            const incomingRate = data.sampleRate || 16000;            if (incomingAudioContext && incomingAudioContext.sampleRate !== incomingRate) {                console.warn("[Audio Fork] SAMPLE RATE MISMATCH! AudioContext:", incomingAudioContext.sampleRate, "Hz, Incoming:", incomingRate, "Hz");                console.log("[Audio Fork] Closing and recreating AudioContext with correct sample rate...");                incomingAudioContext.close();                incomingAudioContext = null;                incomingGainNode = null;            }
 
             // Update Extension Monitor Card
             if (!window.extensionMonitorData) {
@@ -3375,7 +3376,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             
             if (extensionNum && data.extension) {
                 extensionNum.textContent = data.extension;
-                extensionNum.style.color = data.extension === '7000' ? '#667eea' : '#51cf66';
+                extensionNum.style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
             }
             
             if (callUuidElem && data.uuid) {
@@ -3392,9 +3393,9 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             }
             
             if (extensionBadge && data.extension) {
-                const badge = data.extension === '7000' ? '📞 CALLER' : '📱 ANSWERER';
+                const badge = data.extension === '3333' ? '📞 CALLER' : '📱 ANSWERER';
                 extensionBadge.textContent = 'EXT ' + data.extension + ' - ' + badge;
-                extensionBadge.style.color = data.extension === '7000' ? '#667eea' : '#51cf66';
+                extensionBadge.style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
             }
             
             if (extensionStatus) {
@@ -3404,13 +3405,13 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             // Initialize Web Audio API context if not already created
             if (!incomingAudioContext) {
                 incomingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: data.sampleRate || 8000
+                    sampleRate: data.sampleRate || 16000
                 });
                 nextPlayTime = incomingAudioContext.currentTime;
                 
                 // Create global gain node for volume control
                 incomingGainNode = incomingAudioContext.createGain();
-                incomingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                incomingGainNode.gain.value = 1.0;  // Start at 100% for monitoring (matches slider default)
                 incomingGainNode.connect(incomingAudioContext.destination);
                 console.log('[Audio Fork] Web Audio Context initialized at', data.sampleRate, 'Hz');
                 console.log('[Audio Fork] AudioContext state:', incomingAudioContext.state);
@@ -3527,7 +3528,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                     const audioBuffer = incomingAudioContext.createBuffer(
                         data.channels || 1,
                         float32Samples.length,
-                        data.sampleRate || 8000
+                        data.sampleRate || 16000
                     );
 
                     // Copy samples to buffer

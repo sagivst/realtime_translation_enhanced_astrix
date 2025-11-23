@@ -31,7 +31,7 @@ const CONFIG = {
   port3333Out: 6121,
   port4444In: 6122,
   port4444Out: 6123,
-  wsPort: 3020,
+  wsPort: 3021,
   gatewayHost: '127.0.0.1',
   sampleRate: 16000,
   channels: 1,

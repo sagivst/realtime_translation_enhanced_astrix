@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
  * ARI Handler for 3333/4444 GStreamer Operational System
- * 
+ *
  * CORRECTED CONFIGURATION (per documentation):
  * - Extension 3333: port 4000, format ALAW (8kHz)
  * - Extension 4444: port 4002, format ALAW (8kHz)
+ *
+ * FIX: Properly track BOTH caller and ExternalMedia channels for cleanup
  */
 
 const ari = require('ari-client');
@@ -39,6 +41,7 @@ function log(message) {
   logStream.write(logMessage);
 }
 
+// FIX: Track sessions by BOTH channel IDs (caller + ExternalMedia)
 const activeSessions = new Map();
 
 function handleStasisStart(event, channel) {
@@ -108,13 +111,19 @@ function handleStasisStart(event, channel) {
 
           log(`✓ Channels bridged successfully for ${extId}`);
 
-          activeSessions.set(channel.id, {
+          // FIX: Store session data under BOTH channel IDs
+          const sessionData = {
             extension: extId,
             callChannel: channel,
             externalChannel: externalChannel,
             bridge: bridge,
             startTime: Date.now()
-          });
+          };
+
+          activeSessions.set(channel.id, sessionData);  // Caller channel
+          activeSessions.set(externalChannel.id, sessionData);  // ExternalMedia channel
+
+          log(`Session tracked: caller=${channel.id}, external=${externalChannel.id}`);
         });
       });
     });
@@ -126,15 +135,37 @@ function handleStasisEnd(event, channel) {
 
   const session = activeSessions.get(channel.id);
   if (session) {
-    log(`Cleaning up session for ${session.extension}`);
+    // Only clean up once (when first channel ends)
+    const callChannelId = session.callChannel.id;
+    const externalChannelId = session.externalChannel.id;
 
-    if (session.bridge) session.bridge.destroy(() => {});
-    if (session.externalChannel) session.externalChannel.hangup(() => {});
+    if (activeSessions.has(callChannelId) || activeSessions.has(externalChannelId)) {
+      log(`Cleaning up session for ${session.extension}`);
 
-    activeSessions.delete(channel.id);
+      // Destroy bridge first
+      if (session.bridge) {
+        session.bridge.destroy(() => {});
+      }
 
-    const duration = Math.floor((Date.now() - session.startTime) / 1000);
-    log(`Session ended: ${session.extension}, duration: ${duration}s`);
+      // Hangup both channels
+      if (session.callChannel) {
+        session.callChannel.hangup(() => {});
+      }
+      if (session.externalChannel) {
+        session.externalChannel.hangup(() => {});
+      }
+
+      // FIX: Remove BOTH channel IDs from activeSessions
+      activeSessions.delete(callChannelId);
+      activeSessions.delete(externalChannelId);
+
+      const duration = Math.floor((Date.now() - session.startTime) / 1000);
+      log(`Session ended: ${session.extension}, duration: ${duration}s (cleaned up both channels)`);
+    } else {
+      log(`Session already cleaned up for ${session.extension} (duplicate StasisEnd)`);
+    }
+  } else {
+    log(`No session found for channel ${channel.id} (may have been cleaned up already)`);
   }
 }
 
@@ -148,12 +179,13 @@ ari.connect(CONFIG.ariUrl, CONFIG.ariUser, CONFIG.ariPassword, (err, ariClient) 
 
   client = ariClient;
   log('='.repeat(80));
-  log('ARI GStreamer OPERATIONAL Application Started');
+  log('ARI GStreamer OPERATIONAL Application Started (WITH CLEANUP FIX)');
   log('='.repeat(80));
   log(`ARI URL: ${CONFIG.ariUrl}`);
   log(`App Name: ${CONFIG.appName}`);
   log(`ExternalMedia 3333: ${CONFIG.externalMedia.ext3333.host}:${CONFIG.externalMedia.ext3333.port} (${CONFIG.externalMedia.ext3333.format})`);
   log(`ExternalMedia 4444: ${CONFIG.externalMedia.ext4444.host}:${CONFIG.externalMedia.ext4444.port} (${CONFIG.externalMedia.ext4444.format})`);
+  log('FIX: Tracking both caller and ExternalMedia channels for proper cleanup');
   log('='.repeat(80));
 
   client.start(CONFIG.appName);

@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Translation System - Monitoring Dashboard</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Real-Time Translation System - Monitoring Dashboard v2.1</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
@@ -1120,6 +1123,112 @@
             transform: translateX(26px);
         }
 
+        /* Hume AI Emotion Visualization Styles */
+        .emotion-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 15px;
+        }
+
+        .emotion-plot {
+            position: relative;
+        }
+
+        .plot-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .plot-labels span {
+            position: absolute;
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        .label-top {
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .label-right {
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .label-bottom {
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .label-left {
+            left: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .emotions-list, .prosody-metrics {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .emotions-list h4, .prosody-metrics h4 {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: #374151;
+            font-weight: 600;
+        }
+
+        #emotionBars .emotion-bar {
+            margin-bottom: 10px;
+        }
+
+        .emotion-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #374151;
+        }
+
+        .emotion-bar-fill {
+            height: 20px;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .prosody-metrics .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .metric-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: #111827;
+        }
+
     </style>
 </head>
 <body>
@@ -1493,7 +1602,7 @@
                     <div class="audio-controls">
                         <div class="volume-control">
                             <span>🔊</span>
-                            <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="100">
+                            <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="0">
                             <span id="incomingVolumeLabel">0%</span>
                         </div>
                     </div>
@@ -1663,71 +1772,49 @@
                 </div>
             </div>
 
-            <!-- 5. Hume AI (Emotion Detection) -->
+            <!-- 5. Hume AI (Emotion/Prosody Analysis) -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        <div class="service-icon" style="background: #51cf66;">😊</div>
-                        <span>5. Hume AI (Emotion Detection)</span>
+                        <div class="service-icon" style="background: #f59e0b;">🎭</div>
+                        <span>5. Hume AI (Emotion/Prosody)</span>
                     </div>
-                    <span class="status-badge" id="humeAIStatus">⏸ Idle</span>
+                    <span class="status-badge" id="humeStatus">⏸ Idle</span>
                 </div>
 
-                <!-- Emotion Metrics -->
-                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
-                    <div style="margin-bottom: 15px;">
-                        <div style="color: #aaa; font-size: 0.85em; margin-bottom: 10px;">😊 Real-Time Emotion Metrics:</div>
-
-                        <!-- Arousal -->
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <span style="color: #aaa; font-size: 0.85em;">Arousal:</span>
-                                <span id="humeArousal" style="color: #51cf66; font-weight: bold;">0.00</span>
-                            </div>
-                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
-                                <div id="humeArousalBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #51cf66, #4dabf7); transition: width 0.3s ease;"></div>
-                            </div>
-                        </div>
-
-                        <!-- Valence -->
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <span style="color: #aaa; font-size: 0.85em;">Valence:</span>
-                                <span id="humeValence" style="color: #4dabf7; font-weight: bold;">0.00</span>
-                            </div>
-                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
-                                <div id="humeValenceBar" style="width: 50%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #4dabf7, #51cf66); transition: width 0.3s ease;"></div>
-                            </div>
-                        </div>
-
-                        <!-- Energy -->
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <span style="color: #aaa; font-size: 0.85em;">Energy:</span>
-                                <span id="humeEnergy" style="color: #a78bfa; font-weight: bold;">0.00</span>
-                            </div>
-                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
-                                <div id="humeEnergyBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a78bfa, #ff6b6b); transition: width 0.3s ease;"></div>
-                            </div>
+                <div class="emotion-container">
+                    <!-- Valence/Arousal 2D Plot -->
+                    <div class="emotion-plot">
+                        <canvas id="emotionPlot" width="300" height="300"></canvas>
+                        <div class="plot-labels">
+                            <span class="label-top">Excited</span>
+                            <span class="label-right">Positive</span>
+                            <span class="label-bottom">Calm</span>
+                            <span class="label-left">Negative</span>
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
-                        <div>
-                            <div style="color: #aaa; font-size: 0.8em;">Last Update:</div>
-                            <div id="humeLastUpdate" style="color: #667eea; font-weight: bold; margin-top: 3px;">Never</div>
-                        </div>
-                        <div>
-                            <div style="color: #aaa; font-size: 0.8em;">Detection Count:</div>
-                            <div id="humeDetectionCount" style="color: #51cf66; font-weight: bold; margin-top: 3px;">0</div>
-                        </div>
+                    <!-- Top 3 Emotions -->
+                    <div class="emotions-list">
+                        <h4>Top Emotions</h4>
+                        <div id="emotionBars"></div>
                     </div>
-                </div>
 
-                <div style="margin-top: 10px; padding: 10px; background: rgba(81, 207, 102, 0.1); border-radius: 4px; border-left: 3px solid #51cf66;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div id="humeActivityIndicator" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></div>
-                        <span id="humeActivityText" style="color: #aaa; font-size: 0.9em;">Waiting for Hume AI connection...</span>
+                    <!-- Prosody Metrics -->
+                    <div class="prosody-metrics">
+                        <h4>Voice Characteristics</h4>
+                        <div class="metric">
+                            <span class="metric-label">Pitch:</span>
+                            <span class="metric-value" id="pitchValue">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Energy:</span>
+                            <span class="metric-value" id="energyValue">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Speaking Rate:</span>
+                            <span class="metric-value" id="rateValue">--</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1815,7 +1902,7 @@
         
             <div class="transcription-window" id="transcriptionWindow">
                 <div class="transcript-empty">
-                    🎤 Waiting for transcriptions... Call extension 3333 to start.
+                    🎤 Waiting for transcriptions... Call extension 7777 to start.
                 </div>
             </div>
         </div>
@@ -2089,9 +2176,9 @@
         // Socket.IO connection
         const socket = io();
 
-        // Get extension from URL parameter (e.g., ?ext=3333)
+        // Get extension from URL parameter (e.g., ?ext=7777)
         const urlParams = new URLSearchParams(window.location.search);
-        const filterExtension = urlParams.get('ext'); // '3333' or '4444' or null
+        const filterExtension = urlParams.get('ext'); // '7777' or '7888' or null
 
         console.log('[Dashboard] Filtering for extension:', filterExtension || 'ALL');
 
@@ -2102,7 +2189,7 @@
             // Add visual indicator at top
             const header = document.querySelector('.header h1');
             if (header) {
-                const badge = filterExtension === '3333' ? '📞 Caller' : '📱 Answerer';
+                const badge = filterExtension === '7777' ? '📞 Caller' : '📱 Answerer';
                 header.textContent = `Extension ${filterExtension} (${badge})`;
             }
         }
@@ -2252,13 +2339,13 @@
                 removeParticipant(data);
             });
 
-            socket.on('emotion_detected', (data) => {
-                console.log('[Filter] emotion_detected - filterExtension:', filterExtension, 'data.extension:', data.extension);
+            socket.on('emotionData', (data) => {
+                console.log('[Filter] emotionData - filterExtension:', filterExtension, 'data.extensionId:', data.extensionId);
                 // Filter by extension if URL param is set
-                if (filterExtension && data.extension !== filterExtension) {
+                if (filterExtension && data.extensionId !== filterExtension) {
                     return; // Skip events from other extensions
                 }
-                console.log("[CLIENT DEBUG] emotion_detected event received!", data);
+                console.log("[CLIENT DEBUG] emotionData event received!", data);
                 updateHumeEmotions(data);
             });
 
@@ -2284,7 +2371,7 @@
                 window.extensionMonitorData.packetCount++;
                 if (document.getElementById('extensionNumber') && data.extension) {
                     document.getElementById('extensionNumber').textContent = data.extension;
-                    document.getElementById('extensionNumber').style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
+                    document.getElementById('extensionNumber').style.color = data.extension === '7777' ? '#667eea' : '#51cf66';
                 }
                 if (document.getElementById('callUuid') && data.uuid) {
                     document.getElementById('callUuid').textContent = data.uuid;
@@ -2296,9 +2383,9 @@
                     document.getElementById('lastPacketTime').textContent = new Date().toLocaleTimeString();
                 }
                 if (document.getElementById('extensionBadge') && data.extension) {
-                    const badge = data.extension === '3333' ? '📞 CALLER' : '📱 ANSWERER';
+                    const badge = data.extension === '7777' ? '📞 CALLER' : '📱 ANSWERER';
                     document.getElementById('extensionBadge').textContent = 'EXT ' + data.extension + ' - ' + badge;
-                    document.getElementById('extensionBadge').style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
+                    document.getElementById('extensionBadge').style.color = data.extension === '7777' ? '#667eea' : '#51cf66';
                 }
                 console.log('[Dashboard] Received transcriptionPartial:', data);
                 addTranscript(data, 'partial');
@@ -2320,7 +2407,7 @@
                 // Update outbound stream card
                 if (document.getElementById('outboundExtensionNumber') && data.extension) {
                     document.getElementById('outboundExtensionNumber').textContent = data.extension;
-                    document.getElementById('outboundExtensionNumber').style.color = data.extension === '3333' ? '#5b6fd8' : '#764ba2';
+                    document.getElementById('outboundExtensionNumber').style.color = data.extension === '7777' ? '#5b6fd8' : '#764ba2';
                 }
                 if (document.getElementById('outboundBridgeId') && data.uuid) {
                     document.getElementById('outboundBridgeId').textContent = String(data.uuid).substring(0, 30) + '...';
@@ -2610,6 +2697,66 @@
                     total: totalDisplayLatency,
                     count: latencyDataCount
                 });
+            });
+
+            // ElevenLabs Metrics Update
+            socket.on('elevenlabsMetrics', (data) => {
+                console.log("[ElevenLabs] Metrics update:", JSON.stringify(data));
+                
+                // Update latency (p95)
+                
+                const latencyEl = document.getElementById('elevenlabsLatency');
+                if (latencyEl && data.latency !== undefined) {
+                    latencyEl.textContent = data.latency + ' ms';
+                    
+                    // Color coding for latency
+                    latencyEl.classList.remove('good', 'warning', 'critical');
+                    if (data.latency < 1000) {
+                        latencyEl.classList.add('good');
+                    } else if (data.latency < 2000) {
+                        latencyEl.classList.add('warning');
+                    } else {
+                        latencyEl.classList.add('critical');
+                    }
+                }
+                
+                // Update requests per minute
+                const requestsEl = document.getElementById('elevenlabsRequests');
+                if (requestsEl && data.requestsPerMinute !== undefined) {
+                    requestsEl.textContent = data.requestsPerMinute;
+                }
+                
+                // Update error rate
+                const errorsEl = document.getElementById('elevenlabsErrors');
+                if (errorsEl && data.errorRate !== undefined) {
+                    errorsEl.textContent = data.errorRate + '%';
+                    
+                    // Color coding for error rate
+                    errorsEl.classList.remove('good', 'warning', 'critical');
+                    if (data.errorRate < 2) {
+                        errorsEl.classList.add('good');
+                    } else if (data.errorRate < 5) {
+                        errorsEl.classList.add('warning');
+                    } else {
+                        errorsEl.classList.add('critical');
+                    }
+                }
+                
+                // Update status badge
+                const statusEl = document.getElementById('elevenlabsStatus');
+                if (statusEl) {
+                    statusEl.classList.remove('status-operational', 'status-warning', 'status-error');
+                    if (data.status === 'ok') {
+                        statusEl.classList.add('status-operational');
+                        statusEl.textContent = '✓ OK';
+                    } else if (data.status === 'warning') {
+                        statusEl.classList.add('status-warning');
+                        statusEl.textContent = '⚠ WARNING';
+                    } else {
+                        statusEl.classList.add('status-error');
+                        statusEl.textContent = '✗ ERROR';
+                    }
+                }
             });
 
             // Also capture ASR latency from transcriptionFinal
@@ -2929,7 +3076,7 @@
             const MAX_ADJUSTMENT = 300; // Max adjustment for visual scale (ms)
             const absAdjustment = Math.abs(adjustment);
 
-            // Update pairing extension from reason (e.g., "sync_to_4444")
+            // Update pairing extension from reason (e.g., "sync_to_7888")
             if (reason && reason.startsWith('sync_to_')) {
                 const targetExtension = reason.replace('sync_to_', '');
                 if (pairingExt) {
@@ -3204,7 +3351,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             // Initialize Web Audio API context if not already created
             if (!outgoingAudioContext) {
                 outgoingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: data.sampleRate || 16000
+                    sampleRate: data.sampleRate || 8000
                 });
                 outgoingNextPlayTime = outgoingAudioContext.currentTime;
                 
@@ -3359,7 +3506,6 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             if (filterExtension && data.extension !== filterExtension) {
                 return; // Skip audio from other extensions
             }
-            // DEBUG: Log incoming audioStream data            console.log("[DEBUG AudioStream] Received event:", {                extension: data.extension,                bufferType: typeof data.buffer,                bufferLength: data.buffer ? data.buffer.length || data.buffer.byteLength : 0,                sampleRate: data.sampleRate,                channels: data.channels,                timestamp: data.timestamp            });                        // CHECK AND RECREATE AudioContext if sample rate mismatch            const incomingRate = data.sampleRate || 16000;            if (incomingAudioContext && incomingAudioContext.sampleRate !== incomingRate) {                console.warn("[Audio Fork] SAMPLE RATE MISMATCH! AudioContext:", incomingAudioContext.sampleRate, "Hz, Incoming:", incomingRate, "Hz");                console.log("[Audio Fork] Closing and recreating AudioContext with correct sample rate...");                incomingAudioContext.close();                incomingAudioContext = null;                incomingGainNode = null;            }
 
             // Update Extension Monitor Card
             if (!window.extensionMonitorData) {
@@ -3376,7 +3522,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             
             if (extensionNum && data.extension) {
                 extensionNum.textContent = data.extension;
-                extensionNum.style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
+                extensionNum.style.color = data.extension === '7777' ? '#667eea' : '#51cf66';
             }
             
             if (callUuidElem && data.uuid) {
@@ -3393,9 +3539,9 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             }
             
             if (extensionBadge && data.extension) {
-                const badge = data.extension === '3333' ? '📞 CALLER' : '📱 ANSWERER';
+                const badge = data.extension === '7777' ? '📞 CALLER' : '📱 ANSWERER';
                 extensionBadge.textContent = 'EXT ' + data.extension + ' - ' + badge;
-                extensionBadge.style.color = data.extension === '3333' ? '#667eea' : '#51cf66';
+                extensionBadge.style.color = data.extension === '7777' ? '#667eea' : '#51cf66';
             }
             
             if (extensionStatus) {
@@ -3405,13 +3551,13 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             // Initialize Web Audio API context if not already created
             if (!incomingAudioContext) {
                 incomingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: data.sampleRate || 16000
+                    sampleRate: data.sampleRate || 8000
                 });
                 nextPlayTime = incomingAudioContext.currentTime;
                 
                 // Create global gain node for volume control
                 incomingGainNode = incomingAudioContext.createGain();
-                incomingGainNode.gain.value = 1.0;  // Start at 100% for monitoring (matches slider default)
+                incomingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
                 incomingGainNode.connect(incomingAudioContext.destination);
                 console.log('[Audio Fork] Web Audio Context initialized at', data.sampleRate, 'Hz');
                 console.log('[Audio Fork] AudioContext state:', incomingAudioContext.state);
@@ -3528,7 +3674,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                     const audioBuffer = incomingAudioContext.createBuffer(
                         data.channels || 1,
                         float32Samples.length,
-                        data.sampleRate || 16000
+                        data.sampleRate || 8000
                     );
 
                     // Copy samples to buffer
@@ -3916,119 +4062,156 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
 
         // ============ HUME AI EMOTION DETECTION ============
 
-        let humeMuted = false;
-        let humeDetectionCount = 0;
+        let emotionPlotCtx = null;
+        let emotionPlotInitialized = false;
 
-        function muteHumeAudio() {
-            humeMuted = !humeMuted;
-            const btn = document.getElementById('humeMuteBtn');
-            btn.textContent = humeMuted ? '🔊 Unmute' : '🔇 Mute';
+        // Initialize emotion plot canvas
+        function initEmotionPlot() {
+            if (emotionPlotInitialized) return;
 
-            console.log('[Hume AI]', humeMuted ? 'Muted' : 'Unmuted');
+            const canvas = document.getElementById('emotionPlot');
+            if (!canvas) return;
+
+            emotionPlotCtx = canvas.getContext('2d');
+            emotionPlotInitialized = true;
+
+            // Draw grid
+            drawEmotionGrid();
         }
 
-        // Handle emotion detection from Hume AI
+        function drawEmotionGrid() {
+            if (!emotionPlotCtx) return;
+
+            const canvas = emotionPlotCtx.canvas;
+            const ctx = emotionPlotCtx;
+
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background
+            ctx.fillStyle = '#f9fafb';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid lines
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+
+            // Vertical center line
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+
+            // Horizontal center line
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+
+            // Quadrants background
+            ctx.globalAlpha = 0.1;
+
+            // Top-right (Excited + Positive)
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height / 2);
+
+            // Top-left (Excited + Negative)
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
+
+            // Bottom-right (Calm + Positive)
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(canvas.width / 2, canvas.height / 2, canvas.width / 2, canvas.height / 2);
+
+            // Bottom-left (Calm + Negative)
+            ctx.fillStyle = '#6b7280';
+            ctx.fillRect(0, canvas.height / 2, canvas.width / 2, canvas.height / 2);
+
+            ctx.globalAlpha = 1.0;
+        }
+
+        function plotEmotionPoint(valence, arousal) {
+            if (!emotionPlotCtx) {
+                initEmotionPlot();
+            }
+
+            if (!emotionPlotCtx) return;
+
+            const canvas = emotionPlotCtx.canvas;
+
+            // Redraw grid
+            drawEmotionGrid();
+
+            // Convert valence (-1 to 1) and arousal (0 to 1) to canvas coordinates
+            const x = ((valence + 1) / 2) * canvas.width;  // -1 to 1 → 0 to width
+            const y = (1 - arousal) * canvas.height;  // 1 to 0 → 0 to height (inverted Y)
+
+            // Draw point
+            emotionPlotCtx.fillStyle = '#f59e0b';
+            emotionPlotCtx.beginPath();
+            emotionPlotCtx.arc(x, y, 8, 0, 2 * Math.PI);
+            emotionPlotCtx.fill();
+
+            // Draw ring
+            emotionPlotCtx.strokeStyle = '#fff';
+            emotionPlotCtx.lineWidth = 2;
+            emotionPlotCtx.stroke();
+        }
+
+        // Handle emotion data from Hume AI
         function updateHumeEmotions(data) {
-            console.log('[Hume AI] Emotion detected:', data);
+            console.log('[Dashboard] Emotion data received:', data);
 
-            // Update status
-            const statusBadge = document.getElementById('humeAIStatus');
+            // Update status badge
+            const statusBadge = document.getElementById('humeStatus');
             if (statusBadge) {
-                statusBadge.className = 'status-badge status-operational';
-                statusBadge.textContent = '🟢 ACTIVE';
+                statusBadge.textContent = '🟢 Active';
+                statusBadge.style.color = '#10b981';
             }
 
-            // Update activity indicator
-            const activityIndicator = document.getElementById('humeActivityIndicator');
-            const activityText = document.getElementById('humeActivityText');
-            if (activityIndicator) {
-                activityIndicator.style.background = '#51cf66';
-                activityIndicator.style.boxShadow = '0 0 10px #51cf66';
-            }
-            if (activityText) {
-                activityText.textContent = 'Processing audio...';
-                activityText.style.color = '#51cf66';
+            // Plot valence/arousal
+            if (data.prosody) {
+                plotEmotionPoint(data.prosody.valence, data.prosody.arousal);
             }
 
-            // Update emotion metrics
-            if (data.arousal !== undefined) {
-                const arousalValue = parseFloat(data.arousal);
-                document.getElementById('humeArousal').textContent = arousalValue.toFixed(2);
-                document.getElementById('humeArousalBar').style.width = (arousalValue * 100) + '%';
+            // Display top 3 emotions
+            if (data.emotions && data.emotions.length > 0) {
+                const emotionBars = document.getElementById('emotionBars');
+                if (emotionBars) {
+                    emotionBars.innerHTML = data.emotions.slice(0, 3).map(emotion => `
+                        <div class="emotion-bar">
+                            <div class="emotion-bar-label">
+                                <span>${emotion.name}</span>
+                                <span>${(emotion.score * 100).toFixed(1)}%</span>
+                            </div>
+                            <div class="emotion-bar-fill" style="width: ${emotion.score * 100}%"></div>
+                        </div>
+                    `).join('');
+                }
             }
 
-            if (data.valence !== undefined) {
-                const valenceValue = parseFloat(data.valence);
-                // Valence ranges from -1 to 1, so we normalize to 0-100%
-                const valencePercent = ((valenceValue + 1) / 2) * 100;
-                document.getElementById('humeValence').textContent = valenceValue.toFixed(2);
-                document.getElementById('humeValenceBar').style.width = valencePercent + '%';
-            }
+            // Update prosody metrics
+            if (data.prosody) {
+                const pitchValue = document.getElementById('pitchValue');
+                const energyValue = document.getElementById('energyValue');
+                const rateValue = document.getElementById('rateValue');
 
-            if (data.energy !== undefined) {
-                const energyValue = parseFloat(data.energy);
-                document.getElementById('humeEnergy').textContent = energyValue.toFixed(2);
-                document.getElementById('humeEnergyBar').style.width = (energyValue * 100) + '%';
-            }
-
-            // Update timestamp
-            const now = new Date();
-            document.getElementById('humeLastUpdate').textContent = now.toLocaleTimeString();
-
-            // Update detection count
-            humeDetectionCount++;
-            document.getElementById('humeDetectionCount').textContent = humeDetectionCount;
-
-            // Update Hume service live status indicator
-            updateHumeServiceStatus(true);
-
-            // Classify emotion and update ElevenLabs TTS emotion badge
-            if (data.arousal !== undefined && data.valence !== undefined) {
-                const arousal = parseFloat(data.arousal);
-                const valence = parseFloat(data.valence);
-
-                let emotion = 'neutral';
-                let emoji = '😐';
-                let bgColor = '#444';
-                let textColor = '#aaa';
-
-                // Match style-mapper.js classification logic
-                if (arousal > 0.6 && valence > 0.6) {
-                    // High arousal + high valence = Joy
-                    emotion = 'joy';
-                    emoji = '😊';
-                    bgColor = '#10b981';
-                    textColor = '#fff';
-                } else if (arousal > 0.65 && valence < 0.45) {
-                    // High arousal + low valence = Anger
-                    emotion = 'anger';
-                    emoji = '😠';
-                    bgColor = '#ef4444';
-                    textColor = '#fff';
-                } else if (arousal < 0.4 && valence < 0.45) {
-                    // Low arousal + low valence = Sadness
-                    emotion = 'sadness';
-                    emoji = '😢';
-                    bgColor = '#3b82f6';
-                    textColor = '#fff';
-                } else if (arousal >= 0.4 && arousal <= 0.6 && valence >= 0.5 && valence <= 0.65) {
-                    // Medium arousal + medium-high valence = Empathy
-                    emotion = 'empathy';
-                    emoji = '🤗';
-                    bgColor = '#f59e0b';
-                    textColor = '#fff';
+                if (pitchValue && data.prosody.pitch) {
+                    pitchValue.textContent = `${data.prosody.pitch.mean.toFixed(0)} Hz`;
                 }
 
-                // Update ElevenLabs emotion badge
-                const ttsBadge = document.getElementById('ttsEmotionBadge');
-                if (ttsBadge) {
-                    ttsBadge.textContent = `${emoji} ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}`;
-                    ttsBadge.style.background = bgColor;
-                    ttsBadge.style.color = textColor;
-                    ttsBadge.style.transition = 'all 0.3s ease';
+                if (energyValue && data.prosody.energy) {
+                    energyValue.textContent = `${(data.prosody.energy.mean * 100).toFixed(0)}%`;
                 }
 
-                console.log(`[TTS Emotion] Classified as ${emotion} (arousal: ${arousal.toFixed(2)}, valence: ${valence.toFixed(2)})`);
+                if (rateValue && data.prosody.speaking_rate) {
+                    rateValue.textContent = `${data.prosody.speaking_rate.toFixed(1)} syl/sec`;
+                }
+            }
+
+            // Update Hume service live status indicator (if exists)
+            if (typeof updateHumeServiceStatus === 'function') {
+                updateHumeServiceStatus(true);
             }
         }
 
@@ -4290,6 +4473,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
             initDashboard();
             initAudioVisualizers();
             refreshRecordings();
+            initEmotionPlot();
         });
     
         // ============================================

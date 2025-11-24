@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
  * Gateway-4444: Handle audio for Extension 4444
- * WITH ERROR HANDLING to prevent crashes
+ *
+ * FIXED: Detect new RTP sessions (new SSRC) and reset state for consecutive calls
+ *
+ * Asterisk: port 4002 (ALAW 8kHz)
+ * STTTTSserver: ports 6122/6123 (PCM 16kHz)
  */
 
 const dgram = require('dgram');
@@ -20,147 +24,106 @@ const CONFIG = {
 const logStream = fs.createWriteStream(CONFIG.logFile, { flags: 'a' });
 function log(message) {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [GW-4444] ${message}`);
-  logStream.write(`[${timestamp}] [GW-4444] ${message}\n`);
+  const logMessage = `[${timestamp}] [GW-4444] ${message}\n`;
+  console.log(logMessage.trim());
+  logStream.write(logMessage);
 }
 
 let asteriskEndpoint = null;
 let rtpState = { ssrc: null, seq: 0, timestamp: 0, payloadType: 8 };
 let stats = { rxFromAsterisk: 0, txToSTTTS: 0, rxFromSTTTS: 0, txToAsterisk: 0 };
 
+// GStreamer pipelines with layout=interleaved fix
+const gstUpsampler = spawn('gst-launch-1.0', [
+  '-q', 'fdsrc', 'fd=0',
+  '!', 'audio/x-alaw,rate=8000,channels=1',
+  '!', 'alawdec', '!', 'audioconvert', '!', 'audioresample',
+  '!', 'audio/x-raw,format=S16LE,rate=16000,channels=1,layout=interleaved',
+  '!', 'fdsink', 'fd=1'
+]);
+
+const gstDownsampler = spawn('gst-launch-1.0', [
+  '-q', 'fdsrc', 'fd=0',
+  '!', 'audio/x-raw,format=S16LE,rate=16000,channels=1,layout=interleaved',
+  '!', 'audioconvert', '!', 'audioresample',
+  '!', 'audio/x-raw,rate=8000,channels=1',
+  '!', 'alawenc', '!', 'fdsink', 'fd=1'
+]);
+
+// Error handlers for GStreamer processes
+gstUpsampler.on('error', (err) => log(`ERROR: Upsampler spawn failed: ${err.message}`));
+gstUpsampler.on('exit', (code, signal) => log(`WARNING: Upsampler exited: code=${code}, signal=${signal}`));
+gstUpsampler.stderr.on('data', (data) => log(`Upsampler stderr: ${data}`));
+
+gstDownsampler.on('error', (err) => log(`ERROR: Downsampler spawn failed: ${err.message}`));
+gstDownsampler.on('exit', (code, signal) => log(`WARNING: Downsampler exited: code=${code}, signal=${signal}`));
+gstDownsampler.stderr.on('data', (data) => log(`Downsampler stderr: ${data}`));
+
 const fromAsteriskSocket = dgram.createSocket('udp4');
 const toSTTTTSSocket = dgram.createSocket('udp4');
 const fromSTTTTSSocket = dgram.createSocket('udp4');
 
-// GStreamer: ALAW decode + upsample (8kHz → 16kHz)
-const gstUpsampler = spawn('gst-launch-1.0', [
-  '-q',
-  'fdsrc', 'fd=0',
-  '!', 'audio/x-alaw,rate=8000,channels=1',
-  '!', 'alawdec',
-  '!', 'audioconvert',
-  '!', 'audioresample',
-  '!', 'audio/x-raw,format=S16LE,rate=16000,channels=1',
-  '!', 'fdsink', 'fd=1'
-]);
-
-// GStreamer: downsample + ALAW encode (16kHz → 8kHz)
-const gstDownsampler = spawn('gst-launch-1.0', [
-  '-q',
-  'fdsrc', 'fd=0',
-  '!', 'audio/x-raw,format=S16LE,rate=16000,channels=1',
-  '!', 'audioconvert',
-  '!', 'audioresample',
-  '!', 'audio/x-raw,rate=8000,channels=1',
-  '!', 'alawenc',
-  '!', 'fdsink', 'fd=1'
-]);
-
-// ERROR HANDLERS for GStreamer processes
-gstUpsampler.on('error', (err) => {
-  log(`ERROR: Upsampler process error: ${err.message}`);
-});
-
-gstUpsampler.on('exit', (code, signal) => {
-  log(`WARNING: Upsampler exited with code ${code}, signal ${signal}`);
-});
-
-gstDownsampler.on('error', (err) => {
-  log(`ERROR: Downsampler process error: ${err.message}`);
-});
-
-gstDownsampler.on('exit', (code, signal) => {
-  log(`WARNING: Downsampler exited with code ${code}, signal ${signal}`);
-});
-
-// ERROR HANDLERS for stdin/stdout
-gstUpsampler.stdin.on('error', (err) => {
-  log(`ERROR: Upsampler stdin error: ${err.message}`);
-});
-
-gstUpsampler.stdout.on('error', (err) => {
-  log(`ERROR: Upsampler stdout error: ${err.message}`);
-});
-
-gstDownsampler.stdin.on('error', (err) => {
-  log(`ERROR: Downsampler stdin error (EPIPE): ${err.message}`);
-});
-
-gstDownsampler.stdout.on('error', (err) => {
-  log(`ERROR: Downsampler stdout error: ${err.message}`);
-});
-
-log('GStreamer pipelines started with error handling');
-
-// Upsampler output → Send 16kHz PCM to STTTTSserver
-gstUpsampler.stdout.on('data', (pcm16k) => {
-  toSTTTTSSocket.send(pcm16k, CONFIG.toSTTTTSPort, CONFIG.stttsHost);
-  stats.txToSTTTS++;
-});
-
-// Downsampler output → Send ALAW back to Asterisk as RTP
-gstDownsampler.stdout.on('data', (alawData) => {
-  if (!asteriskEndpoint) return;
-  
-  const rtpHeader = Buffer.alloc(12);
-  rtpHeader[0] = 0x80;
-  rtpHeader[1] = rtpState.payloadType;
-  rtpHeader.writeUInt16BE(rtpState.seq++, 2);
-  rtpHeader.writeUInt32BE(rtpState.timestamp, 4);
-  rtpState.timestamp += 160;
-  rtpHeader.writeUInt32BE(rtpState.ssrc, 8);
-  
-  const rtpPacket = Buffer.concat([rtpHeader, alawData]);
-  fromAsteriskSocket.send(rtpPacket, asteriskEndpoint.port, asteriskEndpoint.address);
-  stats.txToAsterisk++;
-});
-
-// Receive RTP from Asterisk (4444 mic audio)
+// INCOMING: Asterisk → Gateway (ALAW 8kHz RTP)
 fromAsteriskSocket.on('message', (msg, rinfo) => {
   stats.rxFromAsterisk++;
-  
-  if (!asteriskEndpoint) {
-    asteriskEndpoint = { address: rinfo.address, port: rinfo.port };
-    log(`Asterisk endpoint: ${rinfo.address}:${rinfo.port}`);
-  }
-  
+
   if (msg.length < 12) return;
-  
-  if (!rtpState.ssrc) {
-    rtpState.ssrc = msg.readUInt32BE(8);
+
+  // FIX: Detect new RTP session (new SSRC = new call)
+  const newSSRC = msg.readUInt32BE(8);
+
+  if (!rtpState.ssrc || newSSRC !== rtpState.ssrc) {
+    // New RTP session detected - reset state
+    rtpState.ssrc = newSSRC;
     rtpState.seq = msg.readUInt16BE(2) + 1;
     rtpState.timestamp = msg.readUInt32BE(4) + 160;
-    log(`RTP session init: SSRC=${rtpState.ssrc}`);
+    asteriskEndpoint = { address: rinfo.address, port: rinfo.port };
+    log(`RTP session init: SSRC=${rtpState.ssrc} (endpoint: ${rinfo.address}:${rinfo.port})`);
   }
-  
+
   const alawPayload = msg.slice(12);
-  
-  // SAFE WRITE with error checking
-  try {
-    if (gstUpsampler.stdin.writable) {
-      gstUpsampler.stdin.write(alawPayload);
-    } else {
-      log('WARNING: Upsampler stdin not writable, skipping packet');
-    }
-  } catch (err) {
-    log(`ERROR writing to upsampler: ${err.message}`);
-  }
+  gstUpsampler.stdin.write(alawPayload);
 });
 
-// Receive 16kHz PCM from STTTTSserver (processed audio for 4444 speaker)
-fromSTTTTSSocket.on('message', (pcm16k, rinfo) => {
+// UPSAMPLER OUTPUT: PCM 16kHz → STTTTSserver
+gstUpsampler.stdout.on('data', (pcm16Data) => {
+  stats.txToSTTTS++;
+  toSTTTTSSocket.send(pcm16Data, CONFIG.toSTTTTSPort, CONFIG.stttsHost);
+});
+
+// INCOMING: STTTTSserver → Gateway (PCM 16kHz)
+fromSTTTTSSocket.on('message', (pcm16Data) => {
   stats.rxFromSTTTS++;
-  
-  // SAFE WRITE with error checking
-  try {
-    if (gstDownsampler.stdin.writable) {
-      gstDownsampler.stdin.write(pcm16k);
-    } else {
-      log('WARNING: Downsampler stdin not writable, skipping packet');
-    }
-  } catch (err) {
-    log(`ERROR writing to downsampler: ${err.message}`);
+
+  if (!gstDownsampler.stdin || !gstDownsampler.stdin.writable) {
+    log(`WARNING: Downsampler stdin not writable`);
+    return;
   }
+
+  gstDownsampler.stdin.write(pcm16Data);
+});
+
+// DOWNSAMPLER OUTPUT: ALAW 8kHz → Asterisk
+gstDownsampler.stdout.on('data', (alawData) => {
+  if (!asteriskEndpoint) return;
+
+  const rtpPacket = Buffer.alloc(12 + alawData.length);
+
+  // RTP header
+  rtpPacket[0] = 0x80; // V=2, P=0, X=0, CC=0
+  rtpPacket[1] = rtpState.payloadType; // PT=8 (PCMA/ALAW)
+  rtpPacket.writeUInt16BE(rtpState.seq++, 2);
+  rtpPacket.writeUInt32BE(rtpState.timestamp, 4);
+  rtpPacket.writeUInt32BE(rtpState.ssrc, 8);
+
+  rtpState.timestamp += 160; // 20ms @ 8kHz
+
+  // Payload
+  alawData.copy(rtpPacket, 12);
+
+  fromAsteriskSocket.send(rtpPacket, asteriskEndpoint.port, asteriskEndpoint.address, (err) => {
+    if (!err) stats.txToAsterisk++;
+  });
 });
 
 // Bind sockets
@@ -172,20 +135,21 @@ fromSTTTTSSocket.bind(CONFIG.fromSTTTTSPort, () => {
   log(`✓ Listening for STTTTSserver on UDP ${CONFIG.fromSTTTTSPort}`);
 });
 
-// Stats
+// Stats logging
 setInterval(() => {
   log(`Stats: RX_Ast=${stats.rxFromAsterisk}, TX_STTTS=${stats.txToSTTTS}, RX_STTTS=${stats.rxFromSTTTS}, TX_Ast=${stats.txToAsterisk}`);
 }, 10000);
 
 log('='.repeat(80));
-log('Gateway-4444 OPERATIONAL Ready with ERROR HANDLING');
-log(`Asterisk (:4002 ALAW 8kHz) ←→ STTTTSserver (:6122/:6123 PCM 16kHz)`);
+log('Gateway-4444 OPERATIONAL Ready (WITH RTP SESSION RESET FIX)');
+log('FIX: Detects new SSRC and resets state for consecutive calls');
 log('='.repeat(80));
+log(`Asterisk (:${CONFIG.fromAsteriskPort} ALAW 8kHz) ←→ STTTTSserver (:${CONFIG.toSTTTTSPort}/:${CONFIG.fromSTTTTSPort} PCM 16kHz)`);
 
-// Cleanup
 process.on('SIGINT', () => {
-  log('Shutting down...');
+  log('Shutting down Gateway-4444...');
   gstUpsampler.kill();
   gstDownsampler.kill();
+  logStream.end();
   process.exit(0);
 });

@@ -147,6 +147,697 @@ const deeplApiKey = process.env.DEEPL_API_KEY;
 const elevenlabsApiKey = process.env.ELEVENLABS_API_KEY;
 const elevenlabsVoiceId = process.env.ELEVENLABS_DEFAULT_VOICE_ID;
 const humeApiKey = process.env.HUME_EVI_API_KEY;
+// Deepgram Streaming WebSocket API Toggle (Phase 1)
+const USE_DEEPGRAM_STREAMING = process.env.USE_DEEPGRAM_STREAMING === 'true';
+// Hume AI Emotion/Prosody Analysis Toggle (Phase 1)
+const USE_HUME_EMOTION = process.env.USE_HUME_EMOTION === 'true';
+
+// ===================================================================
+// ElevenLabs TTS Metrics Tracking
+// ===================================================================
+const elevenlabsMetrics = {
+  totalRequests: 0,
+  successfulRequests: 0,
+  failedRequests: 0,
+  latencies: [],
+  lastUpdate: Date.now()
+};
+
+function updateElevenLabsMetrics(latency, success) {
+  console.log("[METRICS-DEBUG] updateElevenLabsMetrics called:", { latency, success, hasGlobalIo: !!global.io });
+  if (success) {
+    elevenlabsMetrics.successfulRequests++;
+  } else {
+    elevenlabsMetrics.failedRequests++;
+  }
+  elevenlabsMetrics.totalRequests++;
+  
+  if (latency) {
+    elevenlabsMetrics.latencies.push(latency);
+    // Keep only last 100 measurements for rolling average
+    if (elevenlabsMetrics.latencies.length > 100) {
+      elevenlabsMetrics.latencies.shift();
+    }
+  }
+  
+  elevenlabsMetrics.lastUpdate = Date.now();
+  
+  // Emit metrics to dashboard via Socket.IO
+  if (global.io) {
+    const requestsPerMinute = calculateRequestsPerMinute();
+    const p95Latency = calculateP95Latency();
+    const errorRate = calculateErrorRate();
+    
+    global.io.emit('elevenlabsMetrics', {
+      latency: p95Latency,
+      requestsPerMinute: requestsPerMinute,
+      errorRate: errorRate,
+      status: errorRate > 5 ? 'warning' : 'ok'
+    });
+  }
+}
+
+function calculateRequestsPerMinute() {
+  const now = Date.now();
+  const oneMinuteAgo = now - 60000;
+  const timeSinceLastUpdate = (now - elevenlabsMetrics.lastUpdate) / 1000;
+  
+  // Simple estimation based on total requests over time
+  if (timeSinceLastUpdate < 60) {
+    return Math.round((elevenlabsMetrics.totalRequests / (timeSinceLastUpdate / 60)));
+  }
+  return 0;
+}
+
+function calculateP95Latency() {
+  if (elevenlabsMetrics.latencies.length === 0) return 0;
+  
+  const sorted = [...elevenlabsMetrics.latencies].sort((a, b) => a - b);
+  const p95Index = Math.floor(sorted.length * 0.95);
+  return Math.round(sorted[p95Index] || 0);
+}
+
+function calculateErrorRate() {
+  if (elevenlabsMetrics.totalRequests === 0) return 0;
+  
+  const rate = (elevenlabsMetrics.failedRequests / elevenlabsMetrics.totalRequests) * 100;
+  return Math.round(rate * 10) / 10; // Round to 1 decimal place
+}
+
+// ===================================================================
+// PHASE 1.2: Deepgram Streaming WebSocket State Manager
+// ===================================================================
+class DeepgramStreamingStateManager {
+  constructor() {
+    this.connections = new Map(); // extensionId -> connection state
+    this.audioBuffers = new Map(); // extensionId -> audio frame buffer
+    this.stats = {
+      totalConnections: 0,
+      activeConnections: 0,
+      totalFramesSent: 0,
+      totalBytesSent: 0,
+      errors: 0
+    };
+  }
+
+  // Initialize state for an extension
+  initExtension(extensionId) {
+    if (!this.connections.has(extensionId)) {
+      this.connections.set(extensionId, {
+        websocket: null,
+        isConnected: false,
+        isReady: false,
+        lastActivity: null,
+        frameCount: 0,
+        bytesSent: 0,
+        errors: []
+      });
+      
+      this.audioBuffers.set(extensionId, {
+        buffer: Buffer.alloc(0),
+        frameSize: 640, // 20ms @ 16kHz = 320 samples = 640 bytes
+        pendingFrames: []
+      });
+      
+      console.log(`[STREAMING-STATE] Initialized state for extension ${extensionId}`);
+    }
+    return this.connections.get(extensionId);
+  }
+
+  // Get connection state for extension
+  getState(extensionId) {
+    return this.connections.get(extensionId);
+  }
+
+  // Update connection status
+  updateConnection(extensionId, websocket, isConnected, isReady) {
+    const state = this.connections.get(extensionId);
+    if (state) {
+      state.websocket = websocket;
+      state.isConnected = isConnected;
+      state.isReady = isReady;
+      state.lastActivity = Date.now();
+      
+      if (isConnected && isReady) {
+        this.stats.activeConnections++;
+      }
+    }
+  }
+
+  // Cleanup extension state
+  cleanup(extensionId) {
+    const state = this.connections.get(extensionId);
+    if (state && state.websocket) {
+      try {
+        state.websocket.close();
+      } catch (err) {
+        console.error(`[STREAMING-STATE] Error closing WebSocket for ${extensionId}:`, err.message);
+      }
+    }
+    
+    this.connections.delete(extensionId);
+    this.audioBuffers.delete(extensionId);
+    
+    if (this.stats.activeConnections > 0) {
+      this.stats.activeConnections--;
+    }
+    
+    console.log(`[STREAMING-STATE] Cleaned up state for extension ${extensionId}`);
+  }
+
+  // Get statistics
+  getStats() {
+    return {
+      ...this.stats,
+      extensionsTracked: this.connections.size
+    };
+  }
+}
+
+// Global streaming state manager instance (only initialized if streaming is enabled)
+let streamingStateManager = null;
+
+if (USE_DEEPGRAM_STREAMING) {
+  streamingStateManager = new DeepgramStreamingStateManager();
+  console.log("[STREAMING-STATE] Deepgram Streaming State Manager initialized");
+}
+
+// ========== HUME STREAMING STATE MANAGER ==========
+// Manages WebSocket connections to Hume AI Emotion/Prosody API
+// Similar pattern to DeepgramStreamingStateManager
+class HumeStreamingStateManager {
+  constructor() {
+    this.connections = new Map(); // extensionId -> connection state
+    this.latestEmotions = new Map(); // extensionId -> latest emotion data
+    this.stats = {
+      totalConnectionsCreated: 0,
+      activeConnections: 0,
+      totalFramesSent: 0,
+      totalBytesSent: 0,
+      totalEmotionAnalyses: 0,
+      errors: 0
+    };
+
+    console.log('[HUME-STATE] Hume Emotion State Manager initialized');
+  }
+
+  // Initialize state tracking for an extension (3333 or 4444)
+  initExtension(extensionId) {
+    if (!this.connections.has(extensionId)) {
+      this.connections.set(extensionId, {
+        extensionId: extensionId,
+        websocket: null,
+        isConnected: false,
+        isReady: false,
+        framesSent: 0,
+        bytesSent: 0,
+        emotionsReceived: 0,
+        createdAt: Date.now(),
+        lastActivity: Date.now(),
+        audioBuffer: Buffer.alloc(0) // For buffering 10ms -> 20ms chunks
+      });
+
+      console.log(`[HUME-STATE] Initialized state for extension ${extensionId}`);
+    }
+
+    return this.connections.get(extensionId);
+  }
+
+  // Get current state for an extension
+  getState(extensionId) {
+    return this.connections.get(extensionId);
+  }
+
+  // Update WebSocket connection status
+  updateConnection(extensionId, websocket, isConnected, isReady) {
+    const state = this.getState(extensionId);
+    if (state) {
+      state.websocket = websocket;
+      state.isConnected = isConnected;
+      state.isReady = isReady;
+      state.lastActivity = Date.now();
+
+      if (isConnected && isReady) {
+        this.stats.activeConnections++;
+      } else if (!isConnected && state.isConnected) {
+        this.stats.activeConnections = Math.max(0, this.stats.activeConnections - 1);
+      }
+    }
+  }
+
+  // Store latest emotion data for an extension
+  storeEmotion(extensionId, emotionData) {
+    this.latestEmotions.set(extensionId, {
+      ...emotionData,
+      receivedAt: Date.now()
+    });
+
+    const state = this.getState(extensionId);
+    if (state) {
+      state.emotionsReceived++;
+      state.lastActivity = Date.now();
+    }
+
+    this.stats.totalEmotionAnalyses++;
+  }
+
+  // Get latest emotion data for an extension
+  getLatestEmotion(extensionId) {
+    return this.latestEmotions.get(extensionId);
+  }
+
+  // Cleanup connection for an extension
+  cleanup(extensionId) {
+    const state = this.getState(extensionId);
+    if (state) {
+      if (state.websocket) {
+        try {
+          state.websocket.close();
+        } catch (err) {
+          console.error(`[HUME-STATE] Error closing WebSocket for ${extensionId}:`, err.message);
+        }
+      }
+
+      this.connections.delete(extensionId);
+      this.latestEmotions.delete(extensionId);
+      this.stats.activeConnections = Math.max(0, this.stats.activeConnections - 1);
+
+      console.log(`[HUME-STATE] Cleaned up state for extension ${extensionId}`);
+    }
+  }
+
+  // Get statistics
+  getStats() {
+    return {
+      ...this.stats,
+      extensionsTracked: this.connections.size,
+      timestamp: Date.now()
+    };
+  }
+}
+
+// Initialize Hume state manager (disabled by default)
+let humeStateManager = null;
+if (USE_HUME_EMOTION) {
+  humeStateManager = new HumeStreamingStateManager();
+}
+// ========== END HUME STATE MANAGER ==========
+
+
+// ===================================================================
+// PHASE 2: Deepgram WebSocket Connection Manager
+// ===================================================================
+
+/**
+ * Creates and manages a Deepgram WebSocket connection for real-time streaming
+ * @param {string} extensionId - Extension identifier (e.g., "3333" or "4444")
+ * @returns {Promise<object>} - WebSocket connection object
+ */
+async function createDeepgramStreamingConnection(extensionId) {
+  if (!streamingStateManager) {
+    throw new Error("[WEBSOCKET] Streaming state manager not initialized");
+  }
+
+  const state = streamingStateManager.initExtension(extensionId);
+  
+  console.log(`[WEBSOCKET] Creating Deepgram streaming connection for extension ${extensionId}`);
+
+  try {
+    // Import Deepgram SDK (using dynamic import for async context)
+    const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
+    
+    // Create Deepgram client
+    const deepgram = createClient(deepgramApiKey);
+    
+    // Configure connection options for 16kHz, mono, PCM streaming
+    const connection = deepgram.listen.live({
+      model: "nova-3",
+      encoding: "linear16",
+      sample_rate: 16000,
+      channels: 1,
+      interim_results: true,  // Get partial transcripts for lower latency
+      endpointing: 300,       // End utterance after 300ms of silence
+      smart_format: true,     // Auto-formatting
+      language: extensionId === "3333" ? "en" : "fr"  // English for 3333, French for 4444
+    });
+
+    // Event: Connection opened
+    connection.on(LiveTranscriptionEvents.Open, () => {
+      console.log(`[WEBSOCKET] ✓ Connection opened for extension ${extensionId}`);
+      streamingStateManager.updateConnection(extensionId, connection, true, true);
+      state.lastActivity = Date.now();
+    });
+
+    // Event: Transcript received
+    connection.on(LiveTranscriptionEvents.Transcript, (data) => {
+      const transcript = data.channel.alternatives[0]?.transcript;
+      const isFinal = data.is_final;
+      
+      if (transcript && transcript.trim().length > 0) {
+        console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
+        
+        // TODO Phase 4: Handle transcript and integrate with translation pipeline
+        // For now, just log it
+        if (isFinal) {
+          // Final transcript - ready for translation
+          state.frameCount++;
+        }
+      }
+    });
+
+    // Event: Error occurred
+    connection.on(LiveTranscriptionEvents.Error, (error) => {
+      console.error(`[WEBSOCKET] Error for extension ${extensionId}:`, error);
+      streamingStateManager.stats.errors++;
+      state.errors.push({
+        timestamp: Date.now(),
+        error: error.message || error
+      });
+    });
+
+    // Event: Connection closed
+    connection.on(LiveTranscriptionEvents.Close, () => {
+      console.log(`[WEBSOCKET] Connection closed for extension ${extensionId}`);
+      streamingStateManager.updateConnection(extensionId, null, false, false);
+    });
+
+    // Event: Metadata received
+    connection.on(LiveTranscriptionEvents.Metadata, (data) => {
+      console.log(`[WEBSOCKET] Metadata received for extension ${extensionId}:`, JSON.stringify(data));
+    });
+
+    console.log(`[WEBSOCKET] ✓ Deepgram streaming connection created for extension ${extensionId}`);
+    return connection;
+
+  } catch (error) {
+    console.error(`[WEBSOCKET] Failed to create connection for extension ${extensionId}:`, error);
+    streamingStateManager.stats.errors++;
+    throw error;
+  }
+}
+
+/**
+ * Close a Deepgram WebSocket connection
+ * @param {string} extensionId - Extension identifier
+ */
+function closeDeepgramStreamingConnection(extensionId) {
+  if (!streamingStateManager) return;
+  
+  const state = streamingStateManager.getState(extensionId);
+  if (state && state.websocket) {
+    console.log(`[WEBSOCKET] Closing connection for extension ${extensionId}`);
+    try {
+      state.websocket.finish();  // Deepgram SDK method to gracefully close
+    } catch (err) {
+      console.error(`[WEBSOCKET] Error closing connection for ${extensionId}:`, err.message);
+    }
+  }
+  
+  streamingStateManager.cleanup(extensionId);
+}
+
+// ========== HUME WEBSOCKET CONNECTION MANAGEMENT ==========
+// Uses the working hume-streaming-client.js module for direct API v0 WebSocket connection
+
+// Global Hume clients for each extension (3333, 4444)
+let humeClients = {
+  '3333': null,
+  '4444': null
+};
+
+// CRITICAL: Synchronous connection tracking to prevent multiple simultaneous connections
+// This flag is set IMMEDIATELY when connection attempt starts, not after it completes
+let humeConnecting = {
+  '3333': false,
+  '4444': false
+};
+
+/**
+ * Create and configure Hume Streaming connection using working hume-streaming-client.js
+ * @param {string} extensionId - "3333" or "4444"
+ * @returns {Promise<void>}
+ */
+async function createHumeStreamingConnection(extensionId) {
+  if (!USE_HUME_EMOTION || !humeStateManager) {
+    console.log(`[HUME] Emotion analysis disabled (USE_HUME_EMOTION=false)`);
+    return;
+  }
+
+  // GUARD 1: Check if connection already exists and is active
+  if (humeClients[extensionId] && humeClients[extensionId].connected) {
+    console.log(`[HUME-WS] ⚠ Connection already exists for extension ${extensionId}, skipping creation`);
+    return;
+  }
+
+  // GUARD 2: Check if connection attempt already in progress (SYNCHRONOUS)
+  if (humeConnecting[extensionId]) {
+    console.log(`[HUME-WS] ⚠ Connection attempt already in progress for extension ${extensionId}, skipping`);
+    return;
+  }
+
+  // GUARD 3: Prevent rapid reconnection attempts
+  let state = humeStateManager.getState(extensionId);
+  if (state) {
+    const timeSinceLastReconnect = Date.now() - (state.lastReconnect || 0);
+    if (timeSinceLastReconnect < 5000) {
+      console.log(`[HUME-WS] ⚠ Too soon to reconnect for extension ${extensionId} (${timeSinceLastReconnect}ms), skipping`);
+      return;
+    }
+  }
+
+  console.log(`[HUME-WS] Creating Hume streaming connection for extension ${extensionId}`);
+
+  // CRITICAL: Set connecting flag IMMEDIATELY before attempting connection
+  humeConnecting[extensionId] = true;
+
+  try {
+    // Initialize state if not exists
+    if (!state) {
+      state = humeStateManager.initExtension(extensionId);
+    }
+
+    // Create Hume client using the WORKING hume-streaming-client.js module
+    const humeClient = new HumeStreamingClient(humeApiKey, {
+      sampleRate: 16000,
+      channels: 1
+    });
+
+    // Store client reference BEFORE connecting
+    humeClients[extensionId] = humeClient;
+
+    // Connect to Hume API v0
+    await humeClient.connect();
+
+    console.log(`[HUME-WS] ✓ Connection established for extension ${extensionId}`);
+
+    // Store WebSocket connection reference
+    state.websocket = humeClient.ws;
+    state.lastReconnect = Date.now();
+    humeStateManager.stats.totalConnectionsCreated++;
+
+    // Update connection status
+    humeStateManager.updateConnection(extensionId, humeClient.ws, true, true);
+
+    // Update health monitoring
+    if (typeof global.humeHealth !== 'undefined') {
+      global.humeHealth.connection = "open";
+      global.humeHealth.last_message_age_ms = 0;
+    }
+
+    // Listen for emotion metrics from Hume client
+    humeClient.on('metrics', (metrics) => {
+      try {
+        // Update health monitoring
+        if (typeof global.humeHealth !== 'undefined') {
+          global.humeHealth.last_message_age_ms = 0;
+          global.humeHealth.chunk_rate_fps++;
+        }
+
+        // Create emotion data packet matching dashboard expected format
+        const emotionData = {
+          extensionId: extensionId,
+          emotions: [
+            { name: 'Arousal', score: metrics.arousal },
+            { name: 'Valence', score: metrics.valence },
+            { name: 'Energy', score: metrics.energy }
+          ],
+          prosody: {
+            arousal: metrics.arousal,
+            valence: metrics.valence,
+            energy: metrics.energy
+          },
+          timestamp: Date.now(),
+          voiceDetected: metrics.voiceDetected
+        };
+
+        // Store latest emotion
+        humeStateManager.storeEmotion(extensionId, emotionData);
+
+        // Emit to dashboard
+        if (global.io) {
+          global.io.emit('emotionData', emotionData);
+        }
+
+        console.log(`[HUME-WS] ✓ Metrics for ${extensionId}: arousal=${metrics.arousal.toFixed(2)}, valence=${metrics.valence.toFixed(2)}, energy=${metrics.energy.toFixed(2)}`);
+      } catch (err) {
+        console.error(`[HUME-WS] ⚠ Error processing metrics for ${extensionId}:`, err.message);
+
+        // Update health monitoring
+        if (typeof global.humeHealth !== 'undefined') {
+          global.humeHealth.errors_past_minute++;
+          global.humeHealth.last_error = err.message;
+        }
+      }
+    });
+
+    // Listen for connection events
+    humeClient.on('connected', () => {
+      console.log(`[HUME-WS] ✓ Connected event for extension ${extensionId}`);
+      humeStateManager.updateConnection(extensionId, humeClient.ws, true, true);
+
+      // Update health monitoring
+      if (typeof global.humeHealth !== 'undefined') {
+        global.humeHealth.connection = "open";
+      }
+    });
+
+    // Listen for disconnection events
+    humeClient.on('disconnected', () => {
+      console.log(`[HUME-WS] Connection closed for extension ${extensionId}`);
+
+      // Clear client reference on disconnect
+      humeClients[extensionId] = null;
+
+      humeStateManager.updateConnection(extensionId, null, false, false);
+
+      // Update health monitoring
+      if (typeof global.humeHealth !== 'undefined') {
+        global.humeHealth.connection = "closed";
+      }
+
+      // Auto-reconnect after 2 seconds (with rate limiting guard)
+      const timeSinceLastReconnect = Date.now() - (state.lastReconnect || 0);
+      if (timeSinceLastReconnect > 5000) {  // Not rapid reconnect
+        console.log(`[HUME-WS] Auto-reconnecting for ${extensionId} in 2 seconds...`);
+        setTimeout(() => createHumeStreamingConnection(extensionId), 2000);
+      } else {
+        console.log(`[HUME-WS] ⚠ Skipping auto-reconnect for ${extensionId} (too recent: ${timeSinceLastReconnect}ms)`);
+      }
+    });
+
+    // Listen for errors
+    humeClient.on('error', (error) => {
+      console.error(`[HUME-WS] ⚠ Error for extension ${extensionId}:`, error.message);
+
+      // Clear client reference on error
+      humeClients[extensionId] = null;
+
+      humeStateManager.stats.errors++;
+      humeStateManager.updateConnection(extensionId, null, false, false);
+
+      // Update health monitoring
+      if (typeof global.humeHealth !== 'undefined') {
+        global.humeHealth.connection = "error";
+        global.humeHealth.errors_past_minute++;
+        global.humeHealth.last_error = error.message;
+      }
+    });
+
+    /**
+     * Send audio chunk to Hume via the working client
+     * @param {Buffer} audioChunk - PCM audio data
+     */
+    state.sendAudio = function(audioChunk) {
+      if (!humeClient || !humeClient.connected) {
+        return;
+      }
+
+      try {
+        // Send audio using the working client's sendAudio method
+        humeClient.sendAudio(audioChunk);
+
+        state.framesSent++;
+        state.bytesSent += audioChunk.length;
+        humeStateManager.stats.totalFramesSent++;
+        humeStateManager.stats.totalBytesSent += audioChunk.length;
+
+        if (state.framesSent % 100 === 0) {
+          console.log(`[HUME-WS] Sent ${state.framesSent} frames (${state.bytesSent} bytes) for ${extensionId}`);
+        }
+      } catch (err) {
+        console.error(`[HUME-WS] Error sending audio for ${extensionId}:`, err.message);
+
+        // Update health monitoring
+        if (typeof global.humeHealth !== 'undefined') {
+          global.humeHealth.errors_past_minute++;
+          global.humeHealth.last_error = err.message;
+        }
+      }
+    };
+
+    console.log(`[HUME-WS] ✓ Hume WebSocket connection ready for extension ${extensionId}`);
+
+  } catch (error) {
+    console.error(`[HUME-WS] Failed to create connection for ${extensionId}:`, error.message);
+    console.error(`[HUME-WS] Stack trace:`, error.stack);
+
+    // Clear client reference on connection failure
+    humeClients[extensionId] = null;
+
+    humeStateManager.stats.errors++;
+
+    // Update health monitoring
+    if (typeof global.humeHealth !== 'undefined') {
+      global.humeHealth.connection = "error";
+      global.humeHealth.errors_past_minute++;
+      global.humeHealth.last_error = error.message;
+    }
+
+    throw error;
+  } finally {
+    // CRITICAL: Clear connecting flag after connection attempt completes (success or failure)
+    humeConnecting[extensionId] = false;
+  }
+}
+
+/**
+ * Close Hume streaming connection for an extension
+ * @param {string} extensionId - "3333" or "4444"
+ */
+function closeHumeStreamingConnection(extensionId) {
+  if (!USE_HUME_EMOTION || !humeStateManager) {
+    return;
+  }
+
+  console.log(`[HUME-WS] Closing Hume connection for extension ${extensionId}`);
+
+  try {
+    // Disconnect the working Hume client
+    const humeClient = humeClients[extensionId];
+    if (humeClient) {
+      humeClient.disconnect();
+      humeClients[extensionId] = null;
+    }
+
+    // Clear connecting flag
+    humeConnecting[extensionId] = false;
+
+    humeStateManager.cleanup(extensionId);
+
+    // Update health monitoring
+    if (typeof global.humeHealth !== 'undefined') {
+      global.humeHealth.connection = "closed";
+    }
+  } catch (error) {
+    console.error(`[HUME-WS] Error closing connection for ${extensionId}:`, error.message);
+  }
+}
+
+// ========== END HUME WEBSOCKET MANAGEMENT ==========
+
+
+
+// ========== END HUME WEBSOCKET MANAGEMENT ==========
 
 // Initialize DeepL translator
 let translator;
@@ -763,8 +1454,8 @@ const dashboardTCPAPI = new DashboardTCPAPI();
 
 console.log('[Server] ✓ AudioBufferManager initialized (ready for Step 4)');
 
-// Auto-pair 9007 and 9008 on startup
-pairManager.registerPair('9007', '9008');
+// Auto-pair 3333 and 4444 on startup
+pairManager.registerPair('3333', '4444');
 
 // Start TCP API server
 dashboardTCPAPI.startServer(6211);
@@ -795,6 +1486,9 @@ const userProfiles = new Map(); // key: userId_language, value: { profile, uloLa
 // Extension 7888: French → English (OPPOSITE - for bidirectional translation)
 global.qaConfigs = new Map();
 global.qaConfigs.set('9007', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
+global.qaConfigs.set('3333', { sourceLang: 'en', targetLang: 'fr', qaMode: false });
+global.qaConfigs.set('4444', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
+console.log('[QA Config] Initialized language settings for extensions 3333/4444');
 global.qaConfigs.set('7888', { sourceLang: 'fr', targetLang: 'en', qaMode: false });
 
 // Helper function to get config for extension (with fallback)
@@ -807,12 +1501,33 @@ const streamingConnections = new Map(); // key: socket.id, value: { connection, 
 // Per-extension audio gain factors (key: extension, value: gainFactor)
 const extensionGainFactors = new Map(); // Default 1.2x for all
 // Initialize with proper gain reduction
-extensionGainFactors.set("3333", 0.002);
-extensionGainFactors.set("4444", 0.002);
-console.log("[GAIN] Initialized extensions 3333/4444 with gain 0.002");
+extensionGainFactors.set("3333", 2.0);
+extensionGainFactors.set("4444", 2.0);
+console.log("[GAIN] Initialized extensions 3333/4444 with gain 2.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
 const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
 const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
+
+// ========== HUME HEALTH MONITORING (for Dashboard Card #5) ==========
+// Global Hume Health monitoring object
+global.humeHealth = {
+  connection: "closed",
+  uptime_seconds: 0,
+  latency_ms_avg: 0,
+  latency_ms_max: 0,
+  chunk_rate_fps: 0,
+  errors_past_minute: 0,
+  last_error: null,
+  last_message_age_ms: 0
+};
+
+// Update uptime counter every second
+setInterval(() => {
+  if (global.humeHealth) {
+    global.humeHealth.uptime_seconds++;
+  }
+}, 1000);
+
 const humeLatencyPerExtension = new Map(); // key: extension, value: latest Hume latency in ms
 const humeStartTimestamps = new Map(); // key: extension, value: timestamp when last audio chunk was sent to Hume
 const HUME_BUFFER_SIZE = 50; // 50 chunks = ~1 second at 20ms per chunk
@@ -915,7 +1630,7 @@ async function transcribeAudio(audioBuffer, language, customVocab = []) {
 
     // Amplify audio before sending to Deepgram (fixes low volume issue)
     const amplifiedAudio = audioBuffer;
-    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(createWavHeader(amplifiedAudio), options);
+    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
 
     if (error) {
       console.error('[Deepgram] API returned error:');
@@ -1012,9 +1727,149 @@ async function translateText(text, sourceLang, targetLang) {
     return text;
   }
 }
-async function synthesizeSpeech(text, language) {
+
+// ========== EMOTION-AWARE TTS MAPPER ==========
+
+/**
+ * Map Hume emotion data to ElevenLabs TTS parameters
+ * Adjusts voice settings based on detected emotional state
+ * @param {Object} emotionData - Hume emotion analysis result
+ * @returns {Object} ElevenLabs voice settings
+ */
+function mapEmotionToTTS(emotionData) {
+  if (!emotionData || !emotionData.prosody) {
+    // Return default settings if no emotion data
+    return {
+      stability: 0.5,
+      similarity_boost: 0.75,
+      style: 0,
+      use_speaker_boost: true
+    };
+  }
+
+  const { prosody, emotions } = emotionData;
+  const topEmotion = emotions && emotions[0] ? emotions[0].name : 'Neutral';
+
+  // Base settings
+  let stability = 0.5;  // 0-1: Lower = more expressive
+  let style = 0;        // 0-1: Exaggeration factor
+  let speakingRate = 1.0;  // 0.5-2.0: Speed multiplier
+
+  // Adjust stability based on arousal
+  // High arousal (excited/urgent) = lower stability (more expressive)
+  // Low arousal (calm/sad) = higher stability (more consistent)
+  stability = 1.0 - (prosody.arousal * 0.7);  // Range: 0.3 to 1.0
+
+  // Adjust style based on valence and top emotion
+  // Positive valence = warmer/friendlier style
+  // Negative valence = more serious/concerned style
+  if (prosody.valence > 0.3) {
+    style = Math.min(0.8, prosody.valence * 0.8);  // Positive: 0.24 to 0.8
+  } else if (prosody.valence < -0.3) {
+    style = Math.max(0, 0.5 + prosody.valence * 0.5);  // Negative: 0 to 0.35
+  }
+
+  // Adjust speaking rate based on detected rate and emotion
+  if (prosody.speaking_rate) {
+    // Normalize speaking rate (typical range: 2-5 syllables/sec)
+    const normalizedRate = (prosody.speaking_rate - 3.0) / 2.0;  // -0.5 to 1.0
+    speakingRate = 1.0 + (normalizedRate * 0.4);  // Range: 0.8 to 1.4
+  }
+
+  // Emotion-specific adjustments
+  const emotionAdjustments = {
+    'Anger': { stability: 0.3, style: 0.7, rate: 1.2 },
+    'Anxiety': { stability: 0.4, style: 0.6, rate: 1.3 },
+    'Excitement': { stability: 0.35, style: 0.8, rate: 1.2 },
+    'Joy': { stability: 0.4, style: 0.75, rate: 1.1 },
+    'Sadness': { stability: 0.7, style: 0.3, rate: 0.9 },
+    'Fear': { stability: 0.3, style: 0.6, rate: 1.3 },
+    'Calm': { stability: 0.8, style: 0.2, rate: 0.95 }
+  };
+
+  if (emotionAdjustments[topEmotion]) {
+    const adj = emotionAdjustments[topEmotion];
+    stability = (stability + adj.stability) / 2;  // Blend with emotion-specific
+    style = (style + adj.style) / 2;
+    speakingRate = (speakingRate + adj.rate) / 2;
+  }
+
+  // Clamp values to valid ranges
+  stability = Math.max(0, Math.min(1, stability));
+  style = Math.max(0, Math.min(1, style));
+  speakingRate = Math.max(0.5, Math.min(2.0, speakingRate));
+
+  console.log(`[EMOTION-TTS] Mapping: ${topEmotion} → stability=${stability.toFixed(2)}, style=${style.toFixed(2)}, rate=${speakingRate.toFixed(2)}`);
+
+  return {
+    stability: stability,
+    similarity_boost: 0.75,
+    style: style,
+    use_speaker_boost: true,
+    speaking_rate: speakingRate
+  };
+}
+
+/**
+ * Enhanced synthesizeSpeech with emotion context
+ * @param {string} text - Text to synthesize
+ * @param {string} targetLang - Target language ('en' or 'fr')
+ * @param {string} sourceExtension - Source extension ID ('3333' or '4444')
+ * @returns {Promise<Buffer>} MP3 audio buffer
+ */
+async function synthesizeSpeechWithEmotion(text, targetLang, sourceExtension) {
+  const startTime = Date.now();
+  console.log(`[TTS-EMOTION-DEBUG] synthesizeSpeechWithEmotion called: text="${text.substring(0,50)}...", language=${targetLang}, extension=${sourceExtension}`);
+
   if (!elevenlabsTTS) {
     console.warn('ElevenLabs TTS not configured');
+    updateElevenLabsMetrics(null, false);
+    return null;
+  }
+
+  try {
+    // Use the default voice ID from .env
+    const voiceId = elevenlabsVoiceId || 'XPwQNE5RX9Rdhyx0DWcI'; // Boyan Tiholov
+
+    // Get latest emotion data for this extension
+    let emotionContext = null;
+    if (USE_HUME_EMOTION && humeStateManager) {
+      emotionContext = humeStateManager.getLatestEmotion(sourceExtension);
+    }
+
+    // Map emotion to TTS parameters
+    const voiceSettings = mapEmotionToTTS(emotionContext);
+
+    // Synthesize using ElevenLabs with emotion-aware settings
+    const result = await elevenlabsTTS.synthesize(text, voiceId, {
+      modelId: 'eleven_multilingual_v2', // Supports 29 languages
+      voice_settings: voiceSettings
+    });
+
+    if (result && result.audio) {
+      const latency = Date.now() - startTime;
+      updateElevenLabsMetrics(latency, true);
+      return result.audio; // Return the audio buffer
+    }
+
+    updateElevenLabsMetrics(Date.now() - startTime, false);
+    return null;
+  } catch (error) {
+    console.error('ElevenLabs TTS (emotion-aware) error:', error);
+    updateElevenLabsMetrics(Date.now() - startTime, false);
+    return null;
+  }
+}
+
+// ========== END EMOTION-AWARE TTS MAPPER ==========
+
+async function synthesizeSpeech(text, language) {
+  const startTime = Date.now();
+  console.log(`[TTS-DEBUG] synthesizeSpeech called: text="${text.substring(0,50)}...", language=${language}`);
+  
+  if (!elevenlabsTTS) {
+    console.warn('ElevenLabs TTS not configured');
+    updateElevenLabsMetrics(null, false);
     return null;
   }
 
@@ -1028,12 +1883,16 @@ async function synthesizeSpeech(text, language) {
     });
 
     if (result && result.audio) {
+      const latency = Date.now() - startTime;
+      updateElevenLabsMetrics(latency, true);
       return result.audio; // Return the audio buffer
     }
 
+    updateElevenLabsMetrics(Date.now() - startTime, false);
     return null;
   } catch (error) {
     console.error('ElevenLabs TTS error:', error);
+    updateElevenLabsMetrics(Date.now() - startTime, false);
     return null;
   }
 }
@@ -1491,7 +2350,8 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     console.log('[Timing] Stage 3 (ASR→MT) for ' + extension + ': ' + timing.stages.asr_to_mt + 'ms');
 
     // Step 2: Translate
-    const targetLang = extension === '9007' ? 'fr' : 'en'; // 9007 is English->French, 9008 is French->English
+    const config = getQaConfig(extension);
+    const targetLang = config.targetLang;
     console.log(`[Pipeline] Translating ${language} -> ${targetLang}: "${transcription}"`);
 
     // ═══════════════════════════════════════════════════════════════
@@ -1615,23 +2475,29 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
         pairedExtension,           // Target extension (paired partner)
         pcmAudioBuffer,            // PCM16 audio data
         totalBufferMs,             // Buffer delay in milliseconds
-        (targetExtension, delayedAudio) => {
+        async (targetExtension, delayedAudio) => {
           // Callback executed after buffer delay
-          console.log(`[Buffer Send] ✓ Sending ${delayedAudio.length} bytes PCM16 to Gateway for extension ${targetExtension}`);
+          console.log(`[Buffer Send] ✓ Sending ${delayedAudio.length} bytes PCM16 for extension ${targetExtension}`);
           
-          // SUB-TASK 4.5: Emit translatedAudio (camelCase) to Gateway
-          global.io.emit('translatedAudio', {
-            extension: String(targetExtension),
-            audio: delayedAudio,         // Buffer object (PCM16 data)
-            format: 'pcm16',             // Audio format
-            sampleRate: 16000,           // Sample rate
-            channels: 1,                 // Mono
-            timestamp: Date.now(),
-            bufferApplied: totalBufferMs,
-            sourceExtension: extension   // Original extension that generated this translation
-          });
-          
-          console.log(`[Buffer Send] ✓ translatedAudio emitted to Gateway for extension ${targetExtension} (buffered ${Math.round(totalBufferMs)}ms)`);
+          // Check if this is a UDP-based extension (3333/4444)
+          if (targetExtension === '3333' || targetExtension === '4444') {
+            // Send via UDP socket
+            await sendUdpPcmAudio(targetExtension, delayedAudio);
+            console.log(`[Buffer Send] ✓ Sent via UDP to ${targetExtension} (buffered ${Math.round(totalBufferMs)}ms)`);
+          } else {
+            // Send via Socket.IO (for other extensions like 9007/9008)
+            global.io.emit('translatedAudio', {
+              extension: String(targetExtension),
+              audio: delayedAudio,         // Buffer object (PCM16 data)
+              format: 'pcm16',             // Audio format
+              sampleRate: 16000,           // Sample rate
+              channels: 1,                 // Mono
+              timestamp: Date.now(),
+              bufferApplied: totalBufferMs,
+              sourceExtension: extension   // Original extension that generated this translation
+            });
+            console.log(`[Buffer Send] ✓ translatedAudio emitted via Socket.IO for ${targetExtension} (buffered ${Math.round(totalBufferMs)}ms)`);
+          }
         }
       );
     } else {
@@ -1649,7 +2515,7 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     // ═══════════════════════════════════════════════════════════════
     // Emit TTS audio to dashboard
     console.log(`[TTS DEBUG] Emitting translated-audio for extension: ${extension} (type: ${typeof extension})`);
-    global.io.emit('translated-audio', {
+    global.io.emit('translatedAudio', {
       extension: String(extension),
       original: transcription,
       translation: translation,
@@ -2507,6 +3373,15 @@ app.get('/api/files/recordings', (req, res) => {
   });
 });
 
+// Hume-specific health endpoint for Dashboard Card #5
+app.get('/health/hume', (req, res) => {
+  res.json(global.humeHealth || {
+    connection: "not_initialized",
+    error: "humeHealth object not found"
+  });
+});
+
+
 app.get('/api/files/transcripts', (req, res) => {
   const transcriptsDir = path.join(__dirname, 'transcripts');
   fs.readdir(transcriptsDir, (err, files) => {
@@ -2762,7 +3637,7 @@ const UDP_PCM_CONFIG = {
   channels: 1,
   frameSizeMs: 5,  // Changed from 20ms to 5ms to match gateway output
   frameSizeBytes: 160,  // Changed from 640 to 160 bytes (actual gateway frame size)
-  bufferThreshold: 8000  // Reduced from 32000 to 8000 for faster processing (0.5 seconds of audio)
+  bufferThreshold: 48000  // Reduced from 32000 to 8000 for faster processing (1.5 seconds of audio)
 };
 
 // Socket Creation (from conf-server-phase1.js lines 62-65)
@@ -2824,6 +3699,85 @@ socket3333In.on('message', async (msg, rinfo) => {
     });
   }
 
+  // ========== PHASE 3-5: Deepgram Streaming WebSocket Integration ==========
+  if (USE_DEEPGRAM_STREAMING && streamingStateManager) {
+    let state = streamingStateManager.getState("3333");
+    
+    // Create connection if it doesn't exist or isn't ready
+    if (!state || !state.isReady) {
+      try {
+        await createDeepgramStreamingConnection("3333");
+        state = streamingStateManager.getState("3333");
+      } catch (err) {
+        console.error("[STREAMING-3333] Connection failed, falling back to prerecorded:", err.message);
+      }
+    }
+    
+    // Send audio frame to Deepgram if connection is ready
+    if (state && state.websocket && state.isReady) {
+      try {
+        state.websocket.send(msg);
+        state.bytesSent += msg.length;
+        streamingStateManager.stats.totalBytesSent += msg.length;
+        streamingStateManager.stats.totalFramesSent++;
+        
+        if (streamingStateManager.stats.totalFramesSent % 100 === 0) {
+          console.log(`[STREAMING-3333] Sent ${streamingStateManager.stats.totalFramesSent} frames (${streamingStateManager.stats.totalBytesSent} bytes)`);
+        }
+        
+        return; // Skip buffered prerecorded API
+      } catch (err) {
+        console.error("[STREAMING-3333] Send error:", err.message);
+        // Fall through to buffered API on error
+      }
+    }
+  }
+  // ========== END STREAMING INTEGRATION ==========
+
+  // ========== PHASE 4: Hume Emotion Analysis Integration (3333) ==========
+  if (USE_HUME_EMOTION && humeStateManager) {
+    let state = humeStateManager.getState("3333");
+
+    // Create connection if doesn't exist or isn't ready
+    if (!state || !state.isReady) {
+      try {
+        await createHumeStreamingConnection("3333");
+        state = humeStateManager.getState("3333");
+      } catch (err) {
+        console.error("[HUME-3333] Connection failed:", err.message);
+      }
+    }
+
+    // Buffer audio to 20ms chunks (Hume optimal)
+    if (state && state.audioBuffer) {
+      state.audioBuffer = Buffer.concat([state.audioBuffer, msg]);
+
+      // Send when we have 20ms worth (640 bytes at 16kHz mono S16LE)
+      if (state.audioBuffer.length >= 640) {
+        const chunk = state.audioBuffer.slice(0, 640);
+        state.audioBuffer = state.audioBuffer.slice(640);
+
+        // Send to Hume WebSocket
+        if (state.websocket && state.isReady) {
+          try {
+            state.websocket.sendAudio(chunk);
+            state.framesSent++;
+            state.bytesSent += chunk.length;
+            humeStateManager.stats.totalFramesSent++;
+            humeStateManager.stats.totalBytesSent += chunk.length;
+
+            if (state.framesSent % 100 === 0) {
+              console.log(`[HUME-3333] Sent ${state.framesSent} frames (${state.bytesSent} bytes)`);
+            }
+          } catch (err) {
+            console.error("[HUME-3333] Send error:", err.message);
+          }
+        }
+      }
+    }
+  }
+  // ========== END HUME INTEGRATION (3333) ==========
+
   const buffer = udpAudioBuffers.get('3333');
   buffer.chunks.push(Buffer.from(msg));
   buffer.totalBytes += msg.length;
@@ -2835,7 +3789,7 @@ socket3333In.on('message', async (msg, rinfo) => {
     buffer.lastProcessed = Date.now();
 
     console.log(`[UDP-3333] Processing ${combinedBuffer.length} bytes`);
-    await processUdpPcmAudio('3333', combinedBuffer, 'en');
+    await processGatewayAudio(null, '3333', combinedBuffer, 'en');
   }
 });
 
@@ -2870,6 +3824,83 @@ socket4444In.on('message', async (msg, rinfo) => {
     });
   }
 
+  // ========== PHASE 3-5: Deepgram Streaming WebSocket Integration ==========
+  if (USE_DEEPGRAM_STREAMING && streamingStateManager) {
+    let state = streamingStateManager.getState("4444");
+    
+    // Create connection if it doesn't exist or isn't ready
+    if (!state || !state.isReady) {
+      try {
+        await createDeepgramStreamingConnection("4444");
+        state = streamingStateManager.getState("4444");
+      } catch (err) {
+        console.error("[STREAMING-4444] Connection failed, falling back to prerecorded:", err.message);
+      }
+    }
+    
+    // Send audio frame to Deepgram if connection is ready
+    if (state && state.websocket && state.isReady) {
+      try {
+        state.websocket.send(msg);
+        state.bytesSent += msg.length;
+        streamingStateManager.stats.totalBytesSent += msg.length;
+        streamingStateManager.stats.totalFramesSent++;
+        
+        if (streamingStateManager.stats.totalFramesSent % 100 === 0) {
+          console.log(`[STREAMING-4444] Sent ${streamingStateManager.stats.totalFramesSent} frames (${streamingStateManager.stats.totalBytesSent} bytes)`);
+        }
+        
+        return; // Skip buffered prerecorded API
+      } catch (err) {
+        console.error("[STREAMING-4444] Send error:", err.message);
+        // Fall through to buffered API on error
+      }
+    }
+  }
+  // ========== END STREAMING INTEGRATION ==========
+
+  // ========== PHASE 4: Hume Emotion Analysis Integration (4444) ==========
+  if (USE_HUME_EMOTION && humeStateManager) {
+    let state = humeStateManager.getState("4444");
+
+    // Create connection if doesn't exist or isn't ready
+    if (!state || !state.isReady) {
+      try {
+        await createHumeStreamingConnection("4444");
+        state = humeStateManager.getState("4444");
+      } catch (err) {
+        console.error("[HUME-4444] Connection failed:", err.message);
+      }
+    }
+
+    // Buffer audio to 20ms chunks
+    if (state && state.audioBuffer) {
+      state.audioBuffer = Buffer.concat([state.audioBuffer, msg]);
+
+      if (state.audioBuffer.length >= 640) {
+        const chunk = state.audioBuffer.slice(0, 640);
+        state.audioBuffer = state.audioBuffer.slice(640);
+
+        if (state.websocket && state.isReady) {
+          try {
+            state.websocket.sendAudio(chunk);
+            state.framesSent++;
+            state.bytesSent += chunk.length;
+            humeStateManager.stats.totalFramesSent++;
+            humeStateManager.stats.totalBytesSent += chunk.length;
+
+            if (state.framesSent % 100 === 0) {
+              console.log(`[HUME-4444] Sent ${state.framesSent} frames (${state.bytesSent} bytes)`);
+            }
+          } catch (err) {
+            console.error("[HUME-4444] Send error:", err.message);
+          }
+        }
+      }
+    }
+  }
+  // ========== END HUME INTEGRATION (4444) ==========
+
   const buffer = udpAudioBuffers.get('4444');
   buffer.chunks.push(Buffer.from(msg));
   buffer.totalBytes += msg.length;
@@ -2881,7 +3912,7 @@ socket4444In.on('message', async (msg, rinfo) => {
     buffer.lastProcessed = Date.now();
 
     console.log(`[UDP-4444] Processing ${combinedBuffer.length} bytes`);
-    await processUdpPcmAudio('4444', combinedBuffer, 'fr');
+    await processGatewayAudio(null, '4444', combinedBuffer, 'fr');
   }
 });
 
@@ -2902,7 +3933,10 @@ async function processUdpPcmAudio(sourceExtension, pcmBuffer, sourceLang) {
     console.log(`[UDP-${sourceExtension}] Starting translation: ${sourceLang} → ${targetLang}`);
 
     // Calls EXISTING functions from STTTTSserver.js
-    const wavAudio = addWavHeader(pcmBuffer);
+    // Amplify audio to improve Deepgram transcription accuracy
+    const gainFactor = extensionGainFactors.get(sourceExtension) || 2.0;
+    const amplifiedAudio = amplifyAudio(pcmBuffer, gainFactor);
+    const wavAudio = addWavHeader(amplifiedAudio);
     const transcriptionResult = await transcribeAudio(wavAudio, sourceLang);
 
     if (!transcriptionResult || !transcriptionResult.text || transcriptionResult.text.trim() === '') {
@@ -2911,11 +3945,40 @@ async function processUdpPcmAudio(sourceExtension, pcmBuffer, sourceLang) {
     }
     console.log(`[UDP-${sourceExtension}] Transcribed: "${transcriptionResult.text}" (confidence: ${transcriptionResult.confidence})`);
 
+    // Emit transcription to dashboard
+    global.io.emit("transcriptionFinal", {
+      extension: sourceExtension,
+      text: transcriptionResult.text,
+      language: sourceLang,
+      confidence: transcriptionResult.confidence,
+      timestamp: Date.now()
+    });
     const translatedText = await translateText(transcriptionResult.text, sourceLang, targetLang);
     console.log(`[UDP-${sourceExtension}→${targetExtension}] Translated: "${translatedText}"`);
 
+    // Emit translation to dashboard
+    global.io.emit("translationComplete", {
+      extension: sourceExtension,
+      original: transcriptionResult.text,
+      translation: translatedText,
+      sourceLang: sourceLang,
+      targetLang: targetLang,
+      timestamp: Date.now()
+    });
     const mp3Buffer = await synthesizeSpeech(translatedText, targetLang);
     console.log(`[UDP-${sourceExtension}→${targetExtension}] Generated ${mp3Buffer.length} bytes MP3`);
+
+    // Emit translatedAudio event for dashboard Card #4 (ElevenLabs TTS)
+    global.io.emit("translatedAudio", {
+      extension: sourceExtension,
+      translation: translatedText,
+      original: transcriptionResult.text,
+      audio: mp3Buffer.toString("base64"),  // Base64-encoded MP3
+      sampleRate: 24000,  // ElevenLabs default sample rate
+      duration: Math.round(mp3Buffer.length / (24000 * 2)),  // Rough estimate
+      timestamp: Date.now()
+    });
+    console.log(`[Card #4] translatedAudio emitted for extension ${sourceExtension}: "${translatedText.substring(0, 30)}..."`);
 
     const translatedPcm = await convertMp3ToPcm16(mp3Buffer);
     console.log(`[UDP-${sourceExtension}→${targetExtension}] Converted to ${translatedPcm.length} bytes PCM`);
@@ -2998,6 +4061,7 @@ console.log('  UDP PCM TRANSLATION SOCKETS ACTIVE');
 console.log('='.repeat(60));
 console.log('Extension 3333 (EN): IN=6120, OUT=6121');
 console.log('Extension 4444 (FR): IN=6122, OUT=6123');
+console.log('Deepgram API Mode:', USE_DEEPGRAM_STREAMING ? '✓ Streaming WebSocket (20ms frames)' : 'Prerecorded (buffered)');
 console.log('='.repeat(60) + '\n');
 
 // Statistics Logging

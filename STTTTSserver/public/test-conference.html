@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Conference Diagnostic</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .error { color: #f00; font-weight: bold; }
+        .success { color: #0f0; }
+        .warn { color: #ff0; }
+        #log { margin-top: 20px; }
+        .entry { padding: 5px; margin: 2px 0; border-left: 3px solid #0f0; padding-left: 10px; }
+        .entry.error { border-color: #f00; }
+        .entry.warn { border-color: #ff0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Conference App Diagnostic</h1>
+    <p>Testing if conference JavaScript loads without errors...</p>
+    <div id="log"></div>
+
+    <script>
+        const log = document.getElementById('log');
+
+        function addLog(message, type = 'success') {
+            const div = document.createElement('div');
+            div.className = 'entry ' + type;
+            div.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            log.appendChild(div);
+            console.log(message);
+        }
+
+        // Capture all errors
+        window.addEventListener('error', (event) => {
+            addLog('❌ ERROR: ' + event.message, 'error');
+            addLog('   File: ' + event.filename, 'error');
+            addLog('   Line: ' + event.lineno + ':' + event.colno, 'error');
+            addLog('   Stack: ' + (event.error?.stack || 'No stack trace'), 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            addLog('❌ PROMISE REJECTION: ' + event.reason, 'error');
+        });
+
+        addLog('✓ Error handlers installed');
+    </script>
+
+    <!-- Load Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        addLog('✓ Socket.io loaded');
+    </script>
+
+    <!-- Load SIP.js -->
+    <script type="module">
+        try {
+            const { SimpleUser } = await import('/node_modules/sip.js/lib/platform/web/simple-user/simple-user.js');
+            window.SimpleUser = SimpleUser;
+            addLog('✓ SIP.js loaded and exposed globally');
+        } catch (e) {
+            addLog('❌ SIP.js failed to load: ' + e.message, 'error');
+        }
+    </script>
+
+    <!-- Load Audio Transport -->
+    <script src="/js/audio-transport.js?v=20251015-02"></script>
+    <script>
+        setTimeout(() => {
+            if (typeof AudioTransport !== 'undefined') {
+                addLog('✓ AudioTransport class loaded');
+
+                // Test instantiation
+                try {
+                    const transport = new AudioTransport('webrtc');
+                    addLog('✓ AudioTransport instance created (webrtc)');
+                } catch (e) {
+                    addLog('❌ AudioTransport instantiation failed: ' + e.message, 'error');
+                }
+            } else {
+                addLog('❌ AudioTransport NOT loaded', 'error');
+            }
+        }, 500);
+    </script>
+
+    <!-- Load Conference App -->
+    <script src="/js/conference-silence-detection.js?v=20251015-02"></script>
+    <script>
+        setTimeout(() => {
+            addLog('✓ Conference script loaded');
+            addLog('Checking if initialization completed...');
+
+            // Check if socket connected
+            if (typeof socket !== 'undefined') {
+                addLog('✓ Socket object exists');
+                addLog('Socket connected: ' + socket.connected);
+            } else {
+                addLog('❌ Socket object NOT defined', 'error');
+            }
+
+            // Check DOM elements
+            const checks = [
+                'joinScreen',
+                'conferenceScreen',
+                'audioTransport',
+                'sipConfigSection'
+            ];
+
+            checks.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    addLog(`✓ Element #${id} exists`);
+                } else {
+                    addLog(`⚠️ Element #${id} NOT found`, 'warn');
+                }
+            });
+
+            addLog('');
+            addLog('=== DIAGNOSTIC COMPLETE ===');
+            addLog('');
+            addLog('If you see errors above, that\'s the problem!');
+            addLog('If no errors, the scripts load fine - issue is elsewhere.');
+        }, 2000);
+    </script>
+</body>
+</html>

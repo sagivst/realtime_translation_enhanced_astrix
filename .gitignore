@@ -1,0 +1,27 @@
+# Backup files
+*backup*
+*checkpoint*
+*chekpoint*
+*checkpint*
+*bkp*
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Archives
+*.tar.gz
+*.zip
+
+# Git
+.git/
+
+# Asterisk build
+asterisk-build/
+
+# Log files
+*.log
+
+# Environment
+.env.local

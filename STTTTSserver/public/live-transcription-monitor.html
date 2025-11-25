@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Transcription & Translation Monitor</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-connected {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-disconnected {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-connecting {
+            background: #FF9800;
+            color: white;
+        }
+
+        .controls {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #da190b;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #0b7dda;
+        }
+
+        .stats {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-box {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        /* Tab Navigation */
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            background: #16213e;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #0f3460;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Live Feeds Section */
+        .pipeline-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .channel-feed {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .channel-header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: -20px -20px 15px -20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .channel-id {
+            font-family: monospace;
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .transcript-item {
+            background: #0f3460;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .transcript-type {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .type-partial {
+            background: #FF9800;
+            color: white;
+        }
+
+        .type-stable {
+            background: #2196F3;
+            color: white;
+        }
+
+        .type-final {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .transcript-text {
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 8px 0;
+            color: #fff;
+        }
+
+        .transcript-meta {
+            font-size: 11px;
+            color: #888;
+            display: flex;
+            gap: 15px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .translation-item {
+            background: #0f3460;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #764ba2;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .translation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .translation-lang {
+            background: #764ba2;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .translation-text {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #fff;
+        }
+
+        .original-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        .latency-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .latency-warning {
+            background: #FF9800;
+        }
+
+        .latency-critical {
+            background: #f44336;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        /* Session Cards Section */
+        .session-card {
+            background: #16213e;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .session-card:hover {
+            border-color: #667eea;
+        }
+
+        .session-card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .session-card-header:hover {
+            opacity: 0.9;
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .session-meta {
+            font-size: 12px;
+            opacity: 0.9;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .session-stats {
+            text-align: right;
+        }
+
+        .session-count {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .session-label {
+            font-size: 10px;
+            opacity: 0.9;
+            text-transform: uppercase;
+        }
+
+        .expand-icon {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+
+        .session-card.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .session-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .session-card.expanded .session-body {
+            max-height: 2000px;
+        }
+
+        .session-content {
+            padding: 20px;
+        }
+
+        .recordings-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .recording-item {
+            background: #0f3460;
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .recording-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .recording-filename {
+            font-weight: bold;
+            color: #4CAF50;
+            font-size: 13px;
+            font-family: monospace;
+        }
+
+        .recording-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .play-all-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .play-all-btn:hover {
+            background: #45a049;
+        }
+
+        .play-all-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 8px;
+            border-radius: 5px;
+        }
+
+        .timestamp {
+            font-family: monospace;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .info-badge {
+            background: #FF9800;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .refresh-indicator {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 3px 8px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .refresh-indicator.updating {
+            background: #FF9800;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f3460;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎙️ Live Transcription & Translation Monitor</h1>
+        <div class="subtitle">Real-time Deepgram ASR → Translation Pipeline + Debug Tools</div>
+        <div id="connection-status" class="connection-status status-disconnected">Disconnected</div>
+    </div>
+
+    <div class="controls">
+        <button id="connect-btn" class="btn btn-primary" onclick="connect()">Connect</button>
+        <button id="disconnect-btn" class="btn btn-danger" onclick="disconnect()" disabled>Disconnect</button>
+        <button class="btn btn-secondary" onclick="clearAllFeeds()">Clear All</button>
+        <label style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="auto-scroll" checked>
+            Auto-scroll
+        </label>
+    </div>
+
+    <div class="stats">
+        <div class="stat-box">
+            <div class="stat-label">Active Channels</div>
+            <div class="stat-value" id="stat-channels">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Transcripts</div>
+            <div class="stat-value" id="stat-transcripts">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Translations</div>
+            <div class="stat-value" id="stat-translations">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Avg Latency</div>
+            <div class="stat-value" id="stat-latency">0ms</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Partials/sec</div>
+            <div class="stat-value" id="stat-rate">0.0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Debug Files</div>
+            <div class="stat-value" id="stat-debug-files">0</div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('live')">🔴 Live Feeds</button>
+        <button class="tab-btn" onclick="switchTab('sessions')">📊 Active Sessions</button>
+    </div>
+
+    <!-- Live Feeds Tab -->
+    <div id="tab-live" class="tab-content active">
+        <div class="pipeline-container">
+            <div class="channel-feed">
+                <div class="channel-header" style="cursor: pointer;" onclick="toggleDeepgramDebug()">
+                    <div>
+                        <div>Deepgram ASR Input & Output</div>
+                        <div class="channel-id">RAW INPUT (Entrance) + Transcription Output</div>
+                    </div>
+                    <div id="deepgram-count">0</div>
+                    <div class="expand-icon" id="deepgram-expand-icon" style="margin-left: 15px; transform: rotate(180deg);">▼</div>
+                </div>
+                <div id="deepgram-feed">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎤</div>
+                        <div>Waiting for audio input...</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Transcripts will appear here in real-time</div>
+                    </div>
+                </div>
+
+                <!-- Debug Recordings Section (expanded by default) -->
+                <div id="deepgram-debug-section" style="max-height: 2000px; overflow: hidden; transition: max-height 0.3s ease-out;">
+                    <div style="border-top: 2px solid #667eea; margin-top: 15px; padding-top: 15px;">
+                        <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 12px;">
+                            <strong>🎵 RAW INPUT TO DEEPGRAM (Entrance):</strong> These are the 20ms PCM frames being SENT to Deepgram, captured BEFORE transcription.
+                            This shows what Deepgram RECEIVES, not what it outputs. Each file = 684 bytes (44-byte WAV header + 640-byte PCM frame).
+                        </div>
+                        <div id="deepgram-recordings-container">
+                            <div class="empty-state" style="padding: 30px 20px;">
+                                <div class="empty-state-icon" style="font-size: 32px;">📭</div>
+                                <div style="font-size: 14px;">No input frames captured yet</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="channel-feed">
+                <div class="channel-header">
+                    <div>
+                        <div>Translation Output</div>
+                        <div class="channel-id">DeepL API Feed</div>
+                    </div>
+                    <div id="translation-count">0</div>
+                </div>
+                <div id="translation-feed">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🌐</div>
+                        <div>Waiting for translations...</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Translations will appear here after transcription</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div id="tab-sessions" class="tab-content">
+        <div id="sessions-container">
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <div>No active sessions</div>
+                <div style="font-size: 12px; margin-top: 10px;">Sessions will appear here when calls start</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Recordings Tab -->
+    <div id="tab-recordings" class="tab-content">
+        <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px;">
+            <strong>ℹ️ Audio Debug Recordings:</strong> Raw audio frames captured from each call session.
+            <br><strong>Capture Method:</strong> Snooping channel BEFORE ConfBridge with spy='out' for clean mic-only audio.
+            <br><strong>Usage:</strong> Click session header to expand and view individual recordings. Use "▶ Play All" to play all segments sequentially.
+            <span class="refresh-indicator" id="recordings-refresh">AUTO-REFRESH</span>
+        </div>
+        <div id="recordings-container">
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <div>No recordings available</div>
+                <div style="font-size: 12px; margin-top: 10px;">Make a test call to extension 7000 to generate debug audio files</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let stats = {
+            channels: new Set(),
+            transcripts: 0,
+            translations: 0,
+            latencies: [],
+            lastPartialTime: Date.now(),
+            partialsInLastSecond: 0,
+            partialRate: 0,
+            debugFiles: 0
+        };
+        let refreshInterval = null;
+        let currentlyPlaying = null;
+
+        // Live PCM Audio Streaming with Web Audio API
+        let audioContext = null;
+        let pcmFrameBuffer = [];
+        let isPlayingLive = false;
+        let lastFrameTime = Date.now();
+        const FRAME_DURATION_MS = 20; // 20ms per frame
+
+        /**
+         * Initialize Web Audio API for live PCM playback
+         */
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('[LiveAudio] Audio context initialized:', {
+                    sampleRate: audioContext.sampleRate,
+                    state: audioContext.state
+                });
+            }
+            return audioContext;
+        }
+
+        /**
+         * Play a single 20ms PCM frame using Web Audio API
+         * @param {ArrayBuffer} pcmData - 640 bytes of 16-bit PCM audio
+         * @param {string} channelId - Channel ID for tracking
+         */
+        function playPCMFrame(pcmData, channelId) {
+            if (!pcmData || pcmData.byteLength !== 640) {
+                console.warn('[LiveAudio] Invalid PCM frame size:', pcmData?.byteLength);
+                return;
+            }
+
+            const ctx = initAudioContext();
+
+            // Resume audio context if suspended (required by browsers for user interaction)
+            if (ctx.state === 'suspended') {
+                ctx.resume();
+            }
+
+            // Convert PCM buffer to AudioBuffer
+            // PCM is 16-bit signed little-endian, 16kHz, mono
+            const pcmInt16 = new Int16Array(pcmData);
+            const audioBuffer = ctx.createBuffer(1, 320, 16000); // 1 channel, 320 samples (20ms @ 16kHz), 16kHz sample rate
+            const channelData = audioBuffer.getChannelData(0);
+
+            // Convert Int16 to Float32 (Web Audio uses -1.0 to 1.0)
+            for (let i = 0; i < pcmInt16.length; i++) {
+                channelData[i] = pcmInt16[i] / 32768.0;
+            }
+
+            // Create buffer source and play
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(ctx.destination);
+            source.start(0);
+
+            // Update stats
+            lastFrameTime = Date.now();
+
+            // Throttled logging (every 50th frame = once per second)
+            if (Math.random() < 0.02) { // 2% sample rate
+                console.log('[LiveAudio] Playing frame from channel:', channelId.substring(0, 16), '...');
+            }
+        }
+
+        /**
+         * Handle incoming live PCM frame from Socket.IO
+         * @param {Object} data - PCM frame data with metadata
+         */
+        function handleLivePCMFrame(data) {
+            if (!data.pcm || !data.channelId) {
+                console.warn('[LiveAudio] Invalid PCM frame data');
+                return;
+            }
+
+            // Convert base64 to ArrayBuffer if needed
+            let pcmBuffer;
+            if (typeof data.pcm === 'string') {
+                // Base64 encoded
+                const binaryString = atob(data.pcm);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                pcmBuffer = bytes.buffer;
+            } else if (data.pcm.buffer) {
+                // Already ArrayBuffer
+                pcmBuffer = data.pcm.buffer;
+            } else {
+                pcmBuffer = data.pcm;
+            }
+
+            // Play immediately for lowest latency
+            playPCMFrame(pcmBuffer, data.channelId);
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+
+            // Load recordings if switching to that tab
+            if (tabName === 'recordings') {
+                loadRecordings();
+            }
+        }
+
+        function updateConnectionStatus(status) {
+            const elem = document.getElementById('connection-status');
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+
+            elem.className = 'connection-status';
+
+            if (status === 'connected') {
+                elem.classList.add('status-connected');
+                elem.textContent = '● Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else if (status === 'connecting') {
+                elem.classList.add('status-connecting');
+                elem.textContent = '● Connecting...';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = true;
+            } else {
+                elem.classList.add('status-disconnected');
+                elem.textContent = '● Disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            if (socket && socket.connected) {
+                return;
+            }
+
+            updateConnectionStatus('connecting');
+
+            socket = io({
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                console.log('[Monitor] Connected to server via Socket.IO');
+                updateConnectionStatus('connected');
+                socket.emit('subscribe-monitor');
+            });
+
+            socket.on('monitor-transcript', (data) => {
+                console.log('[Monitor] Received transcript:', data);
+                handleMessage({ type: 'transcript', ...data });
+            });
+
+            socket.on('monitor-translation', (data) => {
+                console.log('[Monitor] Received translation:', data);
+                handleMessage({ type: 'translation', ...data });
+            });
+
+            socket.on('live-pcm-frame', (data) => {
+                handleLivePCMFrame(data);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('[Monitor] Disconnected from server');
+                updateConnectionStatus('disconnected');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('[Monitor] Connection error:', error);
+                updateConnectionStatus('disconnected');
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.emit('unsubscribe-monitor');
+                socket.disconnect();
+                socket = null;
+                updateConnectionStatus('disconnected');
+            }
+        }
+
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'transcript':
+                    handleTranscript(data);
+                    break;
+                case 'translation':
+                    handleTranslation(data);
+                    break;
+                case 'stats':
+                    updateStats(data);
+                    break;
+                default:
+                    console.log('[Monitor] Unknown message type:', data.type);
+            }
+        }
+
+        function handleTranscript(data) {
+            const feed = document.getElementById('deepgram-feed');
+
+            // Remove empty state if present
+            const emptyState = feed.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // Track channel
+            stats.channels.add(data.channelId);
+            stats.transcripts++;
+
+            // Calculate latency badge
+            let latencyClass = 'latency-badge';
+            if (data.latencyMs > 1000) latencyClass += ' latency-critical';
+            else if (data.latencyMs > 500) latencyClass += ' latency-warning';
+
+            // Track partial rate
+            const now = Date.now();
+            if (now - stats.lastPartialTime < 1000) {
+                stats.partialsInLastSecond++;
+            } else {
+                stats.partialRate = stats.partialsInLastSecond;
+                stats.partialsInLastSecond = 1;
+                stats.lastPartialTime = now;
+            }
+
+            // Add latency to stats
+            if (data.latencyMs) {
+                stats.latencies.push(data.latencyMs);
+                if (stats.latencies.length > 100) {
+                    stats.latencies.shift();
+                }
+            }
+
+            const item = document.createElement('div');
+            item.className = 'transcript-item';
+            item.innerHTML = `
+                <div>
+                    <span class="transcript-type type-${data.transcriptType}">${data.transcriptType}</span>
+                    ${data.latencyMs ? `<span class="${latencyClass}">${data.latencyMs}ms</span>` : ''}
+                </div>
+                <div class="transcript-text">${escapeHtml(data.text)}</div>
+                <div class="transcript-meta">
+                    <span class="timestamp">${formatTimestamp(data.timestamp)}</span>
+                    <span>Confidence: ${(data.confidence * 100).toFixed(0)}%</span>
+                    <span>Channel: ${data.channelId.substring(0, 16)}...</span>
+                    ${data.language ? `<span>Lang: ${data.language}</span>` : ''}
+                </div>
+            `;
+
+            feed.insertBefore(item, feed.firstChild);
+
+            // Limit to 50 items
+            while (feed.children.length > 50) {
+                feed.removeChild(feed.lastChild);
+            }
+
+            // Auto-scroll if enabled
+            if (document.getElementById('auto-scroll').checked) {
+                feed.scrollTop = 0;
+            }
+
+            // Update counters
+            document.getElementById('deepgram-count').textContent = stats.transcripts;
+            updateStatsDisplay();
+        }
+
+        function handleTranslation(data) {
+            const feed = document.getElementById('translation-feed');
+
+            // Remove empty state if present
+            const emptyState = feed.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            stats.translations++;
+
+            // Calculate total latency
+            const totalLatency = data.totalLatencyMs || data.translationLatencyMs || 0;
+            let latencyClass = 'latency-badge';
+            if (totalLatency > 2000) latencyClass += ' latency-critical';
+            else if (totalLatency > 1000) latencyClass += ' latency-warning';
+
+            const item = document.createElement('div');
+            item.className = 'translation-item';
+            item.innerHTML = `
+                <div class="translation-header">
+                    <span class="translation-lang">${data.targetLanguage}</span>
+                    <span class="${latencyClass}">Total: ${totalLatency}ms</span>
+                </div>
+                <div class="translation-text">${escapeHtml(data.translatedText)}</div>
+                <div class="original-text">Original: "${escapeHtml(data.originalText)}"</div>
+                <div class="transcript-meta">
+                    <span class="timestamp">${formatTimestamp(data.timestamp)}</span>
+                    <span>ASR: ${data.asrLatencyMs || 0}ms</span>
+                    <span>MT: ${data.translationLatencyMs || 0}ms</span>
+                    ${data.ttsLatencyMs ? `<span>TTS: ${data.ttsLatencyMs}ms</span>` : ''}
+                </div>
+            `;
+
+            feed.insertBefore(item, feed.firstChild);
+
+            // Limit to 50 items
+            while (feed.children.length > 50) {
+                feed.removeChild(feed.lastChild);
+            }
+
+            // Auto-scroll if enabled
+            if (document.getElementById('auto-scroll').checked) {
+                feed.scrollTop = 0;
+            }
+
+            // Update counters
+            document.getElementById('translation-count').textContent = stats.translations;
+            updateStatsDisplay();
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('stat-channels').textContent = stats.channels.size;
+            document.getElementById('stat-transcripts').textContent = stats.transcripts;
+            document.getElementById('stat-translations').textContent = stats.translations;
+            document.getElementById('stat-debug-files').textContent = stats.debugFiles;
+
+            // Calculate average latency
+            if (stats.latencies.length > 0) {
+                const avg = stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length;
+                document.getElementById('stat-latency').textContent = Math.round(avg) + 'ms';
+            }
+
+            document.getElementById('stat-rate').textContent = stats.partialRate.toFixed(1);
+        }
+
+        function clearAllFeeds() {
+            const deepgramFeed = document.getElementById('deepgram-feed');
+            const translationFeed = document.getElementById('translation-feed');
+
+            deepgramFeed.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎤</div>
+                    <div>Waiting for audio input...</div>
+                    <div style="font-size: 12px; margin-top: 10px;">Transcripts will appear here in real-time</div>
+                </div>
+            `;
+
+            translationFeed.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🌐</div>
+                    <div>Waiting for translations...</div>
+                    <div style="font-size: 12px; margin-top: 10px;">Translations will appear here after transcription</div>
+                </div>
+            `;
+
+            stats.transcripts = 0;
+            stats.translations = 0;
+            document.getElementById('deepgram-count').textContent = '0';
+            document.getElementById('translation-count').textContent = '0';
+        }
+
+        // Toggle Deepgram Debug Section
+        function toggleDeepgramDebug() {
+            const section = document.getElementById('deepgram-debug-section');
+            const icon = document.getElementById('deepgram-expand-icon');
+
+            if (section.style.maxHeight === '0px' || section.style.maxHeight === '') {
+                // Expand
+                section.style.maxHeight = '2000px';
+                icon.style.transform = 'rotate(180deg)';
+                // Load recordings when expanded
+                loadDeepgramRecordings();
+            } else {
+                // Collapse
+                section.style.maxHeight = '0';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Load recordings into Deepgram debug section
+        async function loadDeepgramRecordings() {
+            try {
+                const response = await fetch('/api/debug-audio');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                stats.debugFiles = data.totalFiles;
+                updateStatsDisplay();
+
+                renderDeepgramRecordings(data.sessions);
+
+            } catch (error) {
+                console.error('Error loading Deepgram recordings:', error);
+                const container = document.getElementById('deepgram-recordings-container');
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 30px 20px;">
+                        <div class="empty-state-icon" style="font-size: 32px; color: #f44336;">⚠️</div>
+                        <div style="font-size: 14px; color: #f44336;">Error loading recordings</div>
+                        <div style="font-size: 12px; margin-top: 5px; color: #888;">${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render recordings in Deepgram debug section
+        function renderDeepgramRecordings(sessions) {
+            const container = document.getElementById('deepgram-recordings-container');
+
+            if (!sessions || sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 30px 20px;">
+                        <div class="empty-state-icon" style="font-size: 32px;">📭</div>
+                        <div style="font-size: 14px;">No input frames captured yet</div>
+                        <div style="font-size: 12px; margin-top: 5px; color: #888;">Make a test call to extension 7000</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort sessions by most recent first (LIFO)
+            const sortedSessions = sessions.sort((a, b) =>
+                b.recordings[0].timestamp - a.recordings[0].timestamp
+            );
+
+            let html = '';
+
+            sortedSessions.forEach((session, index) => {
+                const firstRecording = session.recordings[0];
+                const lastRecording = session.recordings[session.recordings.length - 1];
+                const sessionStart = formatTimestamp(firstRecording.timestamp);
+                const sessionDuration = lastRecording.timestamp - firstRecording.timestamp;
+
+                html += `
+                    <div class="session-card" id="deepgram-session-${session.channelId}" style="margin-top: 15px;">
+                        <div class="session-card-header" style="background: #0f3460;">
+                            <div class="session-info" onclick="toggleDeepgramSession('${session.channelId}')" style="cursor: pointer; flex: 1;">
+                                <div class="session-title" style="font-size: 14px;">Channel: ${session.channelId}</div>
+                                <div class="session-meta" style="font-size: 11px;">
+                                    <span>🕐 ${sessionStart}</span>
+                                    <span>⏱ ${formatDuration(sessionDuration)}</span>
+                                    <span>📊 ${session.recordings.length} frames</span>
+                                </div>
+                            </div>
+                            <button class="play-all-btn" id="play-all-deepgram-${session.channelId}"
+                                    onclick="event.stopPropagation(); playAllRecordings(${JSON.stringify(session.recordings).replace(/"/g, '&quot;')}, 'deepgram-${session.channelId}')"
+                                    style="margin: 0; margin-right: 10px; padding: 6px 12px; font-size: 12px;">
+                                ▶ Play All
+                            </button>
+                            <div class="session-stats" onclick="toggleDeepgramSession('${session.channelId}')" style="cursor: pointer;">
+                                <div class="session-count" style="font-size: 18px;">${session.recordings.length}</div>
+                                <div class="session-label" style="font-size: 9px;">Frames</div>
+                            </div>
+                            <div class="expand-icon" onclick="toggleDeepgramSession('${session.channelId}')" style="cursor: pointer; font-size: 16px;">▼</div>
+                        </div>
+                        <div class="session-body">
+                            <div class="session-content" style="padding: 15px;">
+                                <div class="recordings-grid">
+                                    ${renderDeepgramRecordingItems(session.recordings, session.channelId)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Render individual recording items for Deepgram section
+        function renderDeepgramRecordingItems(recordings, sessionId) {
+            // Sort recordings by most recent first (LIFO)
+            const sortedRecordings = recordings.sort((a, b) => b.timestamp - a.timestamp);
+
+            return sortedRecordings.map((rec, index) => `
+                <div class="recording-item" style="padding: 10px;">
+                    <div class="recording-header">
+                        <div class="recording-filename" style="font-size: 12px;">Frame ${recordings.length - index}</div>
+                        <div class="recording-meta" style="font-size: 10px;">
+                            <span>📦 ${formatBytes(rec.size)}</span>
+                            <span class="info-badge" style="font-size: 9px;">${formatTimestamp(rec.timestamp)}</span>
+                        </div>
+                    </div>
+                    <audio id="audio-deepgram-${sessionId}-${recordings.length - index - 1}" controls preload="metadata" style="margin-top: 6px; height: 30px;">
+                        <source src="${rec.url}" type="audio/wav">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+            `).join('');
+        }
+
+        // Toggle session in Deepgram debug section
+        function toggleDeepgramSession(sessionId) {
+            const card = document.getElementById(`deepgram-session-${sessionId}`);
+            card.classList.toggle('expanded');
+        }
+
+        // Debug Recordings Functions
+        async function loadRecordings() {
+            const indicator = document.getElementById('recordings-refresh');
+            if (indicator) {
+                indicator.classList.add('updating');
+            }
+
+            try {
+                const response = await fetch('/api/debug-audio');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                stats.debugFiles = data.totalFiles;
+                updateStatsDisplay();
+
+                renderRecordings(data.sessions);
+
+            } catch (error) {
+                console.error('Error loading recordings:', error);
+            } finally {
+                if (indicator) {
+                    indicator.classList.remove('updating');
+                }
+            }
+        }
+
+        function renderRecordings(sessions) {
+            const container = document.getElementById('recordings-container');
+
+            if (!sessions || sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div>No recordings available</div>
+                        <div style="font-size: 12px; margin-top: 10px;">Make a test call to extension 7000 to generate debug audio files</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort sessions by most recent first (LIFO)
+            const sortedSessions = sessions.sort((a, b) =>
+                b.recordings[0].timestamp - a.recordings[0].timestamp
+            );
+
+            let html = '';
+
+            sortedSessions.forEach((session, index) => {
+                const firstRecording = session.recordings[0];
+                const lastRecording = session.recordings[session.recordings.length - 1];
+                const sessionStart = formatTimestamp(firstRecording.timestamp);
+                const sessionDuration = lastRecording.timestamp - firstRecording.timestamp;
+
+                html += `
+                    <div class="session-card" id="session-${session.channelId}">
+                        <div class="session-card-header">
+                            <div class="session-info" onclick="toggleSession('${session.channelId}')" style="cursor: pointer; flex: 1;">
+                                <div class="session-title">Session ${index + 1}: ${session.channelId}</div>
+                                <div class="session-meta">
+                                    <span>🕐 ${sessionStart}</span>
+                                    <span>⏱ ${formatDuration(sessionDuration)}</span>
+                                    <span>📊 ${session.recordings.length} segments</span>
+                                </div>
+                            </div>
+                            <button class="play-all-btn" id="play-all-${session.channelId}"
+                                    onclick="event.stopPropagation(); playAllRecordings(${JSON.stringify(session.recordings).replace(/"/g, '&quot;')}, '${session.channelId}')"
+                                    style="margin: 0; margin-right: 15px;">
+                                ▶ Play All
+                            </button>
+                            <div class="session-stats" onclick="toggleSession('${session.channelId}')" style="cursor: pointer;">
+                                <div class="session-count">${session.recordings.length}</div>
+                                <div class="session-label">Segments</div>
+                            </div>
+                            <div class="expand-icon" onclick="toggleSession('${session.channelId}')" style="cursor: pointer;">▼</div>
+                        </div>
+                        <div class="session-body">
+                            <div class="session-content">
+                                <div class="recordings-grid">
+                                    ${renderRecordingItems(session.recordings, session.channelId)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderRecordingItems(recordings, sessionId) {
+            // Sort recordings by most recent first (LIFO)
+            const sortedRecordings = recordings.sort((a, b) => b.timestamp - a.timestamp);
+
+            return sortedRecordings.map((rec, index) => `
+                <div class="recording-item">
+                    <div class="recording-header">
+                        <div class="recording-filename">Segment ${recordings.length - index}</div>
+                        <div class="recording-meta">
+                            <span>📦 ${formatBytes(rec.size)}</span>
+                            <span class="info-badge">${formatTimestamp(rec.timestamp)}</span>
+                        </div>
+                    </div>
+                    <audio id="audio-${sessionId}-${recordings.length - index - 1}" controls preload="metadata">
+                        <source src="${rec.url}" type="audio/wav">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+            `).join('');
+        }
+
+        function toggleSession(sessionId) {
+            const card = document.getElementById(`session-${sessionId}`);
+            card.classList.toggle('expanded');
+        }
+
+        function playAllRecordings(recordings, sessionId) {
+            // Stop any currently playing audio
+            if (currentlyPlaying) {
+                currentlyPlaying.pause();
+                currentlyPlaying.currentTime = 0;
+            }
+
+            const btn = document.getElementById(`play-all-${sessionId}`);
+            btn.disabled = true;
+
+            let currentIndex = 0;
+
+            function playNext() {
+                if (currentIndex >= recordings.length) {
+                    btn.disabled = false;
+                    btn.textContent = `▶ Play All`;
+                    currentlyPlaying = null;
+                    return;
+                }
+
+                // Update button with current frame number
+                const frameNum = recordings.length - currentIndex;
+                btn.textContent = `🔊 Playing Frame ${frameNum} of ${recordings.length}`;
+
+                const audioElement = document.getElementById(`audio-${sessionId}-${recordings.length - currentIndex - 1}`);
+                if (audioElement) {
+                    currentlyPlaying = audioElement;
+                    audioElement.play();
+                    audioElement.onended = () => {
+                        currentIndex++;
+                        playNext();
+                    };
+                } else {
+                    currentIndex++;
+                    playNext();
+                }
+            }
+
+            playNext();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 10) / 10 + ' ' + sizes[i];
+        }
+
+        function formatDuration(ms) {
+            if (!ms) return '~3s';
+            const seconds = Math.round(ms / 1000);
+            if (seconds < 60) return `~${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s`;
+        }
+
+        function formatTimestamp(ts) {
+            const date = new Date(ts);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            connect();
+            // Load debug recordings immediately
+            loadDeepgramRecordings();
+        });
+
+        // Auto-refresh recordings every 5 seconds
+        refreshInterval = setInterval(() => {
+            const recordingsTab = document.getElementById('tab-recordings');
+            if (recordingsTab && recordingsTab.classList.contains('active')) {
+                loadRecordings();
+            }
+        }, 5000);
+
+        // Cleanup on unload
+        window.addEventListener('beforeunload', () => {
+            disconnect();
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (currentlyPlaying) currentlyPlaying.pause();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "id": "buffer.highWater",
+  "name": "High Water Mark",
+  "category": "Buffer",
+  "path": "buffer.highWater",
+  "unit": "%",
+  "description": "Peak buffer usage level",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 70,
+    "recommendedMax": 95
+  },
+  "thresholds": {
+    "warningLow": 70,
+    "warningHigh": 95,
+    "criticalLow": 60,
+    "criticalHigh": 98
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 7
+  }
+}

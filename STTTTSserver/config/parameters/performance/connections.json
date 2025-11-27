@@ -1,0 +1,33 @@
+{
+  "id": "performance.connections",
+  "name": "Active Connections",
+  "category": "Performance",
+  "path": "performance.connections",
+  "unit": "conns",
+  "description": "Number of active connections",
+  "ranges": {
+    "min": 0,
+    "max": 10,
+    "recommendedMin": 0,
+    "recommendedMax": 8
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 8,
+    "criticalLow": 0,
+    "criticalHigh": 10
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 44
+  }
+}

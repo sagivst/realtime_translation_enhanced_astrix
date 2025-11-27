@@ -1,0 +1,34 @@
+{
+  "id": "dsp.eq.sibilanceEnergy",
+  "name": "Sibilance Energy (6-8kHz)",
+  "category": "dsp",
+  "subcategory": "equalizer",
+  "path": "dsp.eq.sibilanceEnergy",
+  "unit": "dB",
+  "description": "Energy in sibilance range",
+  "ranges": {
+    "min": -30,
+    "max": 0,
+    "recommendedMin": -20,
+    "recommendedMax": -5
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": -3,
+    "criticalLow": null,
+    "criticalHigh": 0
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 13
+  },
+  "default": false
+}

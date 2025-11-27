@@ -1,0 +1,33 @@
+{
+  "id": "buffer.allocated",
+  "name": "Allocated Memory",
+  "category": "Buffer",
+  "path": "buffer.allocated",
+  "unit": "KB",
+  "description": "Total buffer memory allocated",
+  "ranges": {
+    "min": 0,
+    "max": 2048,
+    "recommendedMin": 512,
+    "recommendedMax": 1536
+  },
+  "thresholds": {
+    "warningLow": 512,
+    "warningHigh": 1536,
+    "criticalLow": 256,
+    "criticalHigh": 1800
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "low",
+    "displayOrder": 9
+  }
+}

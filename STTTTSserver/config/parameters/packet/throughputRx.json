@@ -1,0 +1,33 @@
+{
+  "id": "packet.throughputRx",
+  "name": "Receive Throughput",
+  "category": "Packet",
+  "path": "packet.throughputRx",
+  "unit": "Kbps",
+  "description": "Receive data throughput",
+  "ranges": {
+    "min": 0,
+    "max": 1000,
+    "recommendedMin": 0,
+    "recommendedMax": 800
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 800,
+    "criticalLow": 0,
+    "criticalHigh": 950
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 29
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "performance.processingRate",
+  "name": "Processing Rate",
+  "category": "Performance",
+  "path": "performance.processingRate",
+  "unit": "ops/s",
+  "description": "Operations processed per second",
+  "ranges": {
+    "min": 0,
+    "max": 200,
+    "recommendedMin": 20,
+    "recommendedMax": 180
+  },
+  "thresholds": {
+    "warningLow": 20,
+    "warningHigh": 180,
+    "criticalLow": 10,
+    "criticalHigh": 195
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 46
+  }
+}

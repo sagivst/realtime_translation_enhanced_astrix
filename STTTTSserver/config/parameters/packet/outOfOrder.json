@@ -1,0 +1,33 @@
+{
+  "id": "packet.outOfOrder",
+  "name": "Out of Order Packets",
+  "category": "Packet",
+  "path": "packet.outOfOrder",
+  "unit": "pkts",
+  "description": "Packets received out of order",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 5
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 5,
+    "criticalLow": 0,
+    "criticalHigh": 20
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 25
+  }
+}

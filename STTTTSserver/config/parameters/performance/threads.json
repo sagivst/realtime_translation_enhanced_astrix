@@ -1,0 +1,33 @@
+{
+  "id": "performance.threads",
+  "name": "Active Threads",
+  "category": "Performance",
+  "path": "performance.threads",
+  "unit": "threads",
+  "description": "Number of active processing threads",
+  "ranges": {
+    "min": 1,
+    "max": 16,
+    "recommendedMin": 1,
+    "recommendedMax": 12
+  },
+  "thresholds": {
+    "warningLow": 1,
+    "warningHigh": 12,
+    "criticalLow": 1,
+    "criticalHigh": 15
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 43
+  }
+}

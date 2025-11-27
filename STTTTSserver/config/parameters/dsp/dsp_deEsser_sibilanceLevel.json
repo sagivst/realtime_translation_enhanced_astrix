@@ -1,0 +1,34 @@
+{
+  "id": "dsp.deEsser.sibilanceLevel",
+  "name": "Sibilance Level",
+  "category": "dsp",
+  "subcategory": "de_esser",
+  "path": "dsp.deEsser.sibilanceLevel",
+  "unit": "dB",
+  "description": "Harsh \"S\" sound level",
+  "ranges": {
+    "min": -40,
+    "max": 0,
+    "recommendedMin": -30,
+    "recommendedMax": -10
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": -5,
+    "criticalLow": null,
+    "criticalHigh": 0
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 17
+  },
+  "default": false
+}

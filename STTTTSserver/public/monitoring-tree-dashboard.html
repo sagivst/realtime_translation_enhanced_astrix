@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring System - 3 Levels (Editable Only)</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      background: #0a0e1a;
+      color: #cbd5e1;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+      padding: 15px 20px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #475569;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+    }
+
+    .level-indicator {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(96, 165, 250, 0.2);
+      color: #60a5fa;
+      margin-left: 10px;
+    }
+
+    /* ===== GRID LAYOUTS ===== */
+    .grid-level1 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* 2 columns = half width each */
+      gap: 16px;
+    }
+
+    .grid-level2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    /* ===== LEVEL 1: LARGE STATION BOX (contains 2 complete boxes stacked) ===== */
+    .monitoring-box--large {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .monitoring-box--large:hover {
+      border-color: #475569;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    /* ===== LEVEL 2: SMALL PARAMETER BOX ===== */
+    .monitoring-box--small {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease, min-height 0.3s ease, z-index 0s;
+      position: relative;
+      z-index: 1;
+    }
+
+    .monitoring-box--small.expanded {
+      min-height: 280px;
+      z-index: 10;
+      border-color: #60a5fa;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
+
+    .monitoring-box--small.editable {
+      cursor: default;
+    }
+
+    .monitoring-box--small.editable:hover {
+      border-color: #475569;
+    }
+
+    .monitoring-box--small.readonly:hover {
+      border-color: #475569;
+    }
+
+    /* Read-only indicator */
+    .readonly-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(100, 116, 139, 0.2);
+      border: 1px solid #64748b;
+      color: #64748b;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ===== LEVEL 3: EDIT MODE OVERLAY (2x width + 2x height) ===== */
+    .monitoring-box--edit {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid #60a5fa;
+      border-radius: 6px;
+      padding: 24px;
+      width: 700px;
+      min-height: 500px;
+      z-index: 1000;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      display: none;
+    }
+
+    .monitoring-box--edit.active {
+      display: block;
+    }
+
+    .overlay-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+      display: none;
+    }
+
+    .overlay-backdrop.active {
+      display: block;
+    }
+
+    /* ===== BOX HEADER ===== */
+    .box-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .box-title {
+      font-size: 10px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .monitoring-box--large .box-title {
+      font-size: 12px;
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .monitoring-box--edit .box-title {
+      font-size: 14px;
+      color: #60a5fa;
+      font-weight: 700;
+    }
+
+    .status-badge {
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .status-badge.good { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .status-badge.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .status-badge.critical { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* ===== EXPAND ICON ===== */
+    .expand-icon {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      color: #64748b;
+      transition: all 0.2s ease;
+      z-index: 5;
+    }
+
+    .expand-icon:hover {
+      color: #60a5fa;
+      transform: scale(1.1);
+    }
+
+    .expand-icon svg {
+      width: 100%;
+      height: 100%;
+      fill: currentColor;
+    }
+
+    .expanded .expand-icon {
+      color: #60a5fa;
+      transform: rotate(180deg);
+    }
+
+    .expanded .expand-icon:hover {
+      transform: rotate(180deg) scale(1.1);
+    }
+
+    /* ===== BOX VALUE ===== */
+    .box-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #10b981;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .monitoring-box--large .box-value {
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .monitoring-box--edit .box-value {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+
+    .box-value.warning { color: #f59e0b; }
+    .box-value.critical { color: #ef4444; }
+
+    .box-unit {
+      font-size: 11px;
+      color: #64748b;
+      margin-left: 3px;
+    }
+
+    .monitoring-box--large .box-unit { font-size: 14px; }
+    .monitoring-box--edit .box-unit { font-size: 18px; }
+
+    /* ===== BAR CONTAINER ===== */
+    .bar-container {
+      margin: 12px 0 8px 0;
+      flex-grow: 1;
+    }
+
+    .bar-range-bg {
+      width: 100%;
+      height: 14px;
+      position: relative;
+      border-radius: 3px;
+      overflow: visible;
+      margin-bottom: 22px;
+    }
+
+    .monitoring-box--large .bar-range-bg {
+      height: 18px;
+      margin-bottom: 26px;
+    }
+
+    .monitoring-box--edit .bar-range-bg {
+      height: 24px;
+      margin-bottom: 32px;
+    }
+
+    .bar-zone-critical-low,
+    .bar-zone-critical-high {
+      position: absolute;
+      height: 100%;
+      background: rgba(239, 68, 68, 0.25);
+      border-radius: 3px 0 0 3px;
+    }
+
+    .bar-zone-critical-high { border-radius: 0 3px 3px 0; }
+
+    .bar-zone-warning-low,
+    .bar-zone-warning-high {
+      position: absolute;
+      height: 100%;
+      background: rgba(245, 158, 11, 0.25);
+    }
+
+    .bar-zone-operational {
+      position: absolute;
+      height: 100%;
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    .bar-optimal-marker {
+      position: absolute;
+      top: -4px;
+      height: 22px;
+      width: 3px;
+      background: #60a5fa;
+      z-index: 3;
+      box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+    }
+
+    .monitoring-box--large .bar-optimal-marker {
+      height: 26px;
+      width: 4px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker {
+      height: 32px;
+      width: 5px;
+    }
+
+    .bar-optimal-marker::before {
+      content: '◆';
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      color: #60a5fa;
+      text-shadow: 0 0 8px rgba(96, 165, 250, 0.8);
+    }
+
+    .monitoring-box--large .bar-optimal-marker::before {
+      font-size: 22px;
+      top: -20px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker::before {
+      font-size: 28px;
+      top: -24px;
+    }
+
+    .bar-optimal-marker::after {
+      content: 'OPTIMAL';
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: #60a5fa;
+      white-space: nowrap;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
+    }
+
+    .monitoring-box--large .bar-optimal-marker::after {
+      font-size: 10px;
+      bottom: -24px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker::after {
+      font-size: 12px;
+      bottom: -28px;
+    }
+
+    .bar-current-value {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: transparent;
+      border-radius: 3px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+      box-shadow: none;
+    }
+
+    .bar-current-value.warning {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .bar-current-value.critical {
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .bar-current-indicator {
+      position: absolute;
+      top: -3px;
+      right: -1px;
+      height: 20px;
+      width: 3px;
+      background: #ffffff;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+    }
+
+    .monitoring-box--large .bar-current-indicator {
+      height: 24px;
+      width: 4px;
+    }
+
+    .monitoring-box--edit .bar-current-indicator {
+      height: 30px;
+      width: 5px;
+    }
+
+    .bar-current-indicator::after {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid #ffffff;
+    }
+
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .monitoring-box--large .bar-labels { font-size: 10px; }
+    .monitoring-box--edit .bar-labels { font-size: 11px; }
+
+    .bar-label-operational {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .range-info {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #334155;
+      font-size: 9px;
+    }
+
+    .monitoring-box--large .range-info {
+      font-size: 10px;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+
+    .range-item {
+      flex: 1;
+      text-align: center;
+    }
+
+    .range-item-label {
+      color: #64748b;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .range-item-value {
+      color: #e2e8f0;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .monitoring-box--large .range-item-value { font-size: 13px; }
+
+    .range-item-value.good { color: #10b981; }
+    .range-item-value.warning { color: #f59e0b; }
+    .range-item-value.critical { color: #ef4444; }
+    .range-item-value.optimal { color: #60a5fa; }
+
+    /* ===== EDITABLE FIELDS (shown when expanded) ===== */
+    .edit-fields {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #334155;
+    }
+
+    .expanded .edit-fields {
+      display: block;
+    }
+
+    .expanded .range-info {
+      display: none;
+    }
+
+    .edit-field {
+      margin-bottom: 10px;
+    }
+
+    .edit-field-label {
+      font-size: 9px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .edit-field-input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      padding: 6px 8px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      transition: all 0.2s ease;
+    }
+
+    .edit-field-input:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+    }
+
+    .edit-field-input:hover {
+      border-color: #475569;
+    }
+
+    .edit-field-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .edit-field-checkbox input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .edit-field-select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      padding: 6px 8px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      cursor: pointer;
+    }
+
+    .edit-field-select:focus {
+      outline: none;
+      border-color: #60a5fa;
+    }
+
+    .edit-actions {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #334155;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .expanded .edit-actions {
+      display: flex;
+    }
+
+    .btn-save {
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-save:hover {
+      background: #059669;
+    }
+
+    .btn-cancel {
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-cancel:hover {
+      background: #475569;
+    }
+
+    .edit-section-title {
+      font-size: 9px;
+      color: #60a5fa;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 700;
+      margin-top: 12px;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .edit-section-title:first-child {
+      margin-top: 0;
+    }
+
+    /* ===== DUAL BOXES (2 complete boxes stacked in Level 1) ===== */
+    .dual-params {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .param-item {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border: 1px solid #475569;
+      border-radius: 4px;
+      padding: 14px;
+      min-height: 160px;
+    }
+
+    .param-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .param-item-title {
+      font-size: 10px;
+      color: #e2e8f0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .param-item-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: #10b981;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+
+    .param-item-value.warning { color: #f59e0b; }
+    .param-item-value.critical { color: #ef4444; }
+
+    .param-item-unit {
+      font-size: 12px;
+      color: #64748b;
+      margin-left: 3px;
+    }
+
+    /* Full-size bars for dual boxes */
+    .param-item .bar-range-bg {
+      height: 14px;
+      margin-bottom: 22px;
+    }
+
+    .param-item .bar-optimal-marker {
+      height: 22px;
+      width: 3px;
+    }
+
+    .param-item .bar-optimal-marker::before {
+      font-size: 18px;
+      top: -16px;
+    }
+
+    .param-item .bar-optimal-marker::after {
+      font-size: 9px;
+      bottom: -22px;
+    }
+
+    .param-item .bar-current-indicator {
+      height: 20px;
+      width: 3px;
+    }
+
+    .param-item .bar-labels {
+      font-size: 9px;
+    }
+
+    /* ===== EDIT MODE CONTROLS ===== */
+    .edit-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px solid #334155;
+    }
+
+    .edit-section-title {
+      font-size: 11px;
+      color: #60a5fa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .edit-controls {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-label {
+      font-size: 9px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .control-input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      padding: 8px 10px;
+      color: #e2e8f0;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    .control-input:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      cursor: pointer;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #60a5fa;
+      color: #0a0e1a;
+    }
+
+    .btn-primary:hover {
+      background: #3b82f6;
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .expand-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(96, 165, 250, 0.2);
+      border: 1px solid #60a5fa;
+      color: #60a5fa;
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .expand-btn:hover {
+      background: rgba(96, 165, 250, 0.3);
+      transform: scale(1.05);
+    }
+
+    .monitoring-box--small .expand-btn {
+      bottom: 12px;
+      right: 12px;
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+    }
+
+    .close-btn:hover {
+      color: #e2e8f0;
+    }
+
+    .box-path {
+      font-size: 8px;
+      color: #475569;
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    .monitoring-box--large .box-path { font-size: 9px; }
+    .monitoring-box--edit .box-path { font-size: 10px; }
+
+    .section-divider {
+      margin: 30px 0;
+      padding: 0;
+      border: 0;
+      border-top: 2px solid #334155;
+    }
+
+    .back-btn {
+      display: inline-block;
+      background: rgba(100, 116, 139, 0.2);
+      border: 1px solid #64748b;
+      color: #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .back-btn:hover {
+      background: rgba(100, 116, 139, 0.3);
+      border-color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>📊 MONITORING SYSTEM - EDITABLE PARAMETERS ONLY
+      <span class="level-indicator" id="currentLevel">LEVEL 1</span>
+    </h1>
+  </div>
+
+  <!-- ===== LEVEL 1: LARGE STATION BOXES ===== -->
+  <div id="level1" class="grid-level1">
+
+    <div class="monitoring-box--large">
+      <div class="box-header">
+        <div class="box-title">STATION 1: ARI RECEIVE</div>
+        <div class="status-badge good">ONLINE</div>
+      </div>
+
+      <div class="box-value good" id="station1-buffer-value">
+        45.2<span class="box-unit">%</span>
+      </div>
+
+      <div class="bar-container">
+        <div class="bar-range-bg">
+          <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+          <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+          <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+          <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+          <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+          <div class="bar-optimal-marker" style="left: 50%;"></div>
+          <div class="bar-current-value good" id="station1-buffer-bar" style="width: 45.2%;">
+            <div class="bar-current-indicator"></div>
+          </div>
+        </div>
+        <div class="bar-labels">
+          <span>0%</span>
+          <span class="bar-label-operational">BUFFER: 20-80%</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="range-info">
+        <div class="range-item">
+          <div class="range-item-label">Current</div>
+          <div class="range-item-value good" id="station1-buffer-current">45.2%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Optimal</div>
+          <div class="range-item-value optimal">50%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Deviation</div>
+          <div class="range-item-value good">-4.8%</div>
+        </div>
+      </div>
+
+      <div class="dual-params">
+        <!-- PARAM 1: Latency -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">AVERAGE LATENCY</div>
+            <div class="status-badge good">GOOD</div>
+          </div>
+          <div class="param-item-value good" id="station1-latency-value">
+            52<span class="param-item-unit">ms</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+              <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+              <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+              <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+              <div class="bar-current-value good" style="width: 13%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0ms</span>
+              <span class="bar-label-operational">0-200ms</span>
+              <span>400ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAM 2: SNR -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">SNR - SIGNAL/NOISE</div>
+            <div class="status-badge good">GOOD</div>
+          </div>
+          <div class="param-item-value good" id="station1-snr-value">
+            32.5<span class="param-item-unit">dB</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-critical-low" style="left: 0%; width: 25%;"></div>
+              <div class="bar-zone-warning-low" style="left: 25%; width: 16.67%;"></div>
+              <div class="bar-zone-operational" style="left: 41.67%; width: 58.33%;"></div>
+              <div class="bar-optimal-marker" style="left: 66.67%;"></div>
+              <div class="bar-current-value good" style="width: 54.17%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0dB</span>
+              <span class="bar-label-operational">25-60dB</span>
+              <span>60dB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box-path">station-1.ari-rx</div>
+      <button class="expand-btn" onclick="showLevel2('station-1')">EXPAND ⛶</button>
+    </div>
+
+    <div class="monitoring-box--large">
+      <div class="box-header">
+        <div class="box-title">STATION 2: UDP TRANSMIT</div>
+        <div class="status-badge warning">WARNING</div>
+      </div>
+
+      <div class="box-value warning" id="station2-buffer-value">
+        78.0<span class="box-unit">%</span>
+      </div>
+
+      <div class="bar-container">
+        <div class="bar-range-bg">
+          <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+          <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+          <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+          <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+          <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+          <div class="bar-optimal-marker" style="left: 50%;"></div>
+          <div class="bar-current-value warning" id="station2-buffer-bar" style="width: 78%;">
+            <div class="bar-current-indicator"></div>
+          </div>
+        </div>
+        <div class="bar-labels">
+          <span>0%</span>
+          <span class="bar-label-operational">BUFFER: 20-80%</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="range-info">
+        <div class="range-item">
+          <div class="range-item-label">Current</div>
+          <div class="range-item-value warning">78%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Optimal</div>
+          <div class="range-item-value optimal">50%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Deviation</div>
+          <div class="range-item-value warning">+28%</div>
+        </div>
+      </div>
+
+      <div class="dual-params">
+        <!-- PARAM 1: Latency -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">AVERAGE LATENCY</div>
+            <div class="status-badge critical">CRITICAL</div>
+          </div>
+          <div class="param-item-value critical">
+            298<span class="param-item-unit">ms</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+              <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+              <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+              <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+              <div class="bar-current-value critical" style="width: 74.5%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0ms</span>
+              <span class="bar-label-operational">0-200ms</span>
+              <span>400ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAM 2: Packet Loss -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">PACKET LOSS RATE</div>
+            <div class="status-badge warning">WARNING</div>
+          </div>
+          <div class="param-item-value warning">
+            3.2<span class="param-item-unit">%</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 20%;"></div>
+              <div class="bar-zone-warning-high" style="left: 20%; width: 40%;"></div>
+              <div class="bar-zone-critical-high" style="left: 60%; width: 40%;"></div>
+              <div class="bar-optimal-marker" style="left: 0%;"></div>
+              <div class="bar-current-value warning" style="width: 64%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0%</span>
+              <span class="bar-label-operational">0-1%</span>
+              <span>5%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box-path">station-2.udp-tx</div>
+      <button class="expand-btn" onclick="showLevel2('station-2')">EXPAND ⛶</button>
+    </div>
+
+  </div>
+
+  <!-- ===== LEVEL 2: ALL 75 PARAMETER BOXES (DYNAMICALLY GENERATED) ===== -->
+  <div id="level2" style="display: none;">
+    <button class="back-btn" onclick="backToLevel1()">← BACK TO LEVEL 1</button>
+    <div id="level2-station-title" style="font-size: 18px; color: #e2e8f0; margin-bottom: 20px; padding: 10px; background: #1e293b; border-radius: 4px;"></div>
+
+    <div class="grid-level2" id="params-grid">
+
+      <!-- EDITABLE: Buffer Total -->
+      <div class="monitoring-box--small editable" onclick="showEdit('buffer', 'station-2.udp-tx.buffer.total')">
+        <div class="box-header">
+          <div class="box-title">TOTAL BUFFER</div>
+          <div class="status-badge warning">WARNING</div>
+        </div>
+
+        <div class="box-value warning">
+          78<span class="box-unit">%</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+            <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+            <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+            <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+            <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+            <div class="bar-optimal-marker" style="left: 50%;"></div>
+            <div class="bar-current-value warning" style="width: 78%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0%</span>
+            <span class="bar-label-operational">20-80%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value warning">78%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">50%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value warning">+28%</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.buffer.total</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('buffer', 'station-2.udp-tx.buffer.total')">EDIT ✏</button>
+      </div>
+
+      <!-- EDITABLE: Latency -->
+      <div class="monitoring-box--small editable" onclick="showEdit('latency', 'station-2.udp-tx.latency.avg')">
+        <div class="box-header">
+          <div class="box-title">AVERAGE LATENCY</div>
+          <div class="status-badge critical">CRITICAL</div>
+        </div>
+
+        <div class="box-value critical">
+          298<span class="box-unit">ms</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+            <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+            <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+            <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+            <div class="bar-current-value critical" style="width: 74.5%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0ms</span>
+            <span class="bar-label-operational">0-200ms</span>
+            <span>400ms</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value critical">298ms</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">50ms</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value critical">+248ms</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.latency.avg</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('latency', 'station-2.udp-tx.latency.avg')">EDIT ✏</button>
+      </div>
+
+      <!-- READ-ONLY: SNR (NO EXPAND BUTTON) -->
+      <div class="monitoring-box--small readonly">
+        <div class="readonly-badge">READ-ONLY</div>
+        <div class="box-header">
+          <div class="box-title">SNR - SIGNAL/NOISE</div>
+          <div class="status-badge good">GOOD</div>
+        </div>
+
+        <div class="box-value good">
+          32.5<span class="box-unit">dB</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-critical-low" style="left: 0%; width: 25%;"></div>
+            <div class="bar-zone-warning-low" style="left: 25%; width: 16.67%;"></div>
+            <div class="bar-zone-operational" style="left: 41.67%; width: 58.33%;"></div>
+            <div class="bar-optimal-marker" style="left: 66.67%;"></div>
+            <div class="bar-current-value good" style="width: 54.17%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0dB</span>
+            <span class="bar-label-operational">25-60dB</span>
+            <span>60dB</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value good">32.5dB</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">40dB</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value good">-7.5dB</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-1.ari-rx.audioQuality.snr (Hardware calculated)</div>
+        <!-- NO EXPAND BUTTON - READ-ONLY -->
+      </div>
+
+      <!-- EDITABLE: Packet Loss -->
+      <div class="monitoring-box--small editable" onclick="showEdit('packetloss', 'station-2.udp-tx.packet.lossRate')">
+        <div class="box-header">
+          <div class="box-title">PACKET LOSS RATE</div>
+          <div class="status-badge warning">WARNING</div>
+        </div>
+
+        <div class="box-value warning">
+          3.2<span class="box-unit">%</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-operational" style="left: 0%; width: 20%;"></div>
+            <div class="bar-zone-warning-high" style="left: 20%; width: 40%;"></div>
+            <div class="bar-zone-critical-high" style="left: 60%; width: 40%;"></div>
+            <div class="bar-optimal-marker" style="left: 0%;"></div>
+            <div class="bar-current-value warning" style="width: 64%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0%</span>
+            <span class="bar-label-operational">0-1%</span>
+            <span>5%</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value warning">3.2%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">0%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value warning">+3.2%</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.packet.lossRate</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('packetloss', 'station-2.udp-tx.packet.lossRate')">EDIT ✏</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== OVERLAY BACKDROP ===== -->
+  <div class="overlay-backdrop" id="overlay" onclick="closeEdit()"></div>
+
+  <!-- ===== LEVEL 3: EDIT MODE OVERLAY ===== -->
+  <div class="monitoring-box--edit" id="editBox">
+    <button class="close-btn" onclick="closeEdit()">×</button>
+
+    <div class="box-header">
+      <div class="box-title" id="editTitle">PARAMETER - EDIT MODE</div>
+      <div class="status-badge warning" id="editStatus">WARNING</div>
+    </div>
+
+    <div class="box-value warning" id="editValue">
+      78<span class="box-unit" id="editUnit">%</span>
+    </div>
+
+    <div class="bar-container" id="editBarContainer">
+      <!-- Bar will be dynamically updated -->
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">⚙ Threshold Configuration</div>
+
+      <div class="edit-controls">
+        <div class="control-group">
+          <label class="control-label">Critical Low Threshold</label>
+          <input type="number" class="control-input" id="criticalLow" value="10">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Critical High Threshold</label>
+          <input type="number" class="control-input" id="criticalHigh" value="95">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Warning Low Threshold</label>
+          <input type="number" class="control-input" id="warningLow" value="20">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Warning High Threshold</label>
+          <input type="number" class="control-input" id="warningHigh" value="80">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Optimal Point</label>
+          <input type="number" class="control-input" id="optimal" value="50">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Update Interval (ms)</label>
+          <input type="number" class="control-input" id="updateInterval" value="1000">
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">🔔 Alert Configuration</div>
+
+      <div class="checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="audioAlert" checked>
+          Audio Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="visualAlert" checked>
+          Visual Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="emailAlert">
+          Email Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="webhookAlert">
+          Webhook
+        </label>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">📍 Parameter Path</div>
+      <div class="control-group">
+        <input type="text" class="control-input" id="paramPath" value="" readonly style="background: #1e293b;">
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn btn-danger" onclick="resetToDefault()">Reset to Default</button>
+      <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+
+    <div class="box-path" id="editFooter">Last modified: 2025-01-15 18:45:32 | User: admin</div>
+  </div>
+
+  <script>
+    let currentParamPath = '';
+
+    let currentStationId = null;
+
+    function showLevel2(stationId) {
+      currentStationId = stationId;
+      document.getElementById('level1').style.display = 'none';
+      document.getElementById('level2').style.display = 'block';
+      document.getElementById('currentLevel').textContent = 'LEVEL 2';
+
+      // Update station title
+      const stationName = stationsData[stationId]?.name || stationId;
+      document.getElementById('level2-station-title').textContent = stationName.toUpperCase() + ' - ALL 75 PARAMETERS';
+
+      // Generate all 75 parameter boxes
+      generateAllParameterBoxes(stationId);
+
+      console.log('Showing Level 2 for:', stationId);
+    }
+
+    function backToLevel1() {
+      document.getElementById('level1').style.display = 'grid';
+      document.getElementById('level2').style.display = 'none';
+      document.getElementById('currentLevel').textContent = 'LEVEL 1';
+    }
+
+    function showEdit(paramId, paramPath) {
+      currentParamPath = paramPath;
+      document.getElementById('editBox').classList.add('active');
+      document.getElementById('overlay').classList.add('active');
+      document.getElementById('currentLevel').textContent = 'LEVEL 3 - EDIT MODE';
+      document.getElementById('paramPath').value = paramPath;
+
+      // Load config from unified config file (simulated)
+      loadParamConfig(paramPath);
+
+      console.log('Editing parameter:', paramId, 'Path:', paramPath);
+    }
+
+    function closeEdit() {
+      document.getElementById('editBox').classList.remove('active');
+      document.getElementById('overlay').classList.remove('active');
+      document.getElementById('currentLevel').textContent = 'LEVEL 2';
+    }
+
+    function loadParamConfig(paramPath) {
+      // In production, this would fetch from /tmp/monitoring-config-values.json
+      // For demo, we'll use hardcoded values
+      const configs = {
+        'station-2.udp-tx.buffer.total': {
+          title: 'TOTAL BUFFER',
+          value: 78,
+          unit: '%',
+          status: 'warning',
+          thresholds: { criticalLow: 10, criticalHigh: 95, warningLow: 20, warningHigh: 80, optimal: 50 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: false, webhookAlert: false },
+          updateInterval: 1000
+        },
+        'station-2.udp-tx.latency.avg': {
+          title: 'AVERAGE LATENCY',
+          value: 298,
+          unit: 'ms',
+          status: 'critical',
+          thresholds: { criticalLow: 0, criticalHigh: 300, warningLow: 0, warningHigh: 200, optimal: 50 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: true, webhookAlert: false },
+          updateInterval: 500
+        },
+        'station-2.udp-tx.packet.lossRate': {
+          title: 'PACKET LOSS RATE',
+          value: 3.2,
+          unit: '%',
+          status: 'warning',
+          thresholds: { criticalLow: 0, criticalHigh: 3, warningLow: 0, warningHigh: 1, optimal: 0 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: true, webhookAlert: true },
+          updateInterval: 1000
+        }
+      };
+
+      const config = configs[paramPath];
+      if (config) {
+        document.getElementById('editTitle').textContent = config.title + ' - EDIT MODE';
+        document.getElementById('editValue').innerHTML = config.value + '<span class="box-unit">' + config.unit + '</span>';
+        document.getElementById('criticalLow').value = config.thresholds.criticalLow;
+        document.getElementById('criticalHigh').value = config.thresholds.criticalHigh;
+        document.getElementById('warningLow').value = config.thresholds.warningLow;
+        document.getElementById('warningHigh').value = config.thresholds.warningHigh;
+        document.getElementById('optimal').value = config.thresholds.optimal;
+        document.getElementById('updateInterval').value = config.updateInterval;
+        document.getElementById('audioAlert').checked = config.alerts.audioAlert;
+        document.getElementById('visualAlert').checked = config.alerts.visualAlert;
+        document.getElementById('emailAlert').checked = config.alerts.emailAlert;
+        document.getElementById('webhookAlert').checked = config.alerts.webhookAlert;
+      }
+    }
+
+    function saveEdit() {
+      const updatedConfig = {
+        path: currentParamPath,
+        thresholds: {
+          criticalLow: parseFloat(document.getElementById('criticalLow').value),
+          criticalHigh: parseFloat(document.getElementById('criticalHigh').value),
+          warningLow: parseFloat(document.getElementById('warningLow').value),
+          warningHigh: parseFloat(document.getElementById('warningHigh').value),
+          optimal: parseFloat(document.getElementById('optimal').value)
+        },
+        alerts: {
+          audioAlert: document.getElementById('audioAlert').checked,
+          visualAlert: document.getElementById('visualAlert').checked,
+          emailAlert: document.getElementById('emailAlert').checked,
+          webhookAlert: document.getElementById('webhookAlert').checked
+        },
+        updateInterval: parseInt(document.getElementById('updateInterval').value)
+      };
+
+      console.log('Saving configuration:', updatedConfig);
+
+      // In production, this would:
+      // 1. POST to monitoring server: /api/config/update
+      // 2. Server writes to /tmp/monitoring-config-values.json
+      // 3. STTTTSserver reads updated values on next cycle
+
+      alert('✓ Configuration saved to unified config file!\n\nPath: ' + currentParamPath + '\n\nThe STTTTSserver will load these values on next update cycle.');
+      closeEdit();
+    }
+
+    function resetToDefault() {
+      if (confirm('Reset all thresholds to default values?')) {
+        // Load defaults (would come from server in production)
+        alert('Configuration reset to factory defaults.');
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeEdit();
+      }
+    });
+
+    // ============================================
+    // ALL 75 PARAMETERS DEFINITION
+    // ============================================
+    const allParameters = [
+      {id:'buffer.total',name:'Total Buffer',unit:'%',cat:'Buffer',path:'buffer.total'},
+      {id:'buffer.input',name:'Input Buffer',unit:'%',cat:'Buffer',path:'buffer.input'},
+      {id:'buffer.processing',name:'Processing Buffer',unit:'%',cat:'Buffer',path:'buffer.processing'},
+      {id:'buffer.output',name:'Output Buffer',unit:'%',cat:'Buffer',path:'buffer.output'},
+      {id:'buffer.overruns',name:'Buffer Overruns',unit:'count',cat:'Buffer',path:'buffer.overruns'},
+      {id:'buffer.underruns',name:'Buffer Underruns',unit:'count',cat:'Buffer',path:'buffer.underruns'},
+      {id:'buffer.highWater',name:'High Water Mark',unit:'%',cat:'Buffer',path:'buffer.highWater'},
+      {id:'buffer.lowWater',name:'Low Water Mark',unit:'%',cat:'Buffer',path:'buffer.lowWater'},
+      {id:'buffer.allocated',name:'Allocated',unit:'%',cat:'Buffer',path:'buffer.allocated'},
+      {id:'buffer.free',name:'Free Space',unit:'%',cat:'Buffer',path:'buffer.free'},
+      {id:'latency.avg',name:'Average Latency',unit:'ms',cat:'Latency',path:'latency.avg'},
+      {id:'latency.peak',name:'Peak Latency',unit:'ms',cat:'Latency',path:'latency.peak'},
+      {id:'latency.min',name:'Min Latency',unit:'ms',cat:'Latency',path:'latency.min'},
+      {id:'latency.jitter',name:'Jitter',unit:'ms',cat:'Latency',path:'latency.jitter'},
+      {id:'latency.e2e',name:'End-to-End',unit:'ms',cat:'Latency',path:'latency.e2e'},
+      {id:'latency.processing',name:'Processing',unit:'ms',cat:'Latency',path:'latency.processing'},
+      {id:'latency.network',name:'Network',unit:'ms',cat:'Latency',path:'latency.network'},
+      {id:'latency.variance',name:'Variance',unit:'ms',cat:'Latency',path:'latency.variance'},
+      {id:'packet.rx',name:'Packets RX',unit:'pkt',cat:'Packet',path:'packet.rx'},
+      {id:'packet.tx',name:'Packets TX',unit:'pkt',cat:'Packet',path:'packet.tx'},
+      {id:'packet.dropped',name:'Dropped',unit:'pkt',cat:'Packet',path:'packet.dropped'},
+      {id:'packet.lossRate',name:'Loss Rate',unit:'%',cat:'Packet',path:'packet.lossRate'},
+      {id:'packet.errors',name:'Errors',unit:'count',cat:'Packet',path:'packet.errors'},
+      {id:'packet.retransmits',name:'Retransmits',unit:'count',cat:'Packet',path:'packet.retransmits'},
+      {id:'packet.outOfOrder',name:'Out of Order',unit:'count',cat:'Packet',path:'packet.outOfOrder'},
+      {id:'packet.duplicates',name:'Duplicates',unit:'count',cat:'Packet',path:'packet.duplicates'},
+      {id:'packet.bytesRx',name:'Bytes RX',unit:'B',cat:'Packet',path:'packet.bytesRx'},
+      {id:'packet.bytesTx',name:'Bytes TX',unit:'B',cat:'Packet',path:'packet.bytesTx'},
+      {id:'packet.throughputRx',name:'Throughput RX',unit:'Kbps',cat:'Packet',path:'packet.throughputRx'},
+      {id:'packet.throughputTx',name:'Throughput TX',unit:'Kbps',cat:'Packet',path:'packet.throughputTx'},
+      {id:'audioQuality.sampleRate',name:'Sample Rate',unit:'Hz',cat:'Audio',path:'audioQuality.sampleRate'},
+      {id:'audioQuality.bitDepth',name:'Bit Depth',unit:'bit',cat:'Audio',path:'audioQuality.bitDepth'},
+      {id:'audioQuality.channels',name:'Channels',unit:'',cat:'Audio',path:'audioQuality.channels'},
+      {id:'audioQuality.format',name:'Format',unit:'',cat:'Audio',path:'audioQuality.format'},
+      {id:'audioQuality.clipping',name:'Clipping',unit:'count',cat:'Audio',path:'audioQuality.clipping'},
+      {id:'audioQuality.silenceCount',name:'Silence Count',unit:'count',cat:'Audio',path:'audioQuality.silenceCount'},
+      {id:'audioQuality.silenceDuration',name:'Silence Duration',unit:'ms',cat:'Audio',path:'audioQuality.silenceDuration'},
+      {id:'audioQuality.audioLevel',name:'Audio Level',unit:'dBFS',cat:'Audio',path:'audioQuality.audioLevel'},
+      {id:'audioQuality.snr',name:'SNR',unit:'dB',cat:'Audio',path:'audioQuality.snr'},
+      {id:'audioQuality.thd',name:'THD',unit:'%',cat:'Audio',path:'audioQuality.thd'},
+      {id:'performance.cpu',name:'CPU Usage',unit:'%',cat:'Perf',path:'performance.cpu'},
+      {id:'performance.memory',name:'Memory',unit:'MB',cat:'Perf',path:'performance.memory'},
+      {id:'performance.threads',name:'Threads',unit:'count',cat:'Perf',path:'performance.threads'},
+      {id:'performance.connections',name:'Connections',unit:'count',cat:'Perf',path:'performance.connections'},
+      {id:'performance.queueDepth',name:'Queue Depth',unit:'count',cat:'Perf',path:'performance.queueDepth'},
+      {id:'performance.processingRate',name:'Processing Rate',unit:'ops/s',cat:'Perf',path:'performance.processingRate'},
+      {id:'performance.errorRate',name:'Error Rate',unit:'err/min',cat:'Perf',path:'performance.errorRate'},
+      {id:'performance.uptime',name:'Uptime',unit:'s',cat:'Perf',path:'performance.uptime'},
+      {id:'custom.state',name:'State',unit:'',cat:'Custom',path:'custom.state'},
+      {id:'custom.lastActivity',name:'Last Activity',unit:'ms',cat:'Custom',path:'custom.lastActivity'},
+      {id:'custom.totalProcessed',name:'Total Processed',unit:'count',cat:'Custom',path:'custom.totalProcessed'},
+      {id:'custom.processingSpeed',name:'Processing Speed',unit:'items/s',cat:'Custom',path:'custom.processingSpeed'},
+      {id:'custom.successRate',name:'Success Rate',unit:'%',cat:'Custom',path:'custom.successRate'},
+      {id:'custom.warningCount',name:'Warnings',unit:'count',cat:'Custom',path:'custom.warningCount'},
+      {id:'custom.criticalCount',name:'Critical Events',unit:'count',cat:'Custom',path:'custom.criticalCount'},
+      {id:'dsp.hpf.lowFreqRumble',name:'Low Freq Rumble',unit:'dB',cat:'DSP',path:'dsp.hpf.lowFreqRumble'},
+      {id:'dsp.lpf.hfHarshness',name:'HF Harshness',unit:'dB',cat:'DSP',path:'dsp.lpf.hfHarshness'},
+      {id:'dsp.nr.residualNoise',name:'Residual Noise',unit:'dB',cat:'DSP',path:'dsp.nr.residualNoise'},
+      {id:'dsp.nr.speechIntegrityLoss',name:'Speech Integrity Loss',unit:'%',cat:'DSP',path:'dsp.nr.speechIntegrityLoss'},
+      {id:'dsp.agc.gainAdjustmentSpeed',name:'Gain Adj Speed',unit:'dB/s',cat:'DSP',path:'dsp.agc.gainAdjustmentSpeed'},
+      {id:'dsp.agc.overAmplificationEvents',name:'Over-Amplification',unit:'count',cat:'DSP',path:'dsp.agc.overAmplificationEvents'},
+      {id:'dsp.agc.rmsDeviation',name:'RMS Deviation',unit:'dB',cat:'DSP',path:'dsp.agc.rmsDeviation'},
+      {id:'dsp.comp.dynRangeReduction',name:'Dynamic Range Red',unit:'dB',cat:'DSP',path:'dsp.comp.dynRangeReduction'},
+      {id:'dsp.comp.compressionEvents',name:'Compression Events',unit:'count',cat:'DSP',path:'dsp.comp.compressionEvents'},
+      {id:'dsp.limiter.clipPreventionRate',name:'Clip Prevention',unit:'%',cat:'DSP',path:'dsp.limiter.clipPreventionRate'},
+      {id:'dsp.limiter.peakMargin',name:'Peak Margin',unit:'dB',cat:'DSP',path:'dsp.limiter.peakMargin'},
+      {id:'dsp.eq.clarityBandEnergy',name:'Clarity Band',unit:'dB',cat:'DSP',path:'dsp.eq.clarityBandEnergy'},
+      {id:'dsp.eq.sibilanceEnergy',name:'Sibilance',unit:'dB',cat:'DSP',path:'dsp.eq.sibilanceEnergy'},
+      {id:'dsp.aec.erl',name:'ERL',unit:'dB',cat:'DSP',path:'dsp.aec.erl'},
+      {id:'dsp.aec.erle',name:'ERLE',unit:'dB',cat:'DSP',path:'dsp.aec.erle'},
+      {id:'dsp.aec.lateEchoResidual',name:'Late Echo',unit:'dB',cat:'DSP',path:'dsp.aec.lateEchoResidual'},
+      {id:'dsp.deEsser.sibilanceLevel',name:'Sibilance Level',unit:'dB',cat:'DSP',path:'dsp.deEsser.sibilanceLevel'},
+      {id:'dsp.declicker.clickCount',name:'Click Count',unit:'count',cat:'DSP',path:'dsp.declicker.clickCount'},
+      {id:'dsp.dereverb.reverbLevel',name:'Reverb Level',unit:'%',cat:'DSP',path:'dsp.dereverb.reverbLevel'},
+      {id:'dsp.speechEnh.intelligibilityScore',name:'Intelligibility',unit:'%',cat:'DSP',path:'dsp.speechEnh.intelligibilityScore'}
+    ];
+
+    // ============================================
+    // Generate Edit Fields HTML Based on Parameter Type
+    // ============================================
+    function generateEditFieldsHTML(param, config) {
+      const category = param.cat.toLowerCase();
+      const ranges = config.ranges || { min: 0, max: 100, recommendedMin: 20, recommendedMax: 80 };
+      const thresholds = config.thresholds || { criticalLow: null, warningLow: null, warningHigh: null, criticalHigh: null };
+      const alerts = config.alerts || { enabled: true, audioAlert: true, visualAlert: true, emailAlert: false, webhookAlert: false };
+      const metadata = config.metadata || { updateFrequency: 1000, priority: 'medium' };
+      const opSettings = config.operationalSettings || {};
+
+      let html = '<div class="edit-section-title">THRESHOLDS</div>';
+      html += `<div class="edit-field"><div class="edit-field-label">Warning Low</div><input type="number" class="edit-field-input" data-field="thresholds.warningLow" value="${thresholds.warningLow || ''}" min="${ranges.min}" max="${ranges.max}" placeholder="null=disabled"></div>`;
+      html += `<div class="edit-field"><div class="edit-field-label">Warning High</div><input type="number" class="edit-field-input" data-field="thresholds.warningHigh" value="${thresholds.warningHigh || ''}" min="${ranges.min}" max="${ranges.max}"></div>`;
+      html += `<div class="edit-field"><div class="edit-field-label">Critical Low</div><input type="number" class="edit-field-input" data-field="thresholds.criticalLow" value="${thresholds.criticalLow || ''}" min="${ranges.min}" max="${ranges.max}" placeholder="null=disabled"></div>`;
+      html += `<div class="edit-field"><div class="edit-field-label">Critical High</div><input type="number" class="edit-field-input" data-field="thresholds.criticalHigh" value="${thresholds.criticalHigh || ''}" min="${ranges.min}" max="${ranges.max}"></div>`;
+
+      html += '<div class="edit-section-title">RECOMMENDED RANGE</div>';
+      html += `<div class="edit-field"><div class="edit-field-label">Recommended Min (${param.unit})</div><input type="number" class="edit-field-input" data-field="ranges.recommendedMin" value="${ranges.recommendedMin}" min="${ranges.min}" max="${ranges.max}"></div>`;
+      html += `<div class="edit-field"><div class="edit-field-label">Recommended Max (${param.unit})</div><input type="number" class="edit-field-input" data-field="ranges.recommendedMax" value="${ranges.recommendedMax}" min="${ranges.min}" max="${ranges.max}"></div>`;
+
+      html += '<div class="edit-section-title">ALERTS</div>';
+      html += `<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="alerts.enabled" ${alerts.enabled?'checked':''}><span>Alerts Enabled</span></div></div>`;
+      html += `<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="alerts.audioAlert" ${alerts.audioAlert?'checked':''}><span>Audio Alert</span></div></div>`;
+      html += `<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="alerts.visualAlert" ${alerts.visualAlert?'checked':''}><span>Visual Alert</span></div></div>`;
+
+      // CATEGORY-SPECIFIC OPERATIONAL SETTINGS
+      if (category === 'buffer') {
+        html += '<div class="edit-section-title">BUFFER SETTINGS (OPERATIONAL)</div>';
+        const bufferSize = opSettings.bufferSize || { value: 512, min: 64, max: 4096, step: 64 };
+        const bufferCount = opSettings.bufferCount || { value: 4, min: 2, max: 32, step: 1 };
+        const autoAdjust = opSettings.autoAdjust || { value: true };
+        const preallocation = opSettings.preallocation || { value: true };
+        html += `<div class="edit-field"><div class="edit-field-label">Buffer Size (KB)</div><input type="number" class="edit-field-input" data-field="operationalSettings.bufferSize" value="${bufferSize.value}" min="${bufferSize.min}" max="${bufferSize.max}" step="${bufferSize.step}"></div>`;
+        html += `<div class="edit-field"><div class="edit-field-label">Buffer Count</div><input type="number" class="edit-field-input" data-field="operationalSettings.bufferCount" value="${bufferCount.value}" min="${bufferCount.min}" max="${bufferCount.max}" step="${bufferCount.step}"></div>`;
+        html += `<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="operationalSettings.autoAdjust" ${autoAdjust.value?'checked':''}><span>Auto Adjust Buffer Size</span></div></div>`;
+        html += `<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="operationalSettings.preallocation" ${preallocation.value?'checked':''}><span>Pre-allocate Buffers at Startup</span></div></div>`;
+      }
+
+      if (category === 'latency') {
+        html += '<div class="edit-section-title">LATENCY CONTROL</div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Max Acceptable Latency (ms)</div><input type="number" class="edit-field-input" data-field="settings.maxAcceptableLatency" value="150" min="10" max="1000" step="10"></div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Jitter Buffer Mode</div><select class="edit-field-select" data-field="settings.jitterBufferMode"><option value="fixed">Fixed</option><option value="adaptive" selected>Adaptive</option><option value="disabled">Disabled</option></select></div>';
+        html += '<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="settings.latencyCompensation" checked><span>Enable Latency Compensation</span></div></div>';
+      }
+
+      if (category === 'packet') {
+        html += '<div class="edit-section-title">PACKET HANDLING</div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Max Packet Loss (%)</div><input type="number" class="edit-field-input" data-field="settings.maxPacketLoss" value="1.0" min="0" max="10" step="0.1"></div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Max Retransmit Attempts</div><input type="number" class="edit-field-input" data-field="settings.retransmitMaxAttempts" value="3" min="1" max="10" step="1"></div>';
+        html += '<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="settings.fecEnabled" checked><span>Forward Error Correction (FEC)</span></div></div>';
+        html += '<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="settings.retransmitEnabled" checked><span>Enable Packet Retransmission</span></div></div>';
+      }
+
+      if (category === 'audio' || category === 'audioquality') {
+        html += '<div class="edit-section-title">AUDIO FORMAT (OPERATIONAL)</div>';
+        const sampleRate = opSettings.sampleRate || { value: 16000, options: [8000, 16000, 22050, 44100, 48000] };
+        const bitDepth = opSettings.bitDepth || { value: 16, options: [8, 16, 24, 32] };
+        const channels = opSettings.channels || { value: 1, options: [1, 2] };
+        const codec = opSettings.codec || { value: 'pcm_s16le', options: ['pcm_s16le', 'pcm_mulaw', 'pcm_alaw', 'opus', 'mp3'] };
+
+        if (sampleRate.options) {
+          html += `<div class="edit-field"><div class="edit-field-label">Sample Rate (Hz) - SYSTEM CONFIG</div><select class="edit-field-select" data-field="operationalSettings.sampleRate">`;
+          sampleRate.options.forEach(rate => {
+            html += `<option value="${rate}" ${rate === sampleRate.value ? 'selected' : ''}>${rate} Hz ${rate === 8000 ? '(8kHz)' : rate === 16000 ? '(16kHz)' : ''}</option>`;
+          });
+          html += '</select></div>';
+        }
+
+        if (bitDepth.options) {
+          html += `<div class="edit-field"><div class="edit-field-label">Bit Depth</div><select class="edit-field-select" data-field="operationalSettings.bitDepth">`;
+          bitDepth.options.forEach(depth => {
+            html += `<option value="${depth}" ${depth === bitDepth.value ? 'selected' : ''}>${depth}-bit</option>`;
+          });
+          html += '</select></div>';
+        }
+
+        if (channels.options) {
+          html += `<div class="edit-field"><div class="edit-field-label">Channels</div><select class="edit-field-select" data-field="operationalSettings.channels">`;
+          channels.options.forEach(ch => {
+            html += `<option value="${ch}" ${ch === channels.value ? 'selected' : ''}>${ch === 1 ? 'Mono (1)' : 'Stereo (2)'}</option>`;
+          });
+          html += '</select></div>';
+        }
+
+        if (codec.options) {
+          html += `<div class="edit-field"><div class="edit-field-label">Codec</div><select class="edit-field-select" data-field="operationalSettings.codec">`;
+          codec.options.forEach(c => {
+            html += `<option value="${c}" ${c === codec.value ? 'selected' : ''}>${c.toUpperCase()}</option>`;
+          });
+          html += '</select></div>';
+        }
+
+        html += '<div class="edit-section-title">AUDIO QUALITY THRESHOLDS</div>';
+        const minSNR = opSettings.minSNR || { value: 25, min: 10, max: 60 };
+        const targetMOS = opSettings.targetMOS || { value: 4.0, min: 1.0, max: 5.0 };
+        html += `<div class="edit-field"><div class="edit-field-label">Min SNR (dB)</div><input type="number" class="edit-field-input" data-field="operationalSettings.minSNR" value="${minSNR.value}" min="${minSNR.min}" max="${minSNR.max}" step="1"></div>`;
+        html += `<div class="edit-field"><div class="edit-field-label">Target MOS Score</div><input type="number" class="edit-field-input" data-field="operationalSettings.targetMOS" value="${targetMOS.value}" min="${targetMOS.min}" max="${targetMOS.max}" step="0.1"></div>`;
+      }
+
+      if (category === 'perf' || category === 'performance') {
+        html += '<div class="edit-section-title">PERFORMANCE LIMITS</div>';
+        html += '<div class="edit-field"><div class="edit-field-label">CPU Limit (%)</div><input type="number" class="edit-field-input" data-field="settings.cpuLimit" value="80" min="10" max="100" step="5"></div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Memory Limit (MB)</div><input type="number" class="edit-field-input" data-field="settings.memoryLimit" value="2048" min="256" max="8192" step="256"></div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Thread Pool Size</div><input type="number" class="edit-field-input" data-field="settings.threadPoolSize" value="4" min="1" max="32" step="1"></div>';
+      }
+
+      if (category === 'dsp') {
+        if (param.id.includes('.agc.')) {
+          html += '<div class="edit-section-title">AGC SETTINGS</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">AGC Mode</div><select class="edit-field-select" data-field="settings.agcMode"><option value="off">Off</option><option value="soft">Soft</option><option value="medium" selected>Medium</option><option value="aggressive">Aggressive</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Target Level (dBFS)</div><input type="number" class="edit-field-input" data-field="settings.targetLevel" value="-12" min="-30" max="-3" step="1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Max Gain (dB)</div><input type="number" class="edit-field-input" data-field="settings.maxGain" value="20" min="0" max="40" step="1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Attack Time (ms)</div><input type="number" class="edit-field-input" data-field="settings.attackTime" value="10" min="1" max="100" step="1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Release Time (ms)</div><input type="number" class="edit-field-input" data-field="settings.releaseTime" value="100" min="10" max="1000" step="10"></div>';
+        } else if (param.id.includes('.aec.')) {
+          html += '<div class="edit-section-title">AEC SETTINGS</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">AEC Mode</div><select class="edit-field-select" data-field="settings.aecMode"><option value="off">Off</option><option value="standard" selected>Standard</option><option value="enhanced">Enhanced</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Tail Length (ms)</div><select class="edit-field-select" data-field="settings.tailLength"><option value="64">64</option><option value="128" selected>128</option><option value="256">256</option><option value="512">512</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="settings.nlpEnabled" checked><span>Non-Linear Processing (NLP)</span></div></div>';
+        } else if (param.id.includes('.nr.') || param.id.includes('noise')) {
+          html += '<div class="edit-section-title">NOISE REDUCTION</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">NR Mode</div><select class="edit-field-select" data-field="settings.nrMode"><option value="off">Off</option><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Noise Floor (dBFS)</div><input type="number" class="edit-field-input" data-field="settings.noiseFloor" value="-60" min="-90" max="-30" step="1"></div>';
+        } else if (param.id.includes('.comp.')) {
+          html += '<div class="edit-section-title">COMPRESSOR</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Threshold (dBFS)</div><input type="number" class="edit-field-input" data-field="settings.compThreshold" value="-20" min="-60" max="0" step="1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Ratio</div><select class="edit-field-select" data-field="settings.compRatio"><option value="1:1">1:1</option><option value="2:1">2:1</option><option value="4:1" selected>4:1</option><option value="8:1">8:1</option><option value="16:1">16:1</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Attack (ms)</div><input type="number" class="edit-field-input" data-field="settings.compAttack" value="5" min="0.1" max="50" step="0.1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Release (ms)</div><input type="number" class="edit-field-input" data-field="settings.compRelease" value="100" min="10" max="1000" step="10"></div>';
+        } else if (param.id.includes('.limiter.')) {
+          html += '<div class="edit-section-title">LIMITER</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Limit Threshold (dBFS)</div><input type="number" class="edit-field-input" data-field="settings.limitThreshold" value="-1" min="-12" max="0" step="0.1"></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Release (ms)</div><input type="number" class="edit-field-input" data-field="settings.limitRelease" value="50" min="1" max="100" step="1"></div>';
+        } else if (param.id.includes('.eq.') || param.id.includes('equalizer')) {
+          html += '<div class="edit-section-title">EQUALIZER</div>';
+          html += '<div class="edit-field"><div class="edit-field-label">EQ Preset</div><select class="edit-field-select" data-field="settings.eqPreset"><option value="flat">Flat</option><option value="voice" selected>Voice</option><option value="music">Music</option><option value="conference">Conference</option><option value="custom">Custom</option></select></div>';
+          html += '<div class="edit-field"><div class="edit-field-label">Band Count</div><select class="edit-field-select" data-field="settings.bandCount"><option value="3">3-Band</option><option value="5">5-Band</option><option value="10" selected>10-Band</option><option value="31">31-Band</option></select></div>';
+        } else {
+          html += '<div class="edit-section-title">DSP PROCESSING</div>';
+          html += '<div class="edit-field"><div class="edit-field-checkbox"><input type="checkbox" data-field="settings.dspEnabled" checked><span>DSP Processing Enabled</span></div></div>';
+        }
+      }
+
+      if (category === 'custom') {
+        html += '<div class="edit-section-title">CUSTOM SETTINGS</div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Sampling Window (seconds)</div><input type="number" class="edit-field-input" data-field="settings.samplingWindow" value="60" min="1" max="300" step="1"></div>';
+        html += '<div class="edit-field"><div class="edit-field-label">Reset Interval (seconds, 0=never)</div><input type="number" class="edit-field-input" data-field="settings.resetInterval" value="3600" min="0" max="86400" step="60"></div>';
+      }
+
+      html += '<div class="edit-section-title">UPDATE SETTINGS</div>';
+      html += `<div class="edit-field"><div class="edit-field-label">Update Frequency (ms)</div><select class="edit-field-select" data-field="metadata.updateFrequency"><option value="100">100ms</option><option value="500">500ms</option><option value="1000" selected>1000ms</option><option value="2000">2000ms</option></select></div>`;
+      html += `<div class="edit-field"><div class="edit-field-label">Priority</div><select class="edit-field-select" data-field="metadata.priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>`;
+
+      return html;
+    }
+
+    function generateAllParameterBoxes(stationId) {
+      const grid = document.getElementById('params-grid');
+      grid.innerHTML = ''; // Clear existing
+
+      allParameters.forEach(param => {
+        const config = parameterConfigs[param.id] || {};
+        const ranges = config.ranges || { min: 0, max: 100, recommendedMin: 20, recommendedMax: 80 };
+        const thresholds = config.thresholds || { criticalLow: 10, warningLow: 20, warningHigh: 80, criticalHigh: 95 };
+        const optimal = (ranges.recommendedMin + ranges.recommendedMax) / 2;
+        const optimalPercent = ((optimal - ranges.min) / (ranges.max - ranges.min)) * 100;
+
+        // Position zones centered on optimal value
+        // Green zone: 30% width centered on optimal
+        const greenWidth = 30;
+        const greenLeft = Math.max(0, optimalPercent - greenWidth / 2);
+        const greenRight = Math.min(100, optimalPercent + greenWidth / 2);
+
+        // Yellow zones: 20% on each side
+        const yellowWidth = 20;
+        const yellowLowLeft = Math.max(0, greenLeft - yellowWidth);
+        const yellowHighRight = Math.min(100, greenRight + yellowWidth);
+
+        // Red zones: fill remaining space
+        const redLowWidth = yellowLowLeft;
+        const redHighLeft = greenRight + yellowWidth;
+        const redHighWidth = Math.max(0, 100 - redHighLeft);
+
+        const box = document.createElement('div');
+        box.className = 'monitoring-box--small';
+        box.id = `param-${param.id.replace(/\./g, '-')}`;
+
+        box.innerHTML = `
+          <div class="expand-icon" onclick="toggleExpand('${param.id.replace(/\./g, '-')}')">
+            <svg viewBox="0 0 24 24">
+              <path d="M7 10l5 5 5-5z"/>
+            </svg>
+          </div>
+          <div class="box-header">
+            <div class="box-title">${param.name.toUpperCase()}</div>
+            <div class="status-badge good" id="badge-${param.id.replace(/\./g, '-')}">GOOD</div>
+          </div>
+          <div class="box-value good" id="val-${param.id.replace(/\./g, '-')}">
+            0<span class="box-unit">${param.unit}</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-critical-low" style="left: 0%; width: ${redLowWidth}%;"></div>
+              <div class="bar-zone-warning-low" style="left: ${yellowLowLeft}%; width: ${yellowWidth}%;"></div>
+              <div class="bar-zone-operational" style="left: ${greenLeft}%; width: ${greenWidth}%;"></div>
+              <div class="bar-zone-warning-high" style="left: ${greenRight}%; width: ${yellowWidth}%;"></div>
+              <div class="bar-zone-critical-high" style="left: ${redHighLeft}%; width: ${redHighWidth}%;"></div>
+              <div class="bar-optimal-marker" style="left: ${optimalPercent}%;"></div>
+              <div class="bar-current-value good" id="bar-${param.id.replace(/\./g, '-')}" style="width: 0%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>${ranges.min}${param.unit}</span>
+              <span class="bar-label-operational">${ranges.recommendedMin}-${ranges.recommendedMax}${param.unit}</span>
+              <span>${ranges.max}${param.unit}</span>
+            </div>
+          </div>
+          <div class="range-info">
+            <div class="range-item">
+              <div class="range-item-label">CURRENT</div>
+              <div class="range-item-value good" id="current-${param.id.replace(/\./g, '-')}">0${param.unit}</div>
+            </div>
+            <div class="range-item">
+              <div class="range-item-label">OPTIMAL</div>
+              <div class="range-item-value optimal" id="optimal-${param.id.replace(/\./g, '-')}">${optimal.toFixed(0)}${param.unit}</div>
+            </div>
+            <div class="range-item">
+              <div class="range-item-label">DEVIATION</div>
+              <div class="range-item-value good" id="dev-${param.id.replace(/\./g, '-')}">0${param.unit}</div>
+            </div>
+          </div>
+          <div class="edit-fields" id="edit-${param.id.replace(/\./g, '-')}">
+            ${generateEditFieldsHTML(param, config)}
+            <div class="edit-actions">
+              <button class="btn-save" onclick="saveParameter('${param.id}')">Save</button>
+              <button class="btn-cancel" onclick="toggleExpand('${param.id.replace(/\./g, '-')}')">Cancel</button>
+            </div>
+          </div>
+          <div class="box-path">${param.cat} / ${param.path}</div>
+        `;
+
+        grid.appendChild(box);
+      });
+    }
+
+    // ============================================
+    // Load Parameter Configurations
+    // ============================================
+    let parameterConfigs = {};
+
+    async function loadParameterConfigs() {
+      try {
+        // Load all parameter configs to get accurate optimal/min/max values
+        const response = await fetch('/config/parameters/index.json');
+        const index = await response.json();
+
+        for (const param of index.parameters) {
+          try {
+            const configResp = await fetch(`/config/parameters/${param.file}`);
+            const config = await configResp.json();
+            parameterConfigs[param.id] = config;
+          } catch(e) {
+            console.warn('Could not load config for', param.id);
+          }
+        }
+
+        console.log('Loaded', Object.keys(parameterConfigs).length, 'parameter configs');
+      } catch(e) {
+        console.error('Error loading parameter configs:', e);
+      }
+    }
+
+    // Load configs on startup
+    loadParameterConfigs();
+
+    // ============================================
+    // WebSocket Connection for Live Data
+    // ============================================
+    const socket = io('http://20.170.155.53:3021');
+    let stationsData = {};
+
+    socket.on('connect', () => {
+      console.log('✓ Connected to monitoring server');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('✗ Disconnected from monitoring server');
+    });
+
+    // Receive initial stations state
+    socket.on('stations-state', (stations) => {
+      console.log('Received stations state:', Object.keys(stations).length, 'stations');
+      stationsData = stations;
+      updateAllStations(stations);
+    });
+
+    // Receive real-time updates
+    socket.on('station-update', (data) => {
+      const { stationId, metrics } = data;
+      if (stationsData[stationId]) {
+        stationsData[stationId].metrics = metrics;
+        updateStationDisplay(stationId, metrics);
+      }
+    });
+
+    function updateAllStations(stations) {
+      // Update all stations on initial load
+      Object.keys(stations).forEach(stationId => {
+        updateStationDisplay(stationId, stations[stationId].metrics);
+      });
+    }
+
+    function updateStationDisplay(stationId, metrics) {
+      // Update the values in the UI based on station ID
+      // Station 1 (index 0 in the grid) and Station 2 (index 1)
+      if (stationId === 'station-1') {
+        updateStation1(metrics);
+      } else if (stationId === 'station-2') {
+        updateStation2(metrics);
+      }
+
+      // If we're viewing Level 2 for this station, update all 75 parameters
+      if (currentStationId === stationId && document.getElementById('level2').style.display !== 'none') {
+        updateAllParameters(metrics);
+      }
+    }
+
+    function updateAllParameters(metrics) {
+      // Update all 75 parameter values
+      allParameters.forEach(param => {
+        const keys = param.path.split('.');
+        let value = metrics;
+
+        // Navigate through nested object
+        for (const key of keys) {
+          value = value?.[key];
+          if (value === undefined) break;
+        }
+
+        if (value !== undefined && typeof value === 'number') {
+          const config = parameterConfigs[param.id] || {};
+          const ranges = config.ranges || { min: 0, max: 100, recommendedMin: 20, recommendedMax: 80 };
+          const optimal = (ranges.recommendedMin + ranges.recommendedMax) / 2;
+          const optimalPercent = ((optimal - ranges.min) / (ranges.max - ranges.min)) * 100;
+
+          // Calculate zone boundaries (same as in generateAllParameterBoxes)
+          const greenWidth = 30;
+          const greenLeft = Math.max(0, optimalPercent - greenWidth / 2);
+          const greenRight = Math.min(100, optimalPercent + greenWidth / 2);
+          const yellowWidth = 20;
+          const yellowLowLeft = Math.max(0, greenLeft - yellowWidth);
+          const yellowHighRight = Math.min(100, greenRight + yellowWidth);
+
+          // Convert value to percentage position on bar
+          const valuePercent = ((value - ranges.min) / (ranges.max - ranges.min)) * 100;
+
+          const formattedValue = Number.isInteger(value) ? value : value.toFixed(1);
+          const paramId = param.id.replace(/\./g, '-');
+
+          // Determine status based on zone position
+          let status = 'good';
+          if (valuePercent >= greenLeft && valuePercent <= greenRight) {
+            status = 'good';
+          } else if (valuePercent >= yellowLowLeft && valuePercent <= yellowHighRight) {
+            status = 'warning';
+          } else {
+            status = 'critical';
+          }
+
+          // Update box border color
+          const boxEl = document.getElementById(`param-${paramId}`);
+          if (boxEl) {
+            if (status === 'critical') {
+              boxEl.style.borderColor = '#ef4444';
+            } else if (status === 'warning') {
+              boxEl.style.borderColor = '#f59e0b';
+            } else {
+              boxEl.style.borderColor = '#10b981';
+            }
+          }
+
+          // Update status badge
+          const badgeEl = document.getElementById(`badge-${paramId}`);
+          if (badgeEl) {
+            badgeEl.className = `status-badge ${status}`;
+            badgeEl.textContent = status.toUpperCase();
+          }
+
+          // Update main value
+          const el = document.getElementById(`val-${paramId}`);
+          if (el) {
+            el.className = `box-value ${status}`;
+            el.innerHTML = `${formattedValue}<span class="box-unit">${param.unit}</span>`;
+          }
+
+          // Update bar width (normalize to min-max range)
+          const barEl = document.getElementById(`bar-${paramId}`);
+          if (barEl) {
+            const percentage = ((value - ranges.min) / (ranges.max - ranges.min)) * 100;
+            const clampedPercentage = Math.min(100, Math.max(0, percentage));
+            barEl.style.width = clampedPercentage + '%';
+            barEl.className = `bar-current-value ${status}`;
+          }
+
+          // Update current value
+          const currentEl = document.getElementById(`current-${paramId}`);
+          if (currentEl) {
+            currentEl.className = `range-item-value ${status}`;
+            currentEl.textContent = formattedValue + param.unit;
+          }
+
+          // Update deviation from actual optimal value
+          const devEl = document.getElementById(`dev-${paramId}`);
+          if (devEl) {
+            const deviation = value - optimal;
+            const sign = deviation >= 0 ? '+' : '';
+            devEl.className = `range-item-value ${status}`;
+            devEl.textContent = sign + deviation.toFixed(1) + param.unit;
+          }
+        }
+      });
+    }
+
+    function updateStation1(metrics) {
+      // Update Station 1: ARI RECEIVE with live data from all 75 parameters
+      const buffer = metrics.buffer?.total || 0;
+      const latency = metrics.latency?.avg || 0;
+      const snr = metrics.audioQuality?.snr || 0;
+
+      // Update buffer value and bar
+      const bufferEl = document.getElementById('station1-buffer-value');
+      if (bufferEl) bufferEl.innerHTML = buffer.toFixed(1) + '<span class="box-unit">%</span>';
+
+      const bufferBar = document.getElementById('station1-buffer-bar');
+      if (bufferBar) bufferBar.style.width = buffer + '%';
+
+      const bufferCurrent = document.getElementById('station1-buffer-current');
+      if (bufferCurrent) bufferCurrent.textContent = buffer.toFixed(1) + '%';
+
+      // Update latency
+      const latencyEl = document.getElementById('station1-latency-value');
+      if (latencyEl) latencyEl.innerHTML = Math.round(latency) + '<span class="param-item-unit">ms</span>';
+
+      // Update SNR
+      const snrEl = document.getElementById('station1-snr-value');
+      if (snrEl) snrEl.innerHTML = snr.toFixed(1) + '<span class="param-item-unit">dB</span>';
+    }
+
+    function updateStation2(metrics) {
+      // Update Station 2: UDP TRANSMIT with live data from all 75 parameters
+      const buffer = metrics.buffer?.total || 0;
+      const latency = metrics.latency?.avg || 0;
+      const snr = metrics.audioQuality?.snr || 0;
+
+      // Update buffer value and bar
+      const bufferEl = document.getElementById('station2-buffer-value');
+      if (bufferEl) bufferEl.innerHTML = buffer.toFixed(1) + '<span class="box-unit">%</span>';
+
+      const bufferBar = document.getElementById('station2-buffer-bar');
+      if (bufferBar) bufferBar.style.width = buffer + '%';
+    }
+
+    // ============================================
+    // Expand/Collapse Parameter Box Functions
+    // ============================================
+    function toggleExpand(paramId) {
+      const box = document.getElementById(`param-${paramId}`);
+      if (!box) return;
+
+      // Close any other expanded boxes first
+      const allBoxes = document.querySelectorAll('.monitoring-box--small.expanded');
+      allBoxes.forEach(b => {
+        if (b.id !== `param-${paramId}`) {
+          b.classList.remove('expanded');
+        }
+      });
+
+      // Toggle current box
+      box.classList.toggle('expanded');
+    }
+
+    function saveParameter(paramId) {
+      console.log('Saving parameter:', paramId);
+
+      // Get all input values from edit fields
+      const editContainer = document.getElementById(`edit-${paramId.replace(/\./g, '-')}`);
+      if (!editContainer) return;
+
+      const inputs = editContainer.querySelectorAll('.edit-field-input, .edit-field-select');
+      const checkboxes = editContainer.querySelectorAll('input[type="checkbox"]');
+
+      const config = {
+        id: paramId,
+        thresholds: {},
+        ranges: {},
+        alerts: {},
+        metadata: {},
+        operationalSettings: {}
+      };
+
+      // Process number/text inputs and selects
+      inputs.forEach(input => {
+        const field = input.getAttribute('data-field');
+        if (!field) return;
+
+        const value = input.value === '' ? null : (input.type === 'number' ? parseFloat(input.value) : input.value);
+        const parts = field.split('.');
+
+        if (parts.length === 2) {
+          config[parts[0]][parts[1]] = value;
+        } else if (parts.length === 1) {
+          config[parts[0]] = value;
+        }
+      });
+
+      // Process checkboxes
+      checkboxes.forEach(checkbox => {
+        const field = checkbox.getAttribute('data-field');
+        if (!field) return;
+
+        const parts = field.split('.');
+        if (parts.length === 2) {
+          config[parts[0]][parts[1]] = checkbox.checked;
+        } else if (parts.length === 1) {
+          config[parts[0]] = checkbox.checked;
+        }
+      });
+
+      console.log('Configuration to save:', config);
+
+      // In production, this would:
+      // 1. POST to: /api/stations/${currentStationId}/parameters/${paramId}/config
+      // 2. Server updates the parameter config file in /config/parameters/
+      // 3. All monitoring stations reload the updated config
+
+      alert(`✓ Configuration saved for ${paramId}\n\nThis will be saved to the parameter's config file:\n/config/parameters/${paramId.replace('.', '/')}.json\n\n` + JSON.stringify(config, null, 2));
+
+      // Close the expanded box
+      toggleExpand(paramId.replace(/\./g, '-'));
+    }
+  </script>
+
+</body>
+</html>

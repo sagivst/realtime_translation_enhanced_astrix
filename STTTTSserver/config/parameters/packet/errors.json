@@ -1,0 +1,33 @@
+{
+  "id": "packet.errors",
+  "name": "Packet Errors",
+  "category": "Packet",
+  "path": "packet.errors",
+  "unit": "errors",
+  "description": "Number of packet errors",
+  "ranges": {
+    "min": 0,
+    "max": 1000,
+    "recommendedMin": 0,
+    "recommendedMax": 10
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 10,
+    "criticalLow": 0,
+    "criticalHigh": 50
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 23
+  }
+}

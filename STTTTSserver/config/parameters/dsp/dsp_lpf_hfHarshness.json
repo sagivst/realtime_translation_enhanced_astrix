@@ -1,0 +1,34 @@
+{
+  "id": "dsp.lpf.hfHarshness",
+  "name": "HF Harshness",
+  "category": "dsp",
+  "subcategory": "hpf_lpf",
+  "path": "dsp.lpf.hfHarshness",
+  "unit": "dB",
+  "description": "High-frequency harshness above LPF cutoff",
+  "ranges": {
+    "min": -40,
+    "max": 0,
+    "recommendedMin": -30,
+    "recommendedMax": -10
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": -8,
+    "criticalLow": null,
+    "criticalHigh": -5
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 2
+  },
+  "default": false
+}

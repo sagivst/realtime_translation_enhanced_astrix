@@ -1,0 +1,33 @@
+{
+  "id": "packet.bytesTx",
+  "name": "Bytes Transmitted",
+  "category": "Packet",
+  "path": "packet.bytesTx",
+  "unit": "KB",
+  "description": "Total bytes transmitted",
+  "ranges": {
+    "min": 0,
+    "max": 10000,
+    "recommendedMin": 0,
+    "recommendedMax": 8000
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 8000,
+    "criticalLow": 0,
+    "criticalHigh": 9500
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "low",
+    "displayOrder": 28
+  }
+}

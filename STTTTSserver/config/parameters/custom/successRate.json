@@ -1,0 +1,33 @@
+{
+  "id": "custom.successRate",
+  "name": "Success Rate",
+  "category": "Custom",
+  "path": "custom.successRate",
+  "unit": "%",
+  "description": "Processing success rate",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 90,
+    "recommendedMax": 100
+  },
+  "thresholds": {
+    "warningLow": 90,
+    "warningHigh": 100,
+    "criticalLow": 80,
+    "criticalHigh": 100
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 53
+  }
+}

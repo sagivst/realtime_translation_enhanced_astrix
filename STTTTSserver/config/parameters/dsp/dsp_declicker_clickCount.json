@@ -1,0 +1,34 @@
+{
+  "id": "dsp.declicker.clickCount",
+  "name": "Click Count",
+  "category": "dsp",
+  "subcategory": "declicker",
+  "path": "dsp.declicker.clickCount",
+  "unit": "count",
+  "description": "Number of clicks/pops detected",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 5
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 10,
+    "criticalLow": null,
+    "criticalHigh": 30
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 18
+  },
+  "default": false
+}

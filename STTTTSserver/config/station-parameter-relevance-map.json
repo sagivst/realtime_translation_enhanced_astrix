@@ -1,0 +1,118 @@
+{
+  "description": "Station-to-Parameter Relevance Mapping - Filters which of the 55 parameters are relevant for each station type",
+  "stations": {
+    "station-1": {
+      "name": "ARI Receive",
+      "type": "ari-rx",
+      "description": "Asterisk ARI receive - incoming audio from Asterisk",
+      "relevantCategories": ["Buffer", "Latency", "Packet", "Audio Quality", "Performance"],
+      "relevantParameters": [
+        "buffer.total", "buffer.input", "buffer.overruns", "buffer.underruns", "buffer.free",
+        "latency.avg", "latency.peak", "latency.jitter", "latency.network",
+        "packet.rx", "packet.dropped", "packet.lossRate", "packet.errors", "packet.bytesRx", "packet.throughputRx",
+        "audioQuality.sampleRate", "audioQuality.bitDepth", "audioQuality.channels", "audioQuality.format", "audioQuality.clipping", "audioQuality.audioLevel", "audioQuality.snr",
+        "performance.cpu", "performance.memory", "performance.connections", "performance.errorRate",
+        "custom.state", "custom.lastActivity", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-2": {
+      "name": "STT Processing",
+      "type": "stt",
+      "description": "Speech-to-Text processing",
+      "relevantCategories": ["Buffer", "Latency", "Audio Quality", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.processing", "buffer.allocated", "buffer.free",
+        "latency.avg", "latency.peak", "latency.processing", "latency.e2e",
+        "audioQuality.sampleRate", "audioQuality.bitDepth", "audioQuality.silenceCount", "audioQuality.silenceDuration", "audioQuality.audioLevel", "audioQuality.snr", "audioQuality.thd",
+        "performance.cpu", "performance.memory", "performance.threads", "performance.queueDepth", "performance.processingRate", "performance.errorRate",
+        "custom.state", "custom.totalProcessed", "custom.processingSpeed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-3": {
+      "name": "Translation",
+      "type": "translate",
+      "description": "Text translation processing",
+      "relevantCategories": ["Buffer", "Latency", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.processing", "buffer.allocated", "buffer.free",
+        "latency.avg", "latency.peak", "latency.processing", "latency.e2e",
+        "performance.cpu", "performance.memory", "performance.threads", "performance.queueDepth", "performance.processingRate", "performance.errorRate",
+        "custom.state", "custom.lastActivity", "custom.totalProcessed", "custom.processingSpeed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-4": {
+      "name": "TTS Generation",
+      "type": "tts",
+      "description": "Text-to-Speech generation",
+      "relevantCategories": ["Buffer", "Latency", "Audio Quality", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.output", "buffer.processing", "buffer.allocated", "buffer.free",
+        "latency.avg", "latency.peak", "latency.processing", "latency.e2e",
+        "audioQuality.sampleRate", "audioQuality.bitDepth", "audioQuality.channels", "audioQuality.format", "audioQuality.clipping", "audioQuality.audioLevel", "audioQuality.thd",
+        "performance.cpu", "performance.memory", "performance.threads", "performance.queueDepth", "performance.processingRate", "performance.errorRate",
+        "custom.state", "custom.totalProcessed", "custom.processingSpeed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-5": {
+      "name": "Audio Convert",
+      "type": "convert",
+      "description": "Audio format conversion",
+      "relevantCategories": ["Buffer", "Latency", "Audio Quality", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.input", "buffer.output", "buffer.processing", "buffer.allocated", "buffer.free",
+        "latency.avg", "latency.peak", "latency.processing",
+        "audioQuality.sampleRate", "audioQuality.bitDepth", "audioQuality.channels", "audioQuality.format", "audioQuality.clipping", "audioQuality.audioLevel", "audioQuality.snr", "audioQuality.thd",
+        "performance.cpu", "performance.memory", "performance.threads", "performance.processingRate", "performance.errorRate",
+        "custom.state", "custom.totalProcessed", "custom.processingSpeed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-6": {
+      "name": "UDP Send",
+      "type": "udp-tx",
+      "description": "UDP network transmission",
+      "relevantCategories": ["Buffer", "Latency", "Packet", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.output", "buffer.overruns", "buffer.free",
+        "latency.avg", "latency.peak", "latency.network", "latency.jitter",
+        "packet.tx", "packet.dropped", "packet.lossRate", "packet.errors", "packet.retransmits", "packet.outOfOrder", "packet.bytesTx", "packet.throughputTx",
+        "performance.cpu", "performance.memory", "performance.connections", "performance.errorRate",
+        "custom.state", "custom.lastActivity", "custom.totalProcessed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-7": {
+      "name": "Buffer Monitor",
+      "type": "buffer",
+      "description": "System-wide buffer monitoring",
+      "relevantCategories": ["Buffer", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.input", "buffer.processing", "buffer.output", "buffer.overruns", "buffer.underruns", "buffer.highWater", "buffer.lowWater", "buffer.allocated", "buffer.free",
+        "performance.cpu", "performance.memory", "performance.queueDepth", "performance.errorRate", "performance.uptime",
+        "custom.state", "custom.warningCount", "custom.criticalCount"
+      ]
+    },
+    "station-8": {
+      "name": "Gateway Send",
+      "type": "gateway",
+      "description": "Gateway transmission to Asterisk",
+      "relevantCategories": ["Buffer", "Latency", "Packet", "Audio Quality", "Performance", "Custom"],
+      "relevantParameters": [
+        "buffer.total", "buffer.output", "buffer.underruns", "buffer.free",
+        "latency.avg", "latency.peak", "latency.e2e", "latency.network", "latency.jitter",
+        "packet.tx", "packet.dropped", "packet.lossRate", "packet.errors", "packet.retransmits", "packet.bytesTx", "packet.throughputTx",
+        "audioQuality.sampleRate", "audioQuality.bitDepth", "audioQuality.channels", "audioQuality.format", "audioQuality.clipping", "audioQuality.audioLevel",
+        "performance.cpu", "performance.memory", "performance.connections", "performance.errorRate",
+        "custom.state", "custom.lastActivity", "custom.totalProcessed", "custom.successRate", "custom.warningCount", "custom.criticalCount"
+      ]
+    }
+  },
+  "summary": {
+    "station-1": { "totalParameters": 31, "categories": 5 },
+    "station-2": { "totalParameters": 28, "categories": 5 },
+    "station-3": { "totalParameters": 21, "categories": 4 },
+    "station-4": { "totalParameters": 28, "categories": 5 },
+    "station-5": { "totalParameters": 29, "categories": 5 },
+    "station-6": { "totalParameters": 25, "categories": 5 },
+    "station-7": { "totalParameters": 18, "categories": 3 },
+    "station-8": { "totalParameters": 30, "categories": 6 }
+  }
+}

@@ -1,0 +1,344 @@
+{
+  "version": "1.0.0",
+  "totalParameters": 55,
+  "categories": {
+    "Buffer": 10,
+    "Latency": 8,
+    "Packet": 12,
+    "Audio Quality": 10,
+    "Performance": 8,
+    "Custom": 7
+  },
+  "parameters": [
+    {
+      "id": "buffer.total",
+      "name": "Total Buffer",
+      "category": "Buffer",
+      "file": "buffer/total.json"
+    },
+    {
+      "id": "buffer.input",
+      "name": "Input Buffer",
+      "category": "Buffer",
+      "file": "buffer/input.json"
+    },
+    {
+      "id": "buffer.processing",
+      "name": "Processing Buffer",
+      "category": "Buffer",
+      "file": "buffer/processing.json"
+    },
+    {
+      "id": "buffer.output",
+      "name": "Output Buffer",
+      "category": "Buffer",
+      "file": "buffer/output.json"
+    },
+    {
+      "id": "buffer.overruns",
+      "name": "Buffer Overruns",
+      "category": "Buffer",
+      "file": "buffer/overruns.json"
+    },
+    {
+      "id": "buffer.underruns",
+      "name": "Buffer Underruns",
+      "category": "Buffer",
+      "file": "buffer/underruns.json"
+    },
+    {
+      "id": "buffer.highWater",
+      "name": "High Water Mark",
+      "category": "Buffer",
+      "file": "buffer/highWater.json"
+    },
+    {
+      "id": "buffer.lowWater",
+      "name": "Low Water Mark",
+      "category": "Buffer",
+      "file": "buffer/lowWater.json"
+    },
+    {
+      "id": "buffer.allocated",
+      "name": "Allocated Memory",
+      "category": "Buffer",
+      "file": "buffer/allocated.json"
+    },
+    {
+      "id": "buffer.free",
+      "name": "Free Buffer Space",
+      "category": "Buffer",
+      "file": "buffer/free.json"
+    },
+    {
+      "id": "latency.avg",
+      "name": "Average Latency",
+      "category": "Latency",
+      "file": "latency/avg.json"
+    },
+    {
+      "id": "latency.peak",
+      "name": "Peak Latency",
+      "category": "Latency",
+      "file": "latency/peak.json"
+    },
+    {
+      "id": "latency.min",
+      "name": "Minimum Latency",
+      "category": "Latency",
+      "file": "latency/min.json"
+    },
+    {
+      "id": "latency.jitter",
+      "name": "Jitter",
+      "category": "Latency",
+      "file": "latency/jitter.json"
+    },
+    {
+      "id": "latency.e2e",
+      "name": "End-to-End Latency",
+      "category": "Latency",
+      "file": "latency/e2e.json"
+    },
+    {
+      "id": "latency.processing",
+      "name": "Processing Latency",
+      "category": "Latency",
+      "file": "latency/processing.json"
+    },
+    {
+      "id": "latency.network",
+      "name": "Network Latency",
+      "category": "Latency",
+      "file": "latency/network.json"
+    },
+    {
+      "id": "latency.variance",
+      "name": "Latency Variance",
+      "category": "Latency",
+      "file": "latency/variance.json"
+    },
+    {
+      "id": "packet.rx",
+      "name": "Packets Received",
+      "category": "Packet",
+      "file": "packet/rx.json"
+    },
+    {
+      "id": "packet.tx",
+      "name": "Packets Transmitted",
+      "category": "Packet",
+      "file": "packet/tx.json"
+    },
+    {
+      "id": "packet.dropped",
+      "name": "Packets Dropped",
+      "category": "Packet",
+      "file": "packet/dropped.json"
+    },
+    {
+      "id": "packet.lossRate",
+      "name": "Packet Loss Rate",
+      "category": "Packet",
+      "file": "packet/lossRate.json"
+    },
+    {
+      "id": "packet.errors",
+      "name": "Packet Errors",
+      "category": "Packet",
+      "file": "packet/errors.json"
+    },
+    {
+      "id": "packet.retransmits",
+      "name": "Retransmissions",
+      "category": "Packet",
+      "file": "packet/retransmits.json"
+    },
+    {
+      "id": "packet.outOfOrder",
+      "name": "Out of Order Packets",
+      "category": "Packet",
+      "file": "packet/outOfOrder.json"
+    },
+    {
+      "id": "packet.duplicates",
+      "name": "Duplicate Packets",
+      "category": "Packet",
+      "file": "packet/duplicates.json"
+    },
+    {
+      "id": "packet.bytesRx",
+      "name": "Bytes Received",
+      "category": "Packet",
+      "file": "packet/bytesRx.json"
+    },
+    {
+      "id": "packet.bytesTx",
+      "name": "Bytes Transmitted",
+      "category": "Packet",
+      "file": "packet/bytesTx.json"
+    },
+    {
+      "id": "packet.throughputRx",
+      "name": "Receive Throughput",
+      "category": "Packet",
+      "file": "packet/throughputRx.json"
+    },
+    {
+      "id": "packet.throughputTx",
+      "name": "Transmit Throughput",
+      "category": "Packet",
+      "file": "packet/throughputTx.json"
+    },
+    {
+      "id": "audioQuality.sampleRate",
+      "name": "Sample Rate",
+      "category": "Audio Quality",
+      "file": "audioquality/sampleRate.json"
+    },
+    {
+      "id": "audioQuality.bitDepth",
+      "name": "Bit Depth",
+      "category": "Audio Quality",
+      "file": "audioquality/bitDepth.json"
+    },
+    {
+      "id": "audioQuality.channels",
+      "name": "Audio Channels",
+      "category": "Audio Quality",
+      "file": "audioquality/channels.json"
+    },
+    {
+      "id": "audioQuality.format",
+      "name": "Audio Format",
+      "category": "Audio Quality",
+      "file": "audioquality/format.json"
+    },
+    {
+      "id": "audioQuality.clipping",
+      "name": "Audio Clipping",
+      "category": "Audio Quality",
+      "file": "audioquality/clipping.json"
+    },
+    {
+      "id": "audioQuality.silenceCount",
+      "name": "Silence Periods",
+      "category": "Audio Quality",
+      "file": "audioquality/silenceCount.json"
+    },
+    {
+      "id": "audioQuality.silenceDuration",
+      "name": "Silence Duration",
+      "category": "Audio Quality",
+      "file": "audioquality/silenceDuration.json"
+    },
+    {
+      "id": "audioQuality.audioLevel",
+      "name": "Audio Level",
+      "category": "Audio Quality",
+      "file": "audioquality/audioLevel.json"
+    },
+    {
+      "id": "audioQuality.snr",
+      "name": "Signal-to-Noise Ratio",
+      "category": "Audio Quality",
+      "file": "audioquality/snr.json"
+    },
+    {
+      "id": "audioQuality.thd",
+      "name": "Total Harmonic Distortion",
+      "category": "Audio Quality",
+      "file": "audioquality/thd.json"
+    },
+    {
+      "id": "performance.cpu",
+      "name": "CPU Usage",
+      "category": "Performance",
+      "file": "performance/cpu.json"
+    },
+    {
+      "id": "performance.memory",
+      "name": "Memory Usage",
+      "category": "Performance",
+      "file": "performance/memory.json"
+    },
+    {
+      "id": "performance.threads",
+      "name": "Active Threads",
+      "category": "Performance",
+      "file": "performance/threads.json"
+    },
+    {
+      "id": "performance.connections",
+      "name": "Active Connections",
+      "category": "Performance",
+      "file": "performance/connections.json"
+    },
+    {
+      "id": "performance.queueDepth",
+      "name": "Queue Depth",
+      "category": "Performance",
+      "file": "performance/queueDepth.json"
+    },
+    {
+      "id": "performance.processingRate",
+      "name": "Processing Rate",
+      "category": "Performance",
+      "file": "performance/processingRate.json"
+    },
+    {
+      "id": "performance.errorRate",
+      "name": "Error Rate",
+      "category": "Performance",
+      "file": "performance/errorRate.json"
+    },
+    {
+      "id": "performance.uptime",
+      "name": "System Uptime",
+      "category": "Performance",
+      "file": "performance/uptime.json"
+    },
+    {
+      "id": "custom.state",
+      "name": "System State",
+      "category": "Custom",
+      "file": "custom/state.json"
+    },
+    {
+      "id": "custom.lastActivity",
+      "name": "Last Activity",
+      "category": "Custom",
+      "file": "custom/lastActivity.json"
+    },
+    {
+      "id": "custom.totalProcessed",
+      "name": "Total Processed",
+      "category": "Custom",
+      "file": "custom/totalProcessed.json"
+    },
+    {
+      "id": "custom.processingSpeed",
+      "name": "Processing Speed",
+      "category": "Custom",
+      "file": "custom/processingSpeed.json"
+    },
+    {
+      "id": "custom.successRate",
+      "name": "Success Rate",
+      "category": "Custom",
+      "file": "custom/successRate.json"
+    },
+    {
+      "id": "custom.warningCount",
+      "name": "Warning Count",
+      "category": "Custom",
+      "file": "custom/warningCount.json"
+    },
+    {
+      "id": "custom.criticalCount",
+      "name": "Critical Events",
+      "category": "Custom",
+      "file": "custom/criticalCount.json"
+    }
+  ]
+}

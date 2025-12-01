@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Split-Screen Dashboard - Extensions 3333 & 4444</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+        }
+
+        .split-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .iframe-wrapper {
+            flex: 1;
+            height: 100vh;
+            border: none;
+        }
+
+        .iframe-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .divider {
+            width: 3px;
+            background: #000;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="split-container">
+        <!-- Left: Extension 3333 (Caller) -->
+        <div class="iframe-wrapper">
+            <iframe src="/dashboard-single.html?ext=3333"></iframe>
+        </div>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <!-- Right: Extension 4444 (Answerer) -->
+        <div class="iframe-wrapper">
+            <iframe src="/dashboard-single.html?ext=4444"></iframe>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,188 @@
+/**
+ * StationAgent - Filters universal metrics per station
+ *
+ * Takes ALL 75 parameters from UniversalCollector
+ * Returns only parameters relevant to this station
+ */
+
+const UniversalCollector = require('./UniversalCollector');
+const stationParameterMap = require('./config/station-parameter-map');
+
+class StationAgent {
+  constructor(stationId, extension) {
+    this.stationId = stationId;
+    this.extension = extension;
+
+    // Single universal collector (collects all 75)
+    this.universalCollector = new UniversalCollector();
+
+    // Get parameter list for this station
+    this.allowedParameters = stationParameterMap[stationId] || [];
+
+    // Tracking counters for custom metrics
+    this.totalProcessed = 0;
+    this.successCount = 0;
+    this.errorCount = 0;
+    this.warningCount = 0;
+    this.criticalCount = 0;
+    this.state = 'idle';
+    this.startTime = Date.now();
+    this.lastProcessingTime = 0;
+    this.lastActivityTime = Date.now();
+
+    // Bandwidth tracking
+    this.bytesProcessed = 0;
+    this.lastBandwidthCheck = Date.now();
+
+    console.log(`[${stationId}-${extension}] Agent initialized with ${this.allowedParameters.length}/${this.universalCollector.getCollectorCount()} parameters`);
+  }
+
+  /**
+   * Collect metrics for this station
+   * Automatically filters to only relevant parameters
+   */
+  async collect(context) {
+    const collectionStart = Date.now();
+    this.state = 'processing';
+    this.totalProcessed++;
+    this.lastActivityTime = Date.now();
+
+    // Track bandwidth
+    if (context.pcmBuffer) {
+      this.bytesProcessed += context.pcmBuffer.length;
+    }
+
+    // Build enhanced context with our tracking data
+    const enhancedContext = {
+      ...context,
+
+      // Add processing time from last collection
+      processingTime: this.lastProcessingTime,
+
+      // Add custom tracking data
+      custom: {
+        state: this.state,
+        totalProcessed: this.totalProcessed,
+        successCount: this.successCount,
+        errorCount: this.errorCount,
+        warningCount: this.warningCount,
+        criticalCount: this.criticalCount,
+        processingSpeed: this.calculateProcessingSpeed(),
+        lastActivityTime: this.lastActivityTime
+      },
+
+      // Add bandwidth calculation
+      bandwidth: {
+        bytesProcessed: this.bytesProcessed,
+        timeSinceLastCheck: Date.now() - this.lastBandwidthCheck
+      }
+    };
+
+    try {
+      // Collect ALL 75 parameters
+      const { metrics: allMetrics, alerts: allAlerts } =
+        await this.universalCollector.collectAll(enhancedContext);
+
+      // Filter to only this station's parameters
+      const filteredMetrics = {};
+      for (const param of this.allowedParameters) {
+        if (param in allMetrics && allMetrics[param] !== null) {
+          filteredMetrics[param] = allMetrics[param];
+        }
+      }
+
+      // Filter alerts to only this station's parameters
+      const filteredAlerts = allAlerts.filter(alert =>
+        this.allowedParameters.includes(alert.metric)
+      );
+
+      // Update counters based on alerts
+      filteredAlerts.forEach(alert => {
+        if (alert.level === 'warning') this.warningCount++;
+        if (alert.level === 'critical') this.criticalCount++;
+      });
+
+      // Calculate processing time
+      const collectionEnd = Date.now();
+      this.lastProcessingTime = collectionEnd - collectionStart;
+      this.state = 'active';
+      this.successCount++;
+
+      // Reset bandwidth counter periodically
+      if (Date.now() - this.lastBandwidthCheck > 1000) {
+        this.bytesProcessed = 0;
+        this.lastBandwidthCheck = Date.now();
+      }
+
+      return {
+        metrics: filteredMetrics,
+        alerts: filteredAlerts
+      };
+
+    } catch (error) {
+      this.errorCount++;
+      this.state = 'error';
+      console.error(`[${this.stationId}-${this.extension}] Collection error:`, error.message);
+
+      return {
+        metrics: {},
+        alerts: [{
+          metric: 'system',
+          level: 'critical',
+          message: `Collection failed: ${error.message}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Calculate processing speed (items/second)
+   */
+  calculateProcessingSpeed() {
+    const uptime = (Date.now() - this.startTime) / 1000;
+    if (uptime === 0) return 0;
+    return this.totalProcessed / uptime;
+  }
+
+  /**
+   * Get parameter count for this station
+   */
+  getParameterCount() {
+    return this.allowedParameters.length;
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats() {
+    return {
+      stationId: this.stationId,
+      extension: this.extension,
+      totalProcessed: this.totalProcessed,
+      successCount: this.successCount,
+      errorCount: this.errorCount,
+      warningCount: this.warningCount,
+      criticalCount: this.criticalCount,
+      successRate: this.totalProcessed > 0 ? (this.successCount / this.totalProcessed) * 100 : 100,
+      state: this.state,
+      uptime: Date.now() - this.startTime,
+      parametersMonitored: this.allowedParameters.length
+    };
+  }
+
+  /**
+   * Reset counters
+   */
+  reset() {
+    this.totalProcessed = 0;
+    this.successCount = 0;
+    this.errorCount = 0;
+    this.warningCount = 0;
+    this.criticalCount = 0;
+    this.state = 'idle';
+    this.startTime = Date.now();
+    console.log(`[${this.stationId}-${this.extension}] Counters reset`);
+  }
+}
+
+module.exports = StationAgent;

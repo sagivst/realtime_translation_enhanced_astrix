@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2.1.0 Database Records</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #00ff00;
+            border-bottom: 2px solid #00ff00;
+            padding-bottom: 10px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .stat-value {
+            font-size: 24px;
+            color: #00ff00;
+            font-weight: bold;
+        }
+        .stat-label {
+            color: #888;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .records-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .records-table th {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #333;
+        }
+        .records-table td {
+            padding: 8px;
+            border: 1px solid #333;
+            background: #0d0d0d;
+        }
+        .station-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .station-1 { background: #ff6b6b; color: black; }
+        .station-2 { background: #4ecdc4; color: black; }
+        .station-3 { background: #ffff00; color: black; }
+        .station-7 { background: #95e1d3; color: black; }
+        .station-8 { background: #f38181; color: black; }
+        .station-9 { background: #a8e6cf; color: black; }
+        .station-10 { background: #ffd3b6; color: black; }
+        .station-11 { background: #ff8b94; color: black; }
+        .metric-bar {
+            height: 20px;
+            background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000);
+            border-radius: 3px;
+            position: relative;
+        }
+        .metric-fill {
+            height: 100%;
+            background: #00ff00;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 V2.1.0 Database Records - STATION_3 Critical for Deepgram!</h1>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-value" id="total-records">0</div>
+            <div class="stat-label">Total Records</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="active-calls">0</div>
+            <div class="stat-label">Active Calls</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="station-3-metrics">0</div>
+            <div class="stat-label">Station 3 Metrics</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="last-update">--:--:--</div>
+            <div class="stat-label">Last Update</div>
+        </div>
+    </div>
+
+    <h2>📊 Recent Snapshots</h2>
+    <table class="records-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Station</th>
+                <th>Call ID</th>
+                <th>Channel</th>
+                <th>Metrics</th>
+                <th>Knobs</th>
+                <th>Key Metrics</th>
+            </tr>
+        </thead>
+        <tbody id="records-body">
+            <tr><td colspan="7" style="text-align: center; color: #666;">Loading data...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        const API_BASE = 'http://20.170.155.53:8083';
+
+        async function fetchRecords() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v2.1/snapshots`, {
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                updateDashboard(data);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('records-body').innerHTML =
+                    `<tr><td colspan="7" style="text-align: center; color: #ff0000;">Error loading data: ${error.message}</td></tr>`;
+            }
+        }
+
+        function updateDashboard(snapshots) {
+            // Update stats
+            document.getElementById('total-records').textContent = snapshots.length;
+
+            const uniqueCalls = new Set(snapshots.map(s => s.call_id)).size;
+            document.getElementById('active-calls').textContent = uniqueCalls;
+
+            const station3Count = snapshots.filter(s => s.station_id === 'STATION_3').length;
+            document.getElementById('station-3-metrics').textContent = station3Count;
+
+            const now = new Date();
+            document.getElementById('last-update').textContent =
+                now.toTimeString().split(' ')[0];
+
+            // Update table
+            const tbody = document.getElementById('records-body');
+            if (snapshots.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">No records found</td></tr>';
+                return;
+            }
+
+            // Sort by timestamp desc and take last 20
+            snapshots.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            const recentSnapshots = snapshots.slice(0, 20);
+
+            tbody.innerHTML = recentSnapshots.map(snapshot => {
+                const timestamp = new Date(snapshot.timestamp);
+                const timeStr = timestamp.toTimeString().split(' ')[0];
+
+                const stationClass = `station-${snapshot.station_id.split('_')[1]}`;
+                const metricsCount = snapshot.metrics ?
+                    Object.values(snapshot.metrics).filter(v => v !== null).length : 0;
+                const knobsCount = snapshot.knobs ? snapshot.knobs.length : 0;
+
+                // Extract key metrics
+                let keyMetrics = '';
+                if (snapshot.metrics) {
+                    const m = snapshot.metrics;
+                    if (m.snr_db) keyMetrics += `SNR: ${m.snr_db.toFixed(1)}dB `;
+                    if (m.latency_ms) keyMetrics += `Lat: ${m.latency_ms.toFixed(0)}ms `;
+                    if (m.cpu_usage_pct) keyMetrics += `CPU: ${m.cpu_usage_pct.toFixed(0)}% `;
+                }
+
+                return `
+                    <tr>
+                        <td>${timeStr}</td>
+                        <td><span class="station-badge ${stationClass}">${snapshot.station_id}</span></td>
+                        <td>${snapshot.call_id || '--'}</td>
+                        <td>${snapshot.channel || '--'}</td>
+                        <td>${metricsCount}/75</td>
+                        <td>${knobsCount}</td>
+                        <td style="font-size: 11px; color: #00ff00;">${keyMetrics || '--'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Initial fetch
+        fetchRecords();
+
+        // Auto-refresh every 5 seconds
+        setInterval(fetchRecords, 5000);
+    </script>
+</body>
+</html>

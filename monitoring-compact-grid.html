@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Translation Pipeline Monitor</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* HEADER BAR */
+    .header-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 15px;
+    }
+
+    .header-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 18px;
+    }
+
+    .header-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    /* SYSTEM STATUS BAR */
+    .status-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-top: none;
+      padding: 10px 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00c851;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.offline {
+      background: #ff3547;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* MAIN CONTAINER */
+    .main-container {
+      padding: 20px;
+    }
+
+    /* STATION GRID */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 1400px) {
+      .station-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 1000px) {
+      .station-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* STATION CARD */
+    .station-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 12px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .station-card:hover {
+      border-color: #475569;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* Station Header */
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .station-number {
+      font-size: 14px;
+      font-weight: bold;
+      color: #33b5e5;
+    }
+
+    .station-name {
+      font-size: 11px;
+      color: #a0a0a0;
+      margin-left: 5px;
+    }
+
+    /* Station Status */
+    .station-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00c851;
+    }
+
+    .status-dot.warning {
+      background: #ffbb33;
+    }
+
+    .status-dot.offline {
+      background: #ff3547;
+    }
+
+    /* Station Metrics */
+    .station-metrics {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 8px 0;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    .metric-label {
+      color: #6b7280;
+    }
+
+    .metric-value {
+      font-family: 'Roboto Mono', monospace;
+      color: #e0e0e0;
+    }
+
+    /* Expand Button */
+    .expand-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px;
+    }
+
+    .expand-btn:hover {
+      color: #33b5e5;
+    }
+
+    /* LEVEL 2: Expanded View */
+    .level2-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0a;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .level2-overlay.active {
+      display: block;
+    }
+
+    .level2-header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .back-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    .back-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    .level2-content {
+      padding: 20px;
+    }
+
+    .parameter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .parameter-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .parameter-card:hover {
+      border-color: #33b5e5;
+      background: #1e1e1e;
+    }
+
+    .parameter-name {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 5px;
+    }
+
+    .parameter-value {
+      font-size: 18px;
+      color: #e0e0e0;
+      font-weight: bold;
+    }
+
+    .parameter-unit {
+      font-size: 12px;
+      color: #6b7280;
+      margin-left: 4px;
+    }
+
+    /* AI Optimization Panel (collapsed) */
+    .ai-panel {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 10px 20px;
+      margin: 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ai-panel:hover {
+      border-color: #475569;
+    }
+
+    .ai-panel-title {
+      font-size: 12px;
+      color: #a0a0a0;
+    }
+
+    .ai-panel-status {
+      font-size: 11px;
+      color: #ffbb33;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <div class="header-bar">
+    <div class="header-title">REAL-TIME TRANSLATION PIPELINE MONITOR</div>
+    <div class="header-controls">
+      <button class="header-btn" title="Settings">⚙️</button>
+      <button class="header-btn" title="Analytics">📊</button>
+      <button class="header-btn" title="Help">❓</button>
+    </div>
+  </div>
+
+  <!-- System Status Bar -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span>System Health:</span>
+      <div class="status-indicator" id="system-health"></div>
+      <span id="health-text">ONLINE</span>
+    </div>
+    <div class="status-item">
+      <span>Latency:</span>
+      <span id="system-latency">182ms</span>
+    </div>
+    <div class="status-item">
+      <span>MOS:</span>
+      <span id="system-mos">4.6</span>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    <div class="station-grid" id="station-grid">
+      <!-- Stations will be generated here -->
+    </div>
+  </div>
+
+  <!-- AI Optimization Panel -->
+  <div class="ai-panel" onclick="toggleAIPanel()">
+    <div class="ai-panel-title">▼ Global AI Optimization Panel</div>
+    <div class="ai-panel-status">Currently Manual Mode</div>
+  </div>
+
+  <!-- Level 2 Overlay -->
+  <div class="level2-overlay" id="level2">
+    <div class="level2-header">
+      <button class="back-btn" onclick="closeLevel2()">← Back</button>
+      <div id="level2-title">Station Details</div>
+      <div></div>
+    </div>
+    <div class="level2-content">
+      <div class="parameter-grid" id="parameter-grid">
+        <!-- Parameters will be generated here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // STATIONS CONFIGURATION
+    const STATIONS = {
+      1: {
+        name: 'Asterisk',
+        status: 'ON',
+        metrics: {
+          'RTP': '2356/s',
+          'L': '45ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'buffer.total': 45.2,
+          'latency.avg': 45,
+          'packet.rx': 2356,
+          'packet.tx': 2350,
+          'packet.loss': 0.25,
+          'audioQuality.snr': 45,
+          'audioQuality.thd': 0.02,
+          'audioQuality.mos': 4.8,
+          'jitter.avg': 2.1,
+          'jitter.max': 8.5
+        }
+      },
+      2: {
+        name: 'Gateway',
+        status: 'ON',
+        metrics: {
+          'PCM': '340/s',
+          'L': '120ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'buffer.total': 78,
+          'buffer.input': 60,
+          'buffer.output': 85,
+          'latency.avg': 120,
+          'packet.rx': 340,
+          'packet.tx': 340
+        }
+      },
+      3: {
+        name: 'STT Proc',
+        status: 'ON',
+        metrics: {
+          'PCM': '340/s',
+          'L': '210ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'latency.avg': 210,
+          'latency.peak': 450,
+          'buffer.input': 30,
+          'buffer.output': 60,
+          'custom.accuracy': 98.5,
+          'custom.confidence': 0.92
+        }
+      },
+      4: {
+        name: 'Deepgram',
+        status: 'ON',
+        metrics: {
+          'Text': '12/s',
+          'L': '180ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'latency.avg': 180,
+          'latency.peak': 320,
+          'performance.cpu': 15,
+          'performance.memory': 256,
+          'custom.successRate': 99.8
+        }
+      },
+      5: {
+        name: 'Translation',
+        status: 'ON',
+        metrics: {
+          'Req': '12/s',
+          'L': '95ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'performance.cpu': 8,
+          'performance.memory': 128,
+          'custom.totalProcessed': 54320,
+          'custom.processSpeed': 12,
+          'latency.avg': 95
+        }
+      },
+      6: {
+        name: 'DeepL API',
+        status: 'ON',
+        metrics: {
+          'API': '100%',
+          'L': '85ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'latency.avg': 85,
+          'latency.peak': 180,
+          'performance.cpu': 5,
+          'custom.successRate': 100
+        }
+      },
+      7: {
+        name: 'TTS Prep',
+        status: 'ON',
+        metrics: {
+          'Text': '12/s',
+          'L': '15ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'performance.cpu': 3,
+          'performance.memory': 64,
+          'custom.processSpeed': 12,
+          'latency.avg': 15
+        }
+      },
+      8: {
+        name: 'ElevenLabs',
+        status: 'ON',
+        metrics: {
+          'PCM': '340/s',
+          'L': '220ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'latency.avg': 220,
+          'latency.peak': 380,
+          'audio.sampleRate': 16000,
+          'audio.bitDepth': 16,
+          'custom.voiceQuality': 95
+        }
+      },
+      9: {
+        name: 'STT TX',
+        status: 'ON',
+        metrics: {
+          'PCM': '340/s',
+          'L': '45ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'packet.tx': 340,
+          'packet.dropped': 0,
+          'buffer.output': 42,
+          'latency.avg': 45
+        }
+      },
+      10: {
+        name: 'Gateway',
+        status: 'ON',
+        metrics: {
+          'RTP': '2356/s',
+          'L': '120ms'
+        },
+        statusClass: 'online',
+        parameters: {
+          'packet.tx': 2356,
+          'packet.dropped': 5,
+          'packet.lossRate': 0.21,
+          'latency.avg': 120,
+          'latency.peak': 250
+        }
+      },
+      11: {
+        name: 'Hume EVI',
+        status: 'OFF',
+        metrics: {
+          'Disabled': '',
+          'Quota Limit': ''
+        },
+        statusClass: 'offline',
+        parameters: {
+          'custom.state': 'disabled',
+          'custom.lastActivity': 'N/A',
+          'custom.warnings': 0,
+          'custom.critical': 1
+        }
+      }
+    };
+
+    // Generate station cards
+    function generateStations() {
+      const grid = document.getElementById('station-grid');
+      grid.innerHTML = '';
+
+      for (const [id, station] of Object.entries(STATIONS)) {
+        const card = document.createElement('div');
+        card.className = 'station-card';
+
+        const metricsHTML = Object.entries(station.metrics)
+          .map(([label, value]) => `
+            <div class="metric-row">
+              <span class="metric-label">${label}:</span>
+              <span class="metric-value">${value}</span>
+            </div>
+          `).join('');
+
+        card.innerHTML = `
+          <div class="station-header">
+            <div>
+              <span class="station-number">${id}.</span>
+              <span class="station-name">${station.name}</span>
+            </div>
+            <div class="station-status">
+              <div class="status-dot ${station.statusClass === 'offline' ? 'offline' : ''}"></div>
+              <span>${station.status}</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            ${metricsHTML}
+          </div>
+          <button class="expand-btn" onclick="openLevel2(${id})" title="Expand">[↗]</button>
+        `;
+
+        grid.appendChild(card);
+      }
+    }
+
+    // Open Level 2
+    function openLevel2(stationId) {
+      const station = STATIONS[stationId];
+      const level2 = document.getElementById('level2');
+      const title = document.getElementById('level2-title');
+      const paramGrid = document.getElementById('parameter-grid');
+
+      title.textContent = `Station ${stationId}: ${station.name} - All Parameters`;
+
+      // Generate parameter cards
+      paramGrid.innerHTML = '';
+      for (const [param, value] of Object.entries(station.parameters)) {
+        const card = document.createElement('div');
+        card.className = 'parameter-card';
+
+        let unit = '';
+        if (param.includes('latency')) unit = 'ms';
+        else if (param.includes('packet')) unit = param.includes('Rate') ? '%' : '/s';
+        else if (param.includes('cpu')) unit = '%';
+        else if (param.includes('memory')) unit = 'MB';
+        else if (param.includes('Rate')) unit = '%';
+
+        card.innerHTML = `
+          <div class="parameter-name">${param}</div>
+          <div class="parameter-value">
+            ${value}
+            <span class="parameter-unit">${unit}</span>
+          </div>
+        `;
+
+        paramGrid.appendChild(card);
+      }
+
+      level2.classList.add('active');
+    }
+
+    // Close Level 2
+    function closeLevel2() {
+      document.getElementById('level2').classList.remove('active');
+    }
+
+    // Toggle AI Panel (placeholder)
+    function toggleAIPanel() {
+      alert('AI Optimization Panel - Coming Soon');
+    }
+
+    // Socket.IO connection
+    let socket;
+    function connectSocket() {
+      socket = io('http://20.170.155.53:3021', {
+        transports: ['websocket'],
+        reconnection: true
+      });
+
+      socket.on('connect', () => {
+        document.getElementById('system-health').classList.remove('offline');
+        document.getElementById('health-text').textContent = 'ONLINE';
+      });
+
+      socket.on('disconnect', () => {
+        document.getElementById('system-health').classList.add('offline');
+        document.getElementById('health-text').textContent = 'OFFLINE';
+      });
+
+      socket.on('station-update', (data) => {
+        // Update station metrics in real-time
+        if (STATIONS[data.stationId]) {
+          // Update values and re-render if needed
+        }
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      generateStations();
+      connectSocket();
+    });
+  </script>
+</body>
+</html>

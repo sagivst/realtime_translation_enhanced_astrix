@@ -60,8 +60,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
   - .env.phase1 - Environment variables (ports, etc.)
   - package.json - Dependencies (isolated from other stacks)
 
-  Regression Test: Call 7000 → should work normally
-  Regression Test: Call 7777 → should work normally
+  
 
   ---
   Section 1.2: Add PJSIP Extensions 5555/6666
@@ -118,8 +117,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
 
   Reload: sudo asterisk -rx "pjsip reload"
 
-  Regression Test: Call 7001 → should work normally
-  Regression Test: Call 8888 → should work normally
+  
 
   ---
   SECTION 2: Asterisk Dialplan Configuration ✅ Regression Test Point #2
@@ -162,9 +160,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
 
   Reload: sudo asterisk -rx "dialplan reload"
 
-  Regression Test: Verify dialplan shows both old and new extensions
-  Regression Test: Call 7000 → should still work
-  Regression Test: Call 7777 → should still work
+  
 
   ---
   SECTION 3: GStreamer Gateway Development ✅ Regression Test Point #3
@@ -261,7 +257,6 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
     "frameSize": 640
   }
 
-  Regression Test: Check 7777/8888 WebSocket still accessible on 3002
 
   ---
   SECTION 5: Monitoring Dashboard ✅ Regression Test Point #5
@@ -302,10 +297,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
   netstat -tuln | grep -E '4000|4001|4002|4003|6100|6101|6102|6103|3010'
 
   Regression Test:
-  # Verify existing systems still running
-  ps aux | grep -E 'gateway-7777-8888|conference-server-externalmedia' | grep -v grep
-  netstat -tuln | grep -E '5000|5001|3002|6001'
-
+ 
   ---
   Section 6.2: Test PCM Cross-Patch
 
@@ -322,9 +314,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
   - ✅ No distortion or echo
   - ✅ Monitoring dashboard shows real-time PCM
 
-  Regression Test:
-  1. Phone A dials 7000 → verify translation works
-  2. Phone A dials 7777 → verify translation works
+  
 
   ---
   SECTION 7: Documentation & Handoff ✅ Regression Test Point #7
@@ -341,11 +331,7 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
 
   Complete System Verification:
   # Test all extensions
-  1. Call 7000 → Translation works? ✅
-  2. Call 7001 → Translation works? ✅
-  3. Call 7777 → Translation works? ✅
-  4. Call 8888 → Translation works? ✅
-  5. Call 5555 + 6666 → Cross-patch works? ✅
+  1. Call 5555 + 6666 → Cross-patch works? ✅
 
   ---
   🔒 Safety Measures
@@ -383,7 +369,6 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
 
   After each section, verify:
 
-  - Section 1: Extensions 7000, 7001, 7777, 8888 still registered (asterisk -rx "pjsip show endpoints")
   - Section 2: Can still dial existing extensions (test calls)
   - Section 3: Existing gateway processes still running (check PIDs)
   - Section 4: Existing conf-server still functional (check logs)
@@ -391,16 +376,4 @@ comprehensive development plan for implementing extensions 5555/6666 with PHASE 
   - Section 6: Full integration test of all 6 extensions (4 old + 2 new)
   - Section 7: Complete system validation
 
-  ---
-  🚀 Execution Timeline
-
-  Estimated Time per Section:
-  - Section 1: 15 minutes (setup + baseline tests)
-  - Section 2: 20 minutes (Asterisk config + reload + tests)
-  - Section 3: 45 minutes (gateway development + testing)
-  - Section 4: 60 minutes (conf-server + WebSocket + testing)
-  - Section 5: 30 minutes (dashboard + visualization)
-  - Section 6: 30 minutes (integration + regression tests)
-  - Section 7: 20 minutes (documentation)
-
-  Total: ~3.5 hours with regression testing at each step
+  

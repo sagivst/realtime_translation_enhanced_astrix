@@ -1,6 +1,6 @@
 # 📦 Checkpoint System Overview
 
-**Last Updated**: 2025-11-20 02:10 UTC
+**Last Updated**: 2025-11-20 10:10 UTC
 **Version**: 9.0 (EXCLUSION-BASED BACKUP - No more backup of backups!)
 **Status**: ✅ ACTIVE - Automatic backups every 60 minutes
 
@@ -59,5 +59,12 @@ ssh azureuser@20.170.155.53 "ls -lh /home/azureuser/*.tar.gz"
 
 # Verify cron
 ssh azureuser@20.170.155.53 "crontab -l"
+
+### Directoris to Backup
+
+# 4444_3333_Operational
+# 7777-8888-stack
+# 5555-6666-pcm-crossover
+
 ```
 

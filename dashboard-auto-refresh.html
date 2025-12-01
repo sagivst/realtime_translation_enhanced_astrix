@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Monitoring Dashboard - Auto Refresh</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .status-item.live {
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .filters-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #dee2e6;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 8px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 0.95em;
+            background: white;
+            transition: all 0.3s;
+            min-width: 150px;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .stat-card h3 {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .stat-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .records-container {
+            padding: 20px;
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        .record {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .record:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transform: translateY(-2px);
+        }
+
+        .record-header {
+            padding: 15px 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .station-1 .record-header { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .station-2 .record-header { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .station-3 .record-header { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .station-4 .record-header { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+        .station-9 .record-header { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+        .station-10 .record-header { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); }
+        .station-11 .record-header { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+
+        .record-id {
+            font-size: 0.85em;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .record-body {
+            padding: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .info-label {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-weight: 600;
+        }
+
+        .info-value {
+            font-size: 1em;
+            color: #2d3748;
+            font-weight: 500;
+        }
+
+        .metrics-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .metrics-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .metric-badge {
+            background: white;
+            border: 1px solid #dee2e6;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .metric-badge .name {
+            color: #6c757d;
+        }
+
+        .metric-badge .value {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .metric-badge.na .value {
+            color: #adb5bd;
+            font-style: italic;
+        }
+
+        .metric-badge.good {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .metric-badge.warning {
+            border-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .metric-badge.critical {
+            border-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .auto-refresh-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+            z-index: 1000;
+        }
+
+        .refresh-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .no-records {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .no-records h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        /* Custom scrollbar */
+        .records-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .records-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .records-container::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .records-container::-webkit-scrollbar-thumb:hover {
+            background: #5a67d8;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>
+                <span>🎯</span>
+                Live Monitoring Dashboard
+            </h1>
+            <div class="status-bar">
+                <div class="status-item live" id="status">
+                    🔴 LIVE
+                </div>
+                <div class="status-item" id="lastUpdate">
+                    Last Update: --
+                </div>
+                <div class="status-item" id="totalRecords">
+                    Records: 0
+                </div>
+            </div>
+        </div>
+
+        <div class="filters-container">
+            <div class="filter-group">
+                <label>Record ID</label>
+                <input type="text" id="filterRecordId" placeholder="Enter ID...">
+            </div>
+
+            <div class="filter-group">
+                <label>Station</label>
+                <select id="filterStation">
+                    <option value="">All Stations</option>
+                    <option value="STATION_1">Station 1 - Asterisk</option>
+                    <option value="STATION_2">Station 2 - Gateway Out</option>
+                    <option value="STATION_3">Station 3 - Before Deepgram</option>
+                    <option value="STATION_4">Station 4 - Deepgram</option>
+                    <option value="STATION_9">Station 9 - TTS Output</option>
+                    <option value="STATION_10">Station 10 - Gateway Return</option>
+                    <option value="STATION_11">Station 11 - Hume</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Channel/Extension</label>
+                <select id="filterChannel">
+                    <option value="">All Channels</option>
+                    <option value="3333">3333 (Caller)</option>
+                    <option value="4444">4444 (Callee)</option>
+                    <option value="caller">Caller</option>
+                    <option value="callee">Callee</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>From Date</label>
+                <input type="datetime-local" id="filterDateFrom">
+            </div>
+
+            <div class="filter-group">
+                <label>To Date</label>
+                <input type="datetime-local" id="filterDateTo">
+            </div>
+
+            <button class="btn btn-primary" onclick="applyFilters()">
+                🔍 Apply Filters
+            </button>
+
+            <button class="btn btn-secondary" onclick="clearFilters()">
+                ✖ Clear
+            </button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Active Calls</h3>
+                <div class="value" id="activeCalls">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Snapshots</h3>
+                <div class="value" id="totalSnapshots">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Stations</h3>
+                <div class="value" id="activeStations">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg Latency (ms)</h3>
+                <div class="value" id="avgLatency">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg SNR (dB)</h3>
+                <div class="value" id="avgSNR">0</div>
+            </div>
+        </div>
+
+        <div class="records-container" id="recordsContainer">
+            <div class="no-records">
+                <h3>Loading records...</h3>
+                <p>Fetching data from database</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="auto-refresh-indicator">
+        <div class="refresh-spinner"></div>
+        <span>Auto-refresh: <span id="refreshCountdown">5</span>s</span>
+    </div>
+
+    <script>
+        // Configuration
+        const API_ENDPOINT = '/api/snapshots'; // Will be proxied to database
+        const REFRESH_INTERVAL = 5000; // 5 seconds
+        const METRICS_TO_SHOW = ['snr_db', 'buffer_usage_pct', 'processing_latency', 'cpu_usage_pct', 'speech_activity'];
+
+        // State
+        let allRecords = [];
+        let filteredRecords = [];
+        let refreshTimer = null;
+        let countdown = 5;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            fetchData();
+            startAutoRefresh();
+        });
+
+        function setupEventListeners() {
+            // Real-time search on Record ID
+            document.getElementById('filterRecordId').addEventListener('input', (e) => {
+                if (e.target.value.length > 3 || e.target.value.length === 0) {
+                    applyFilters();
+                }
+            });
+
+            // Auto-apply filters on select changes
+            document.getElementById('filterStation').addEventListener('change', applyFilters);
+            document.getElementById('filterChannel').addEventListener('change', applyFilters);
+        }
+
+        function startAutoRefresh() {
+            // Countdown timer
+            setInterval(() => {
+                countdown--;
+                if (countdown <= 0) {
+                    countdown = 5;
+                    fetchData();
+                }
+                document.getElementById('refreshCountdown').textContent = countdown;
+            }, 1000);
+        }
+
+        async function fetchData() {
+            try {
+                // For now, using embedded test data
+                // In production, this would fetch from the actual API
+                const testData = await getTestData();
+
+                allRecords = testData;
+                applyFilters();
+                updateStats();
+                updateLastRefreshTime();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showError('Failed to fetch data');
+            }
+        }
+
+        function applyFilters() {
+            const recordId = document.getElementById('filterRecordId').value.toLowerCase();
+            const station = document.getElementById('filterStation').value;
+            const channel = document.getElementById('filterChannel').value;
+            const dateFrom = document.getElementById('filterDateFrom').value;
+            const dateTo = document.getElementById('filterDateTo').value;
+
+            filteredRecords = allRecords.filter(record => {
+                // Filter by Record ID
+                if (recordId && !record.id.toLowerCase().includes(recordId)) {
+                    return false;
+                }
+
+                // Filter by Station
+                if (station && record.station_id !== station) {
+                    return false;
+                }
+
+                // Filter by Channel/Extension
+                if (channel) {
+                    const channelMatch = record.channel === channel ||
+                                       record.extension === channel ||
+                                       (channel === '3333' && record.channel === 'caller') ||
+                                       (channel === '4444' && record.channel === 'callee');
+                    if (!channelMatch) return false;
+                }
+
+                // Filter by Date Range
+                if (dateFrom) {
+                    const fromDate = new Date(dateFrom);
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate < fromDate) return false;
+                }
+
+                if (dateTo) {
+                    const toDate = new Date(dateTo);
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate > toDate) return false;
+                }
+
+                return true;
+            });
+
+            // Sort by timestamp DESC (LIFO - newest first)
+            filteredRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            renderRecords();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterRecordId').value = '';
+            document.getElementById('filterStation').value = '';
+            document.getElementById('filterChannel').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            applyFilters();
+        }
+
+        function renderRecords() {
+            const container = document.getElementById('recordsContainer');
+
+            if (filteredRecords.length === 0) {
+                container.innerHTML = `
+                    <div class="no-records">
+                        <h3>No records found</h3>
+                        <p>Try adjusting your filters</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = filteredRecords.map(record => {
+                const stationNum = record.station_id.replace('STATION_', '');
+                const metrics = record.metrics || {};
+
+                // Get key metrics
+                const keyMetrics = METRICS_TO_SHOW.map(key => ({
+                    name: key,
+                    value: metrics[key] || 'NA',
+                    class: getMetricClass(key, metrics[key])
+                }));
+
+                return `
+                    <div class="record station-${stationNum}">
+                        <div class="record-header">
+                            <div>
+                                <strong>${record.station_id}</strong>
+                                ${record.channel ? `- ${record.channel}` : ''}
+                            </div>
+                            <div class="record-id">${record.id.substring(0, 8)}...</div>
+                        </div>
+                        <div class="record-body">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Timestamp</span>
+                                    <span class="info-value">${formatTimestamp(record.timestamp)}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Call ID</span>
+                                    <span class="info-value">${record.call_id || 'N/A'}</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Segment</span>
+                                    <span class="info-value">${record.segment_start_ms || 0}ms - ${record.segment_end_ms || 0}ms</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Audio</span>
+                                    <span class="info-value">${record.audio_ref ? '✓ Available' : '✗ None'}</span>
+                                </div>
+                            </div>
+
+                            <div class="metrics-preview">
+                                <div class="metrics-title">
+                                    <span>Key Metrics</span>
+                                    <span style="font-size: 0.85em; color: #6c757d;">
+                                        ${Object.keys(metrics).filter(k => metrics[k] !== 'NA').length} / 75 available
+                                    </span>
+                                </div>
+                                <div class="metric-badges">
+                                    ${keyMetrics.map(m => `
+                                        <div class="metric-badge ${m.class}">
+                                            <span class="name">${formatMetricName(m.name)}:</span>
+                                            <span class="value">${formatMetricValue(m.name, m.value)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function updateStats() {
+            // Calculate statistics
+            const activeCalls = new Set(allRecords.map(r => r.call_id).filter(Boolean)).size;
+            const activeStations = new Set(allRecords.map(r => r.station_id)).size;
+
+            // Calculate average latency
+            const latencies = allRecords
+                .map(r => parseFloat(r.metrics?.processing_latency))
+                .filter(v => !isNaN(v));
+            const avgLatency = latencies.length > 0
+                ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)
+                : 'N/A';
+
+            // Calculate average SNR
+            const snrs = allRecords
+                .map(r => parseFloat(r.metrics?.snr_db))
+                .filter(v => !isNaN(v));
+            const avgSNR = snrs.length > 0
+                ? (snrs.reduce((a, b) => a + b, 0) / snrs.length).toFixed(1)
+                : 'N/A';
+
+            // Update UI
+            document.getElementById('totalRecords').textContent = `Records: ${allRecords.length}`;
+            document.getElementById('activeCalls').textContent = activeCalls;
+            document.getElementById('totalSnapshots').textContent = allRecords.length;
+            document.getElementById('activeStations').textContent = activeStations;
+            document.getElementById('avgLatency').textContent = avgLatency;
+            document.getElementById('avgSNR').textContent = avgSNR;
+        }
+
+        function updateLastRefreshTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = `Last Update: ${timeStr}`;
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        function formatMetricName(name) {
+            return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function formatMetricValue(name, value) {
+            if (value === 'NA' || value === undefined) return 'NA';
+
+            if (name.includes('pct') || name.includes('usage')) {
+                return `${parseFloat(value).toFixed(1)}%`;
+            }
+            if (name.includes('db')) {
+                return `${parseFloat(value).toFixed(1)} dB`;
+            }
+            if (name.includes('latency') || name.includes('ms')) {
+                return `${parseFloat(value).toFixed(1)} ms`;
+            }
+
+            const num = parseFloat(value);
+            return isNaN(num) ? value : num.toFixed(1);
+        }
+
+        function getMetricClass(name, value) {
+            if (value === 'NA' || value === undefined) return 'na';
+
+            const num = parseFloat(value);
+            if (isNaN(num)) return '';
+
+            // Define thresholds
+            if (name === 'snr_db') {
+                if (num < 15) return 'critical';
+                if (num < 20) return 'warning';
+                return 'good';
+            }
+            if (name.includes('latency')) {
+                if (num > 100) return 'critical';
+                if (num > 50) return 'warning';
+                return 'good';
+            }
+            if (name.includes('cpu')) {
+                if (num > 80) return 'critical';
+                if (num > 60) return 'warning';
+                return 'good';
+            }
+
+            return '';
+        }
+
+        function showError(message) {
+            console.error(message);
+            // Could show a toast notification here
+        }
+
+        // Test data generator (will be replaced with actual API call)
+        async function getTestData() {
+            // This will be replaced with actual database fetch
+            // For now, returning test data that matches your database structure
+            return DATA_PLACEHOLDER;
+        }
+
+        // Placeholder for actual data - will be replaced during generation
+        const DATA_PLACEHOLDER = [];
+    </script>
+</body>
+</html>

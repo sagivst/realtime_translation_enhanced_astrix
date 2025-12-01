@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Translation Pipeline Monitor</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    /* HEADER */
+    .header {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #e0e0e0;
+      text-transform: uppercase;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 12px;
+    }
+
+    .header-btn {
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px;
+    }
+
+    .header-btn:hover { color: #33b5e5; }
+
+    /* STATUS BAR */
+    .status-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-top: none;
+      padding: 8px 20px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00c851;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* STATION GRID */
+    .station-container {
+      padding: 15px;
+    }
+
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .station-grid.row-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* STATION CARD - COMPACT */
+    .station {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      padding: 10px;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s;
+    }
+
+    .station:hover {
+      border-color: #33b5e5;
+      transform: translateY(-1px);
+    }
+
+    /* Station Header */
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .station-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    .station-num {
+      color: #33b5e5;
+      font-weight: bold;
+    }
+
+    .station-name {
+      color: #a0a0a0;
+    }
+
+    .station-status {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+    }
+
+    .status-icon {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #00c851;
+    }
+
+    .status-icon.warning { background: #ffbb33; }
+    .status-icon.offline { background: #ff3547; }
+
+    /* Station Metrics */
+    .station-metrics {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin: 6px 0;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #cbd5e1;
+    }
+
+    .metric-label {
+      color: #6b7280;
+    }
+
+    .metric-value {
+      color: #e0e0e0;
+      font-weight: 500;
+    }
+
+    /* Expand Button */
+    .expand-btn {
+      align-self: flex-end;
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 4px;
+    }
+
+    .expand-btn:hover { color: #33b5e5; }
+
+    /* AI Panel */
+    .ai-panel {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 8px 20px;
+      margin: 15px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .ai-panel:hover { border-color: #475569; }
+
+    /* LEVEL 2 OVERLAY */
+    .level2 {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0a;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .level2.active { display: block; }
+
+    .level2-header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+    }
+
+    .back-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 4px 10px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 11px;
+    }
+
+    .back-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    /* Waveform */
+    .waveform-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 15px;
+      margin: 15px;
+      border-radius: 3px;
+    }
+
+    .waveform-title {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .waveform {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 1px;
+      background: #0a0a0a;
+      padding: 5px;
+      border-radius: 2px;
+    }
+
+    .wave-bar {
+      flex: 1;
+      background: #33b5e5;
+      opacity: 0.6;
+      min-height: 2px;
+      max-height: 100%;
+      border-radius: 1px;
+    }
+
+    /* Metrics Section */
+    .metrics-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 15px;
+      margin: 15px;
+      border-radius: 3px;
+    }
+
+    .metrics-title {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .metric-groups {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .metric-group {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      padding: 12px;
+      border-radius: 2px;
+    }
+
+    .metric-group-title {
+      font-size: 10px;
+      color: #a0a0a0;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .metric-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 5px 0;
+      font-size: 10px;
+    }
+
+    .metric-bar {
+      width: 50px;
+      height: 3px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .metric-fill {
+      height: 100%;
+      background: #33b5e5;
+    }
+
+    .metric-fill.warning { background: #ffbb33; }
+    .metric-fill.danger { background: #ff3547; }
+
+    .edit-btn {
+      color: #33b5e5;
+      cursor: pointer;
+      font-size: 9px;
+      float: right;
+    }
+
+    /* Knobs Section */
+    .knobs-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 15px;
+      margin: 15px;
+      border-radius: 3px;
+    }
+
+    .knobs-title {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .knob {
+      margin: 10px 0;
+    }
+
+    .knob-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 10px;
+    }
+
+    .knob-value {
+      color: #33b5e5;
+    }
+
+    .knob-slider {
+      height: 12px;
+      background: #2a2a2a;
+      border-radius: 6px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .knob-fill {
+      height: 100%;
+      background: linear-gradient(to right, #00c851, #ffbb33, #ff3547);
+      border-radius: 6px;
+    }
+
+    .knob-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      background: #fff;
+      border: 2px solid #33b5e5;
+      border-radius: 50%;
+    }
+
+    .knob-range {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    .knob-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .knob-btn {
+      flex: 1;
+      padding: 6px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 10px;
+    }
+
+    .knob-btn:hover {
+      background: #333;
+      color: #e0e0e0;
+    }
+
+    .knob-btn.primary {
+      background: #33b5e5;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <!-- LEVEL 1: Main Dashboard -->
+  <div id="level1">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">Real-Time Translation Pipeline Monitor</div>
+      <div class="header-controls">
+        <button class="header-btn" title="Settings">⚙️</button>
+        <button class="header-btn" title="Analytics">📊</button>
+        <button class="header-btn" title="Help">❓</button>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span>System Health:</span>
+        <div class="status-dot"></div>
+        <span>ONLINE</span>
+      </div>
+      <div class="status-item">
+        <span>Latency:</span>
+        <span>182ms</span>
+      </div>
+      <div class="status-item">
+        <span>MOS:</span>
+        <span>4.6</span>
+      </div>
+    </div>
+
+    <!-- Station Grid -->
+    <div class="station-container">
+      <!-- Row 1: 4 stations -->
+      <div class="station-grid">
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">1.</span>
+              <span class="station-name">Asterisk</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">RTP:</span>
+              <span class="metric-value">2356/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">45ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(1)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">2.</span>
+              <span class="station-name">Gateway</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">PCM:</span>
+              <span class="metric-value">340/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">120ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(2)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">3.</span>
+              <span class="station-name">STT Proc</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">PCM:</span>
+              <span class="metric-value">340/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">210ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(3)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">4.</span>
+              <span class="station-name">Deepgram</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">Text:</span>
+              <span class="metric-value">12/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">180ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(4)">[↗]</button>
+        </div>
+      </div>
+
+      <!-- Row 2: 4 stations -->
+      <div class="station-grid" style="margin-top: 12px;">
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">5.</span>
+              <span class="station-name">Translation</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">Req:</span>
+              <span class="metric-value">12/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">95ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(5)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">6.</span>
+              <span class="station-name">DeepL API</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">API:</span>
+              <span class="metric-value">100%</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">85ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(6)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">7.</span>
+              <span class="station-name">TTS Prep</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">Text:</span>
+              <span class="metric-value">12/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">15ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(7)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">8.</span>
+              <span class="station-name">ElevenLabs</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">PCM:</span>
+              <span class="metric-value">340/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">220ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(8)">[↗]</button>
+        </div>
+      </div>
+
+      <!-- Row 3: 3 stations -->
+      <div class="station-grid row-3" style="margin-top: 12px;">
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">9.</span>
+              <span class="station-name">STT TX</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">PCM:</span>
+              <span class="metric-value">340/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">45ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(9)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">10.</span>
+              <span class="station-name">Gateway</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon"></div>
+              <span>ON</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label">RTP:</span>
+              <span class="metric-value">2356/s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">L:</span>
+              <span class="metric-value">120ms</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(10)">[↗]</button>
+        </div>
+
+        <div class="station">
+          <div class="station-header">
+            <div class="station-title">
+              <span class="station-num">11.</span>
+              <span class="station-name">Hume EVI</span>
+            </div>
+            <div class="station-status">
+              <div class="status-icon warning"></div>
+              <span>⚠️ OFF</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            <div class="metric">
+              <span class="metric-label"></span>
+              <span class="metric-value">Disabled</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label"></span>
+              <span class="metric-value">Quota Limit</span>
+            </div>
+          </div>
+          <button class="expand-btn" onclick="openLevel2(11)">[↗]</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Panel -->
+    <div class="ai-panel" onclick="alert('AI Optimization Panel - Coming Soon')">
+      <span>▼ Global AI Optimization Panel</span>
+      <span style="color: #ffbb33;">Currently Manual Mode</span>
+    </div>
+  </div>
+
+  <!-- LEVEL 2: Expanded View -->
+  <div class="level2" id="level2">
+    <div class="level2-header">
+      <button class="back-btn" onclick="closeLevel2()">← Back</button>
+      <div id="level2-title" style="font-size: 13px;">Station Details</div>
+      <div class="header-controls">
+        <button class="header-btn">📊</button>
+        <button class="header-btn">⚙️</button>
+        <button class="header-btn" onclick="closeLevel2()">✖️</button>
+      </div>
+    </div>
+
+    <!-- Waveform (for voice stations) -->
+    <div class="waveform-section" id="waveform-section">
+      <div class="waveform-title">
+        Audio Waveform Visualization (Real-time PCM)
+        <span style="color: #00c851;">● Recording</span>
+      </div>
+      <div class="waveform" id="waveform"></div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics-section">
+      <div class="metrics-title">Monitoring Metrics (<span id="metric-count">14</span> Active Parameters)</div>
+      <div class="metric-groups" id="metric-groups"></div>
+    </div>
+
+    <!-- Knobs -->
+    <div class="knobs-section">
+      <div class="knobs-title">Knobs & Controls</div>
+      <div id="knobs-list"></div>
+      <div class="knob-buttons">
+        <button class="knob-btn primary">Apply Changes</button>
+        <button class="knob-btn">Reset to Default</button>
+        <button class="knob-btn">Save as Default</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Station configurations with proper metrics
+    const STATIONS = {
+      1: { name: 'Asterisk', type: 'voice', metrics: { 'RTP': '2356/s', 'L': '45ms' } },
+      2: { name: 'Gateway', type: 'voice', metrics: { 'PCM': '340/s', 'L': '120ms' } },
+      3: { name: 'STT Proc', type: 'voice', metrics: { 'PCM': '340/s', 'L': '210ms' } },
+      4: { name: 'Deepgram', type: 'voice', metrics: { 'Text': '12/s', 'L': '180ms' } },
+      5: { name: 'Translation', type: 'text', metrics: { 'Req': '12/s', 'L': '95ms' } },
+      6: { name: 'DeepL API', type: 'text', metrics: { 'API': '100%', 'L': '85ms' } },
+      7: { name: 'TTS Prep', type: 'text', metrics: { 'Text': '12/s', 'L': '15ms' } },
+      8: { name: 'ElevenLabs', type: 'voice', metrics: { 'PCM': '340/s', 'L': '220ms' } },
+      9: { name: 'STT TX', type: 'voice', metrics: { 'PCM': '340/s', 'L': '45ms' } },
+      10: { name: 'Gateway', type: 'voice', metrics: { 'RTP': '2356/s', 'L': '120ms' } },
+      11: { name: 'Hume EVI', type: 'voice', metrics: { 'Disabled': '', 'Quota Limit': '' } }
+    };
+
+    function openLevel2(stationId) {
+      const station = STATIONS[stationId];
+      document.getElementById('level1').style.display = 'none';
+      document.getElementById('level2').classList.add('active');
+      document.getElementById('level2-title').textContent =
+        `[←] STATION ${stationId}: ${station.name.toUpperCase()} (${station.type === 'voice' ? 'Voice' : 'Text'})`;
+
+      // Show/hide waveform
+      document.getElementById('waveform-section').style.display =
+        station.type === 'voice' ? 'block' : 'none';
+
+      // Generate waveform
+      if (station.type === 'voice') {
+        const waveform = document.getElementById('waveform');
+        waveform.innerHTML = '';
+        for (let i = 0; i < 50; i++) {
+          const bar = document.createElement('div');
+          bar.className = 'wave-bar';
+          bar.style.height = Math.random() * 30 + 5 + 'px';
+          waveform.appendChild(bar);
+        }
+      }
+
+      // Generate metrics
+      const metricGroups = document.getElementById('metric-groups');
+      metricGroups.innerHTML = `
+        <div class="metric-group">
+          <div class="metric-group-title">Buffer Metrics</div>
+          <div class="metric-item">
+            <span>▪ Total: 45%</span>
+            <div class="metric-bar"><div class="metric-fill" style="width: 45%"></div></div>
+          </div>
+          <div class="metric-item">
+            <span>▪ Input: 30%</span>
+            <div class="metric-bar"><div class="metric-fill" style="width: 30%"></div></div>
+          </div>
+          <div class="metric-item">
+            <span>▪ Output: 60%</span>
+            <div class="metric-bar"><div class="metric-fill" style="width: 60%"></div></div>
+          </div>
+          <span class="edit-btn">[Edit ↗]</span>
+        </div>
+        <div class="metric-group">
+          <div class="metric-group-title">Latency Metrics</div>
+          <div class="metric-item">
+            <span>▪ Avg: 210ms</span>
+            <div class="metric-bar"><div class="metric-fill warning" style="width: 60%"></div></div>
+          </div>
+          <div class="metric-item">
+            <span>▪ Peak: 450ms</span>
+            <div class="metric-bar"><div class="metric-fill danger" style="width: 90%"></div></div>
+          </div>
+          <div class="metric-item">
+            <span>▪ Min: 120ms</span>
+            <div class="metric-bar"><div class="metric-fill" style="width: 24%"></div></div>
+          </div>
+          <span class="edit-btn">[Edit ↗]</span>
+        </div>
+      `;
+
+      // Generate knobs
+      const knobsList = document.getElementById('knobs-list');
+      knobsList.innerHTML = `
+        <div class="knob">
+          <div class="knob-label">
+            <span>chunk_ms:</span>
+            <span class="knob-value">[250]</span>
+          </div>
+          <div class="knob-slider">
+            <div class="knob-fill" style="width: 30%"></div>
+            <div class="knob-thumb" style="left: 30%"></div>
+          </div>
+          <div class="knob-range">
+            <span>50</span>
+            <span>(Pref: 200-350)</span>
+            <span>1000</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function closeLevel2() {
+      document.getElementById('level2').classList.remove('active');
+      document.getElementById('level1').style.display = 'block';
+    }
+
+    // Socket.IO connection
+    const socket = io('http://20.170.155.53:3021', {
+      transports: ['websocket'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.querySelector('.status-dot').style.background = '#00c851';
+    });
+
+    socket.on('disconnect', () => {
+      document.querySelector('.status-dot').style.background = '#ff3547';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "name": "station-agent-sdk",
+  "version": "1.0.0",
+  "description": "SDK for monitoring and optimizing audio quality across translation pipeline stations",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/",
+    "example:station1": "node examples/station1-example.js",
+    "example:station3": "node examples/station3-example.js"
+  },
+  "keywords": [
+    "audio",
+    "monitoring",
+    "optimization",
+    "voice",
+    "translation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "ws": "^8.14.0",
+    "uuid": "^9.0.0",
+    "ajv": "^8.12.0",
+    "ajv-formats": "^2.1.1",
+    "eventemitter3": "^5.0.1"
+  },
+  "optionalDependencies": {
+    "aws-sdk": "^2.1479.0",
+    "prom-client": "^15.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.53.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

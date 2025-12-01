@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Translation Pipeline Monitor</title>
+    <style>
+        /* ============================================
+           DARK PROFESSIONAL THEME - BACKOFFICE STYLE
+           ============================================ */
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --bg-hover: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --text-dim: #606060;
+            --accent-success: #00c851;
+            --accent-warning: #ffbb33;
+            --accent-danger: #ff3547;
+            --accent-info: #33b5e5;
+            --border: #333333;
+            --border-light: #444444;
+            --shadow: rgba(0,0,0,0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-danger);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: var(--accent-success);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ============================================
+           SYSTEM STATS BAR
+           ============================================ */
+        .stats-bar {
+            background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            gap: 30px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* ============================================
+           LEVEL 1: STATION GRID
+           ============================================ */
+        .station-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .station-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 15px;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .station-box:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .station-id {
+            font-size: 10px;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+
+        .station-name {
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-top: 2px;
+        }
+
+        .station-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .station-status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-danger);
+        }
+
+        .station-status-indicator.active {
+            background: var(--accent-success);
+            animation: pulse 2s infinite;
+        }
+
+        .station-status-indicator.warning {
+            background: var(--accent-warning);
+        }
+
+        .expand-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: color 0.2s;
+        }
+
+        .expand-icon:hover {
+            color: var(--accent-info);
+        }
+
+        .station-metrics {
+            display: grid;
+            gap: 8px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-family: 'Roboto Mono', monospace;
+        }
+
+        .metric-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent-info), var(--accent-success));
+            transition: width 0.3s ease;
+        }
+
+        /* ============================================
+           LEVEL 2: EXPANDED STATION VIEW
+           ============================================ */
+        .expanded-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 1000;
+            display: none;
+            overflow-y: auto;
+        }
+
+        .expanded-view.active {
+            display: block;
+        }
+
+        .expanded-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .back-button {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .back-button:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-info);
+        }
+
+        .parameter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            padding: 20px;
+        }
+
+        .parameter-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .parameter-box:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-light);
+        }
+
+        .parameter-name {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .parameter-value {
+            font-size: 16px;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .parameter-unit {
+            font-size: 10px;
+            color: var(--text-dim);
+            margin-left: 4px;
+        }
+
+        .parameter-status {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-success);
+        }
+
+        .parameter-status.warning {
+            background: var(--accent-warning);
+        }
+
+        .parameter-status.critical {
+            background: var(--accent-danger);
+        }
+
+        /* ============================================
+           LEVEL 3: PARAMETER EDIT MODE
+           ============================================ */
+        .edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .edit-modal.active {
+            display: flex;
+        }
+
+        .edit-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .edit-header {
+            background: var(--bg-tertiary);
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .edit-body {
+            padding: 20px;
+        }
+
+        .edit-section {
+            margin-bottom: 25px;
+        }
+
+        .edit-section h3 {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .range-display {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .range-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .range-label {
+            color: var(--text-secondary);
+        }
+
+        .range-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .threshold-input {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .input-group input {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        .edit-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-primary {
+            background: var(--accent-info);
+            border-color: var(--accent-info);
+        }
+
+        .btn-primary:hover {
+            background: #2a9bc5;
+        }
+
+        /* ============================================
+           VOICE/TEXT INDICATORS
+           ============================================ */
+        .station-type-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-left: 8px;
+        }
+
+        .badge-voice {
+            background: rgba(51, 181, 229, 0.2);
+            color: var(--accent-info);
+            border: 1px solid rgba(51, 181, 229, 0.3);
+        }
+
+        .badge-text {
+            background: rgba(255, 187, 51, 0.2);
+            color: var(--accent-warning);
+            border: 1px solid rgba(255, 187, 51, 0.3);
+        }
+
+        /* ============================================
+           RESPONSIVE DESIGN
+           ============================================ */
+        @media (max-width: 1200px) {
+            .station-grid {
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .station-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-bar {
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>REAL-TIME TRANSLATION PIPELINE MONITOR</h1>
+        <div class="header-controls">
+            <div class="connection-status">
+                <div class="status-dot" id="connectionDot"></div>
+                <span id="connectionText">DISCONNECTED</span>
+            </div>
+            <button class="btn" onclick="location.reload()">⟳ Refresh</button>
+        </div>
+    </div>
+
+    <!-- System Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-label">Stations:</span>
+            <span class="stat-value" id="totalStations">11</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Active:</span>
+            <span class="stat-value" id="activeStations">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Avg Latency:</span>
+            <span class="stat-value" id="avgLatency">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">System MOS:</span>
+            <span class="stat-value" id="systemMOS">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Packet Loss:</span>
+            <span class="stat-value" id="avgPacketLoss">--</span>
+        </div>
+    </div>
+
+    <!-- Level 1: Station Grid -->
+    <div class="station-grid" id="stationGrid">
+        <!-- Station boxes will be generated here -->
+    </div>
+
+    <!-- Level 2: Expanded Station View -->
+    <div class="expanded-view" id="expandedView">
+        <div class="expanded-header">
+            <div>
+                <h2 id="expandedStationName">Station Details</h2>
+                <span id="expandedStationId" style="color: var(--text-secondary); font-size: 12px;"></span>
+            </div>
+            <button class="back-button" onclick="collapseStation()">← Back to Stations</button>
+        </div>
+        <div class="parameter-grid" id="parameterGrid">
+            <!-- Parameter boxes will be generated here -->
+        </div>
+    </div>
+
+    <!-- Level 3: Parameter Edit Modal -->
+    <div class="edit-modal" id="editModal">
+        <div class="edit-content">
+            <div class="edit-header">
+                <h3 id="editParameterName">Parameter Configuration</h3>
+                <button class="btn" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="edit-body">
+                <div class="edit-section">
+                    <h3>PARAMETER DETAILS</h3>
+                    <div class="range-display">
+                        <div class="range-row">
+                            <span class="range-label">Parameter Path:</span>
+                            <span class="range-value" id="paramPath">--</span>
+                        </div>
+                        <div class="range-row">
+                            <span class="range-label">Current Value:</span>
+                            <span class="range-value" id="currentValue">--</span>
+                        </div>
+                        <div class="range-row">
+                            <span class="range-label">Unit:</span>
+                            <span class="range-value" id="paramUnit">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="edit-section">
+                    <h3>LEGAL RANGES</h3>
+                    <div class="range-display">
+                        <div class="range-row">
+                            <span class="range-label">Absolute Min:</span>
+                            <span class="range-value" id="absMin">--</span>
+                        </div>
+                        <div class="range-row">
+                            <span class="range-label">Absolute Max:</span>
+                            <span class="range-value" id="absMax">--</span>
+                        </div>
+                        <div class="range-row">
+                            <span class="range-label">Recommended Min:</span>
+                            <span class="range-value" id="recMin">--</span>
+                        </div>
+                        <div class="range-row">
+                            <span class="range-label">Recommended Max:</span>
+                            <span class="range-value" id="recMax">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="edit-section">
+                    <h3>THRESHOLD CONFIGURATION</h3>
+                    <div class="threshold-input">
+                        <div class="input-group">
+                            <label>Warning Low:</label>
+                            <input type="number" id="warnLow" />
+                        </div>
+                        <div class="input-group">
+                            <label>Warning High:</label>
+                            <input type="number" id="warnHigh" />
+                        </div>
+                        <div class="input-group">
+                            <label>Critical Low:</label>
+                            <input type="number" id="critLow" />
+                        </div>
+                        <div class="input-group">
+                            <label>Critical High:</label>
+                            <input type="number" id="critHigh" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="edit-actions">
+                    <button class="btn" onclick="resetToDefaults()">Reset to Defaults</button>
+                    <button class="btn" onclick="closeEditModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveParameterConfig()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // STATION CONFIGURATION - 11 STATIONS
+        // ============================================
+        const STATION_CONFIG = {
+            'station-1': {
+                id: 'station-1',
+                name: 'Asterisk RTP',
+                type: 'voice',
+                description: 'RTP source from Asterisk PBX',
+                metrics: ['packet', 'latency', 'audio']
+            },
+            'station-2': {
+                id: 'station-2',
+                name: 'Gateway RX',
+                type: 'voice',
+                description: 'RTP→PCM conversion',
+                metrics: ['packet', 'buffer', 'audio']
+            },
+            'station-3': {
+                id: 'station-3',
+                name: 'STT Processing',
+                type: 'voice',
+                description: 'Deepgram STT streaming',
+                metrics: ['latency', 'audio', 'custom']
+            },
+            'station-4': {
+                id: 'station-4',
+                name: 'Deepgram API',
+                type: 'voice',
+                description: 'Speech recognition',
+                metrics: ['latency', 'performance']
+            },
+            'station-5': {
+                id: 'station-5',
+                name: 'Translation Prep',
+                type: 'text',
+                description: 'Text preprocessing',
+                metrics: ['performance', 'custom']
+            },
+            'station-6': {
+                id: 'station-6',
+                name: 'DeepL API',
+                type: 'text',
+                description: 'Translation service',
+                metrics: ['latency', 'performance']
+            },
+            'station-7': {
+                id: 'station-7',
+                name: 'TTS Prep',
+                type: 'text',
+                description: 'Text postprocessing',
+                metrics: ['performance', 'custom']
+            },
+            'station-8': {
+                id: 'station-8',
+                name: 'ElevenLabs TTS',
+                type: 'voice',
+                description: 'Speech synthesis',
+                metrics: ['latency', 'audio']
+            },
+            'station-9': {
+                id: 'station-9',
+                name: 'STT Server TX',
+                type: 'voice',
+                description: 'PCM output stream',
+                metrics: ['packet', 'buffer']
+            },
+            'station-10': {
+                id: 'station-10',
+                name: 'Gateway TX',
+                type: 'voice',
+                description: 'PCM→RTP conversion',
+                metrics: ['packet', 'latency']
+            },
+            'station-11': {
+                id: 'station-11',
+                name: 'Hume EVI',
+                type: 'voice',
+                description: 'Emotion analysis',
+                metrics: ['latency', 'custom']
+            }
+        };
+
+        // ============================================
+        // PARAMETER DEFINITIONS (55 per station)
+        // ============================================
+        const PARAMETER_CATEGORIES = {
+            buffer: {
+                name: 'Buffer Metrics',
+                count: 10,
+                parameters: [
+                    { id: 'total', name: 'Total Buffer Usage', unit: '%', min: 0, max: 100 },
+                    { id: 'input', name: 'Input Buffer Level', unit: '%', min: 0, max: 100 },
+                    { id: 'processing', name: 'Processing Buffer', unit: '%', min: 0, max: 100 },
+                    { id: 'output', name: 'Output Buffer Level', unit: '%', min: 0, max: 100 },
+                    { id: 'overrun', name: 'Buffer Overrun Count', unit: '', min: 0, max: 1000 },
+                    { id: 'underrun', name: 'Buffer Underrun Count', unit: '', min: 0, max: 1000 },
+                    { id: 'highWater', name: 'Buffer High Water Mark', unit: '%', min: 0, max: 100 },
+                    { id: 'lowWater', name: 'Buffer Low Water Mark', unit: '%', min: 0, max: 100 },
+                    { id: 'allocation', name: 'Buffer Allocation Size', unit: 'KB', min: 0, max: 10000 },
+                    { id: 'freeSpace', name: 'Buffer Free Space', unit: 'KB', min: 0, max: 10000 }
+                ]
+            },
+            latency: {
+                name: 'Latency Metrics',
+                count: 8,
+                parameters: [
+                    { id: 'avg', name: 'Average Latency', unit: 'ms', min: 0, max: 1000 },
+                    { id: 'peak', name: 'Peak Latency', unit: 'ms', min: 0, max: 2000 },
+                    { id: 'min', name: 'Min Latency', unit: 'ms', min: 0, max: 1000 },
+                    { id: 'jitter', name: 'Jitter', unit: 'ms', min: 0, max: 500 },
+                    { id: 'e2e', name: 'End-to-End Latency', unit: 'ms', min: 0, max: 2000 },
+                    { id: 'processing', name: 'Processing Latency', unit: 'ms', min: 0, max: 1000 },
+                    { id: 'network', name: 'Network Latency', unit: 'ms', min: 0, max: 1000 },
+                    { id: 'variance', name: 'Latency Variance', unit: 'ms', min: 0, max: 500 }
+                ]
+            },
+            packet: {
+                name: 'Packet Metrics',
+                count: 12,
+                parameters: [
+                    { id: 'rx', name: 'Packets Received', unit: '', min: 0, max: 1000000 },
+                    { id: 'tx', name: 'Packets Transmitted', unit: '', min: 0, max: 1000000 },
+                    { id: 'dropped', name: 'Packets Dropped', unit: '', min: 0, max: 10000 },
+                    { id: 'lossRate', name: 'Packet Loss Rate', unit: '%', min: 0, max: 100 },
+                    { id: 'errors', name: 'Packet Error Count', unit: '', min: 0, max: 10000 },
+                    { id: 'retransmit', name: 'Retransmission Count', unit: '', min: 0, max: 10000 },
+                    { id: 'outOfOrder', name: 'Out-of-Order Packets', unit: '', min: 0, max: 10000 },
+                    { id: 'duplicate', name: 'Duplicate Packets', unit: '', min: 0, max: 10000 },
+                    { id: 'bytesRx', name: 'Bytes Received', unit: 'KB', min: 0, max: 1000000 },
+                    { id: 'bytesTx', name: 'Bytes Transmitted', unit: 'KB', min: 0, max: 1000000 },
+                    { id: 'throughputRx', name: 'Throughput RX', unit: 'Kbps', min: 0, max: 10000 },
+                    { id: 'throughputTx', name: 'Throughput TX', unit: 'Kbps', min: 0, max: 10000 }
+                ]
+            },
+            audio: {
+                name: 'Audio Quality',
+                count: 10,
+                parameters: [
+                    { id: 'sampleRate', name: 'Sample Rate', unit: 'Hz', min: 8000, max: 48000 },
+                    { id: 'bitDepth', name: 'Bit Depth', unit: 'bits', min: 8, max: 32 },
+                    { id: 'channels', name: 'Channels', unit: '', min: 1, max: 2 },
+                    { id: 'format', name: 'Audio Format', unit: '', min: 0, max: 10 },
+                    { id: 'clipping', name: 'Clipping Events', unit: '', min: 0, max: 1000 },
+                    { id: 'silence', name: 'Silence Periods', unit: '', min: 0, max: 1000 },
+                    { id: 'silenceDuration', name: 'Silence Duration', unit: 'ms', min: 0, max: 10000 },
+                    { id: 'level', name: 'Audio Level', unit: 'dBFS', min: -96, max: 0 },
+                    { id: 'snr', name: 'Signal-to-Noise Ratio', unit: 'dB', min: 0, max: 100 },
+                    { id: 'thd', name: 'Total Harmonic Distortion', unit: '%', min: 0, max: 100 }
+                ]
+            },
+            performance: {
+                name: 'Performance',
+                count: 8,
+                parameters: [
+                    { id: 'cpu', name: 'CPU Usage', unit: '%', min: 0, max: 100 },
+                    { id: 'memory', name: 'Memory Usage', unit: 'MB', min: 0, max: 10000 },
+                    { id: 'threads', name: 'Thread Count', unit: '', min: 0, max: 100 },
+                    { id: 'connections', name: 'Active Connections', unit: '', min: 0, max: 1000 },
+                    { id: 'queueDepth', name: 'Queue Depth', unit: '', min: 0, max: 10000 },
+                    { id: 'processRate', name: 'Processing Rate', unit: 'ops/s', min: 0, max: 10000 },
+                    { id: 'errorRate', name: 'Error Rate', unit: 'err/min', min: 0, max: 100 },
+                    { id: 'uptime', name: 'Uptime', unit: 's', min: 0, max: 1000000 }
+                ]
+            },
+            custom: {
+                name: 'Custom Metrics',
+                count: 7,
+                parameters: [
+                    { id: 'state', name: 'Station State', unit: '', min: 0, max: 3 },
+                    { id: 'lastActivity', name: 'Last Activity', unit: 'ms', min: 0, max: 1000000 },
+                    { id: 'totalProcessed', name: 'Total Processed', unit: '', min: 0, max: 1000000 },
+                    { id: 'processSpeed', name: 'Processing Speed', unit: 'items/s', min: 0, max: 10000 },
+                    { id: 'successRate', name: 'Success Rate', unit: '%', min: 0, max: 100 },
+                    { id: 'warnings', name: 'Warning Count', unit: '', min: 0, max: 1000 },
+                    { id: 'critical', name: 'Critical Events', unit: '', min: 0, max: 1000 }
+                ]
+            }
+        };
+
+        // ============================================
+        // WEBSOCKET CONNECTION
+        // ============================================
+        let socket = null;
+        let stations = {};
+        let currentExpandedStation = null;
+        let currentEditParameter = null;
+
+        function initWebSocket() {
+            // Connect to monitoring server on port 3021
+            socket = io('http://20.170.155.53:3021', {
+                transports: ['websocket'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
+
+            socket.on('connect', () => {
+                console.log('Connected to monitoring server');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from monitoring server');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('stations-state', (data) => {
+                console.log('Received stations state:', data);
+                stations = data;
+                updateStationGrid();
+                updateSystemStats();
+            });
+
+            socket.on('station-update', (data) => {
+                console.log('Station update:', data);
+                if (stations[data.stationId]) {
+                    stations[data.stationId].metrics = data.metrics;
+                    updateStationBox(data.stationId);
+                    updateSystemStats();
+
+                    if (currentExpandedStation === data.stationId) {
+                        updateParameterGrid();
+                    }
+                }
+            });
+
+            socket.on('error', (error) => {
+                console.error('Socket error:', error);
+            });
+        }
+
+        // ============================================
+        // UI UPDATE FUNCTIONS
+        // ============================================
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('connectionDot');
+            const text = document.getElementById('connectionText');
+
+            if (connected) {
+                dot.classList.add('connected');
+                text.textContent = 'CONNECTED';
+            } else {
+                dot.classList.remove('connected');
+                text.textContent = 'DISCONNECTED';
+            }
+        }
+
+        function updateStationGrid() {
+            const grid = document.getElementById('stationGrid');
+            grid.innerHTML = '';
+
+            // Create boxes for all 11 stations
+            Object.values(STATION_CONFIG).forEach(config => {
+                const station = stations[config.id] || {
+                    id: config.id,
+                    name: config.name,
+                    active: false,
+                    metrics: {}
+                };
+
+                const box = createStationBox(station, config);
+                grid.appendChild(box);
+            });
+        }
+
+        function createStationBox(station, config) {
+            const box = document.createElement('div');
+            box.className = 'station-box';
+            box.id = `box-${station.id}`;
+
+            const isActive = station.active;
+            const metrics = station.metrics || {};
+
+            box.innerHTML = `
+                <svg class="expand-icon" onclick="expandStation('${station.id}')" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 14l5-5 5 5z"/>
+                </svg>
+                <div class="station-header">
+                    <div>
+                        <div class="station-id">${station.id.toUpperCase()}</div>
+                        <div class="station-name">
+                            ${config.name}
+                            <span class="station-type-badge badge-${config.type}">${config.type}</span>
+                        </div>
+                    </div>
+                    <div class="station-status">
+                        <div class="station-status-indicator ${isActive ? 'active' : ''}"></div>
+                        <span style="font-size: 10px; color: var(--text-dim)">
+                            ${isActive ? 'ONLINE' : 'OFFLINE'}
+                        </span>
+                    </div>
+                </div>
+                <div class="station-metrics">
+                    ${config.metrics.includes('buffer') ? `
+                        <div class="metric-row">
+                            <span class="metric-label">Buffer:</span>
+                            <span class="metric-value">${metrics.bufferUsage || '--'}%</span>
+                        </div>
+                        <div class="metric-bar">
+                            <div class="metric-bar-fill" style="width: ${metrics.bufferUsage || 0}%"></div>
+                        </div>
+                    ` : ''}
+                    ${config.metrics.includes('latency') ? `
+                        <div class="metric-row">
+                            <span class="metric-label">Latency:</span>
+                            <span class="metric-value">${metrics.avgLatency ? metrics.avgLatency.toFixed(1) : '--'}ms</span>
+                        </div>
+                    ` : ''}
+                    ${config.metrics.includes('packet') ? `
+                        <div class="metric-row">
+                            <span class="metric-label">Packets:</span>
+                            <span class="metric-value">${metrics.packetsRx || '--'}</span>
+                        </div>
+                    ` : ''}
+                    ${config.metrics.includes('performance') ? `
+                        <div class="metric-row">
+                            <span class="metric-label">CPU:</span>
+                            <span class="metric-value">${metrics.cpuUsage || '--'}%</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            return box;
+        }
+
+        function updateStationBox(stationId) {
+            const box = document.getElementById(`box-${stationId}`);
+            if (box) {
+                const station = stations[stationId];
+                const config = STATION_CONFIG[stationId];
+                if (station && config) {
+                    box.outerHTML = createStationBox(station, config).outerHTML;
+                }
+            }
+        }
+
+        function updateSystemStats() {
+            let activeCount = 0;
+            let totalLatency = 0;
+            let latencyCount = 0;
+            let totalPacketLoss = 0;
+            let packetLossCount = 0;
+
+            Object.values(stations).forEach(station => {
+                if (station.active) activeCount++;
+
+                if (station.metrics) {
+                    if (station.metrics.avgLatency) {
+                        totalLatency += station.metrics.avgLatency;
+                        latencyCount++;
+                    }
+                    if (station.metrics.packetLossRate) {
+                        totalPacketLoss += station.metrics.packetLossRate;
+                        packetLossCount++;
+                    }
+                }
+            });
+
+            document.getElementById('activeStations').textContent = activeCount;
+            document.getElementById('avgLatency').textContent =
+                latencyCount > 0 ? (totalLatency / latencyCount).toFixed(1) + 'ms' : '--';
+            document.getElementById('avgPacketLoss').textContent =
+                packetLossCount > 0 ? (totalPacketLoss / packetLossCount).toFixed(2) + '%' : '--';
+
+            // Calculate MOS based on latency and packet loss
+            if (latencyCount > 0) {
+                const avgLat = totalLatency / latencyCount;
+                const avgLoss = packetLossCount > 0 ? totalPacketLoss / packetLossCount : 0;
+                const mos = calculateMOS(avgLat, avgLoss);
+                document.getElementById('systemMOS').textContent = mos.toFixed(1);
+            } else {
+                document.getElementById('systemMOS').textContent = '--';
+            }
+        }
+
+        function calculateMOS(latency, packetLoss) {
+            // Simplified E-Model calculation for MOS
+            let r = 93.2; // Base R-factor
+            r -= (latency / 40); // Latency impairment
+            r -= (packetLoss * 2.5); // Packet loss impairment
+
+            // Convert R-factor to MOS
+            if (r < 0) return 1.0;
+            if (r > 100) return 4.5;
+            return 1 + 0.035 * r + 0.000007 * r * (r - 60) * (100 - r);
+        }
+
+        // ============================================
+        // LEVEL 2: EXPANDED STATION VIEW
+        // ============================================
+        function expandStation(stationId) {
+            currentExpandedStation = stationId;
+            const config = STATION_CONFIG[stationId];
+            const station = stations[stationId] || { metrics: {} };
+
+            document.getElementById('expandedStationName').textContent = config.name;
+            document.getElementById('expandedStationId').textContent = stationId.toUpperCase();
+
+            updateParameterGrid();
+
+            document.getElementById('expandedView').classList.add('active');
+        }
+
+        function collapseStation() {
+            currentExpandedStation = null;
+            document.getElementById('expandedView').classList.remove('active');
+        }
+
+        function updateParameterGrid() {
+            if (!currentExpandedStation) return;
+
+            const grid = document.getElementById('parameterGrid');
+            grid.innerHTML = '';
+
+            const station = stations[currentExpandedStation] || { metrics: {} };
+            const config = STATION_CONFIG[currentExpandedStation];
+
+            // Generate all 55 parameters
+            Object.entries(PARAMETER_CATEGORIES).forEach(([categoryKey, category]) => {
+                // Only show relevant categories for this station type
+                if (config.type === 'text' && ['audio', 'packet'].includes(categoryKey)) {
+                    return; // Skip audio/packet metrics for text stations
+                }
+
+                category.parameters.forEach(param => {
+                    const paramBox = createParameterBox(param, categoryKey, station.metrics);
+                    grid.appendChild(paramBox);
+                });
+            });
+        }
+
+        function createParameterBox(param, category, metrics) {
+            const box = document.createElement('div');
+            box.className = 'parameter-box';
+            box.onclick = () => openEditModal(param, category);
+
+            // Get value from metrics or generate random for demo
+            const value = metrics[`${category}.${param.id}`] ||
+                          Math.random() * (param.max - param.min) + param.min;
+
+            // Determine status based on value
+            let status = 'good';
+            const percentage = ((value - param.min) / (param.max - param.min)) * 100;
+            if (percentage > 80 || percentage < 20) status = 'warning';
+            if (percentage > 95 || percentage < 5) status = 'critical';
+
+            box.innerHTML = `
+                <div class="parameter-status ${status}"></div>
+                <div class="parameter-name">${param.name}</div>
+                <div class="parameter-value">
+                    ${typeof value === 'number' ? value.toFixed(1) : value}
+                    <span class="parameter-unit">${param.unit}</span>
+                </div>
+            `;
+
+            return box;
+        }
+
+        // ============================================
+        // LEVEL 3: PARAMETER EDIT MODE
+        // ============================================
+        function openEditModal(param, category) {
+            currentEditParameter = { param, category };
+
+            document.getElementById('editParameterName').textContent = param.name;
+            document.getElementById('paramPath').textContent =
+                `${currentExpandedStation}.${category}.${param.id}`;
+            document.getElementById('currentValue').textContent =
+                `${(Math.random() * (param.max - param.min) + param.min).toFixed(1)} ${param.unit}`;
+            document.getElementById('paramUnit').textContent = param.unit || 'N/A';
+
+            document.getElementById('absMin').textContent = param.min;
+            document.getElementById('absMax').textContent = param.max;
+            document.getElementById('recMin').textContent =
+                param.min + (param.max - param.min) * 0.2;
+            document.getElementById('recMax').textContent =
+                param.min + (param.max - param.min) * 0.8;
+
+            // Set default threshold values
+            document.getElementById('warnLow').value = param.min + (param.max - param.min) * 0.2;
+            document.getElementById('warnHigh').value = param.min + (param.max - param.min) * 0.8;
+            document.getElementById('critLow').value = param.min + (param.max - param.min) * 0.1;
+            document.getElementById('critHigh').value = param.min + (param.max - param.min) * 0.9;
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            currentEditParameter = null;
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        function saveParameterConfig() {
+            if (!currentEditParameter) return;
+
+            const config = {
+                stationId: currentExpandedStation,
+                category: currentEditParameter.category,
+                paramId: currentEditParameter.param.id,
+                thresholds: {
+                    warningLow: parseFloat(document.getElementById('warnLow').value),
+                    warningHigh: parseFloat(document.getElementById('warnHigh').value),
+                    criticalLow: parseFloat(document.getElementById('critLow').value),
+                    criticalHigh: parseFloat(document.getElementById('critHigh').value)
+                }
+            };
+
+            // Send configuration update via socket or API
+            console.log('Saving parameter config:', config);
+
+            // TODO: Emit to server
+            // socket.emit('update-parameter-config', config);
+
+            closeEditModal();
+        }
+
+        function resetToDefaults() {
+            if (!currentEditParameter) return;
+            const param = currentEditParameter.param;
+
+            document.getElementById('warnLow').value = param.min + (param.max - param.min) * 0.2;
+            document.getElementById('warnHigh').value = param.min + (param.max - param.min) * 0.8;
+            document.getElementById('critLow').value = param.min + (param.max - param.min) * 0.1;
+            document.getElementById('critHigh').value = param.min + (param.max - param.min) * 0.9;
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Dashboard loaded, initializing...');
+
+            // Initialize with all 11 stations
+            Object.values(STATION_CONFIG).forEach(config => {
+                stations[config.id] = {
+                    id: config.id,
+                    name: config.name,
+                    active: false,
+                    metrics: {}
+                };
+            });
+
+            updateStationGrid();
+            updateSystemStats();
+
+            // Initialize WebSocket connection
+            initWebSocket();
+
+            // Simulate some data for testing when not connected
+            setTimeout(() => {
+                if (!socket || !socket.connected) {
+                    console.log('Simulating test data...');
+                    simulateTestData();
+                }
+            }, 2000);
+        });
+
+        // ============================================
+        // TEST DATA SIMULATION
+        // ============================================
+        function simulateTestData() {
+            // Simulate some stations being active
+            const activeStations = ['station-2', 'station-3', 'station-4', 'station-6', 'station-8'];
+
+            Object.keys(stations).forEach(stationId => {
+                const isActive = activeStations.includes(stationId);
+                stations[stationId].active = isActive;
+
+                if (isActive) {
+                    stations[stationId].metrics = {
+                        bufferUsage: Math.random() * 100,
+                        avgLatency: Math.random() * 300,
+                        packetsRx: Math.floor(Math.random() * 10000),
+                        packetsTx: Math.floor(Math.random() * 10000),
+                        packetLossRate: Math.random() * 5,
+                        cpuUsage: Math.random() * 100
+                    };
+                }
+            });
+
+            updateStationGrid();
+            updateSystemStats();
+
+            // Simulate periodic updates
+            setInterval(() => {
+                Object.keys(stations).forEach(stationId => {
+                    if (stations[stationId].active && stations[stationId].metrics) {
+                        const metrics = stations[stationId].metrics;
+
+                        // Random walk for realistic changes
+                        metrics.bufferUsage = Math.max(0, Math.min(100,
+                            metrics.bufferUsage + (Math.random() - 0.5) * 10));
+                        metrics.avgLatency = Math.max(0,
+                            metrics.avgLatency + (Math.random() - 0.5) * 20);
+                        metrics.packetsRx += Math.floor(Math.random() * 100);
+                        metrics.packetsTx += Math.floor(Math.random() * 100);
+
+                        updateStationBox(stationId);
+                    }
+                });
+                updateSystemStats();
+            }, 1000);
+        }
+
+        // ============================================
+        // KEYBOARD SHORTCUTS
+        // ============================================
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (document.getElementById('editModal').classList.contains('active')) {
+                    closeEditModal();
+                } else if (document.getElementById('expandedView').classList.contains('active')) {
+                    collapseStation();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

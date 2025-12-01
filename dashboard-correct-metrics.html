@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Translation Pipeline Monitor</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* HEADER BAR */
+    .header-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 15px;
+    }
+
+    .header-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 18px;
+    }
+
+    .header-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    /* SYSTEM STATUS BAR */
+    .status-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-top: none;
+      padding: 10px 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00c851;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.offline {
+      background: #ff3547;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* MAIN CONTAINER */
+    .main-container {
+      padding: 20px;
+    }
+
+    /* STATION GRID */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 1400px) {
+      .station-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 1000px) {
+      .station-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* STATION CARD */
+    .station-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 12px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .station-card:hover {
+      border-color: #475569;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .station-number {
+      font-size: 14px;
+      font-weight: bold;
+      color: #33b5e5;
+    }
+
+    .station-name {
+      font-size: 11px;
+      color: #a0a0a0;
+      margin-left: 5px;
+    }
+
+    .station-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00c851;
+    }
+
+    .status-dot.warning { background: #ffbb33; }
+    .status-dot.offline { background: #ff3547; }
+
+    .station-metrics {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 8px 0;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    .metric-label { color: #6b7280; }
+    .metric-value { font-family: 'Roboto Mono', monospace; color: #e0e0e0; }
+
+    .metric-count {
+      font-size: 9px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .expand-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px;
+    }
+
+    .expand-btn:hover { color: #33b5e5; }
+
+    /* LEVEL 2: Expanded View */
+    .level2-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0a;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .level2-overlay.active { display: block; }
+
+    .level2-header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .back-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    .back-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    .level2-content { padding: 20px; }
+
+    /* Waveform */
+    .waveform-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .waveform-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .waveform {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .wave-bar {
+      flex: 1;
+      background: #33b5e5;
+      opacity: 0.7;
+      min-height: 4px;
+      border-radius: 2px;
+    }
+
+    .recording-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      float: right;
+      color: #00c851;
+      font-size: 11px;
+    }
+
+    .rec-dot {
+      width: 8px;
+      height: 8px;
+      background: #00c851;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    /* Metric Groups */
+    .metrics-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .metrics-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+    }
+
+    .metric-groups {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 800px) {
+      .metric-groups { grid-template-columns: 1fr; }
+    }
+
+    .metric-group {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      padding: 15px;
+      border-radius: 4px;
+    }
+
+    .metric-group-title {
+      font-size: 11px;
+      color: #a0a0a0;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .metric-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 11px;
+    }
+
+    .metric-bar-container {
+      width: 60px;
+      height: 4px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      background: #33b5e5;
+      transition: width 0.3s;
+    }
+
+    .metric-bar-fill.warning { background: #ffbb33; }
+    .metric-bar-fill.danger { background: #ff3547; }
+
+    .edit-link {
+      color: #33b5e5;
+      cursor: pointer;
+      font-size: 10px;
+      float: right;
+    }
+
+    .edit-link:hover { text-decoration: underline; }
+
+    /* Knobs & Controls */
+    .knobs-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      border-radius: 4px;
+    }
+
+    .knobs-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    .knob-control {
+      margin: 15px 0;
+    }
+
+    .knob-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 11px;
+    }
+
+    .knob-value {
+      color: #33b5e5;
+      font-weight: bold;
+    }
+
+    .knob-slider {
+      width: 100%;
+      height: 20px;
+      background: #2a2a2a;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .knob-slider-fill {
+      height: 100%;
+      background: linear-gradient(to right, #ff3547, #ffbb33, #00c851);
+      border-radius: 10px;
+      position: relative;
+    }
+
+    .knob-slider-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border: 2px solid #33b5e5;
+      border-radius: 50%;
+      cursor: grab;
+    }
+
+    .knob-range {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #6b7280;
+      margin-top: 3px;
+    }
+
+    .knob-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .knob-btn {
+      flex: 1;
+      padding: 8px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+
+    .knob-btn:hover {
+      background: #333;
+      color: #e0e0e0;
+    }
+
+    .knob-btn.primary {
+      background: #33b5e5;
+      color: #000;
+      border-color: #33b5e5;
+    }
+
+    .knob-btn.primary:hover {
+      background: #4ac0ed;
+    }
+
+    /* AI Panel */
+    .ai-panel {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 10px 20px;
+      margin: 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ai-panel:hover { border-color: #475569; }
+    .ai-panel-title { font-size: 12px; color: #a0a0a0; }
+    .ai-panel-status { font-size: 11px; color: #ffbb33; }
+  </style>
+</head>
+<body>
+  <!-- LEVEL 1: Main Dashboard -->
+  <div id="level1">
+    <!-- Header Bar -->
+    <div class="header-bar">
+      <div class="header-title">REAL-TIME TRANSLATION PIPELINE MONITOR</div>
+      <div class="header-controls">
+        <button class="header-btn" title="Settings">⚙️</button>
+        <button class="header-btn" title="Analytics">📊</button>
+        <button class="header-btn" title="Help">❓</button>
+      </div>
+    </div>
+
+    <!-- System Status Bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span>System Health:</span>
+        <div class="status-indicator" id="system-health"></div>
+        <span id="health-text">ONLINE</span>
+      </div>
+      <div class="status-item">
+        <span>Latency:</span>
+        <span id="system-latency">182ms</span>
+      </div>
+      <div class="status-item">
+        <span>MOS:</span>
+        <span id="system-mos">4.6</span>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+      <div class="station-grid" id="station-grid">
+        <!-- Stations will be generated here -->
+      </div>
+    </div>
+
+    <!-- AI Optimization Panel -->
+    <div class="ai-panel" onclick="toggleAIPanel()">
+      <div class="ai-panel-title">▼ Global AI Optimization Panel</div>
+      <div class="ai-panel-status">Currently Manual Mode</div>
+    </div>
+  </div>
+
+  <!-- LEVEL 2: Station Expanded View -->
+  <div class="level2-overlay" id="level2">
+    <div class="level2-header">
+      <button class="back-btn" onclick="closeLevel2()">← Back</button>
+      <div id="level2-title">Station Details</div>
+      <div class="header-controls">
+        <button class="header-btn" title="Analytics">📊</button>
+        <button class="header-btn" title="Settings">⚙️</button>
+        <button class="header-btn" title="Close" onclick="closeLevel2()">✖️</button>
+      </div>
+    </div>
+    <div class="level2-content">
+      <!-- Audio Waveform (for voice stations) -->
+      <div class="waveform-container" id="waveform-container">
+        <div class="waveform-title">
+          Audio Waveform Visualization (Real-time PCM)
+          <div class="recording-indicator">
+            <div class="rec-dot"></div>
+            <span>Recording</span>
+          </div>
+        </div>
+        <div class="waveform" id="waveform"></div>
+      </div>
+
+      <!-- Monitoring Metrics -->
+      <div class="metrics-container">
+        <div class="metrics-title">MONITORING METRICS (<span id="metric-count">14</span> Active Parameters)</div>
+        <div class="metric-groups" id="metric-groups">
+          <!-- Metric groups will be generated here -->
+        </div>
+      </div>
+
+      <!-- Knobs & Controls -->
+      <div class="knobs-container">
+        <div class="knobs-title">KNOBS & CONTROLS</div>
+        <div id="knobs-list">
+          <!-- Knobs will be generated here -->
+        </div>
+        <div class="knob-buttons">
+          <button class="knob-btn primary" onclick="applyKnobs()">Apply Changes</button>
+          <button class="knob-btn" onclick="resetKnobs()">Reset to Default</button>
+          <button class="knob-btn" onclick="saveKnobsDefault()">Save as Default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ACTUAL STATION METRIC CONFIGURATION based on Excel research
+    const STATION_METRICS = {
+      1: { // Asterisk RTP - Audio input, needs full audio + packet monitoring
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        buffer: ['total', 'input', 'output', 'jitter', 'underrun', 'overrun', 'playback', 'record', 'network', 'processing'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        packet: ['loss', 'received', 'sent', 'dropped', 'outOfOrder', 'duplicate', 'retransmit', 'corruption', 'fragmentation', 'reassembly', 'throughput', 'bandwidth']
+      },
+      2: { // Gateway RX - PCM conversion, high I/O
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        buffer: ['total', 'input', 'output', 'jitter', 'underrun', 'overrun', 'playback', 'record', 'network', 'processing'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        packet: ['loss', 'received', 'sent', 'dropped', 'outOfOrder', 'duplicate', 'retransmit', 'corruption', 'fragmentation', 'reassembly', 'throughput', 'bandwidth'],
+        performance: ['cpu', 'memory', 'bandwidth', 'throughput', 'threads', 'queue', 'cache', 'io']
+      },
+      3: { // STT Processing - Critical node, monitors everything
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        buffer: ['total', 'input', 'output', 'jitter', 'underrun', 'overrun', 'playback', 'record', 'network', 'processing'],
+        custom: ['state', 'successRate', 'warningCount', 'criticalCount', 'totalProcessed', 'processingSpeed', 'lastActivity'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        performance: ['cpu', 'memory', 'bandwidth', 'throughput', 'threads', 'queue', 'cache', 'io']
+      },
+      4: { // Deepgram API - External STT service
+        custom: ['state', 'successRate', 'warningCount', 'criticalCount', 'totalProcessed', 'processingSpeed', 'lastActivity'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        packet: ['loss', 'received', 'sent', 'dropped', 'outOfOrder', 'duplicate', 'retransmit', 'corruption', 'fragmentation', 'reassembly', 'throughput', 'bandwidth'],
+        performance: ['cpu', 'memory', 'bandwidth', 'throughput', 'threads', 'queue', 'cache', 'io']
+      },
+      5: { // Translation Prep - Text only, no audio
+        performance: ['cpu', 'memory', 'throughput'],
+        custom: ['totalProcessed', 'processingSpeed', 'successRate'],
+        latency: ['avg', 'processing']
+      },
+      6: { // DeepL API - Text translation service
+        latency: ['avg', 'min', 'max', 'network'],
+        performance: ['throughput'],
+        custom: ['successRate', 'totalProcessed']
+      },
+      7: { // TTS Prep - Text processing
+        performance: ['cpu', 'memory'],
+        custom: ['processingSpeed', 'totalProcessed']
+      },
+      8: { // ElevenLabs TTS - Audio generation
+        audioQuality: ['mos', 'snr', 'clarity'],
+        latency: ['avg', 'network', 'processing'],
+        performance: ['throughput'],
+        custom: ['successRate']
+      },
+      9: { // STT Server TX - Audio output
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        buffer: ['total', 'input', 'output', 'jitter', 'underrun', 'overrun', 'playback', 'record', 'network', 'processing'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        performance: ['cpu', 'memory', 'bandwidth', 'throughput', 'threads', 'queue', 'cache', 'io']
+      },
+      10: { // Gateway TX - RTP final output
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        packet: ['loss', 'received', 'sent', 'dropped', 'outOfOrder', 'duplicate', 'retransmit', 'corruption', 'fragmentation', 'reassembly', 'throughput', 'bandwidth']
+      },
+      11: { // Hume EVI - Emotion analysis
+        audioQuality: ['snr', 'mos', 'pesq', 'polqa', 'thd', 'speechLevel', 'noise', 'echo'],
+        custom: ['state', 'successRate', 'warningCount', 'criticalCount', 'totalProcessed', 'processingSpeed', 'lastActivity'],
+        latency: ['avg', 'min', 'max', 'jitter', 'variance', 'percentile95', 'network', 'processing'],
+        performance: ['cpu', 'memory', 'bandwidth', 'throughput', 'threads', 'queue', 'cache', 'io']
+      }
+    };
+
+    // Count metrics per station
+    function countStationMetrics(stationId) {
+      const metrics = STATION_METRICS[stationId];
+      let count = 0;
+      for (const category in metrics) {
+        count += metrics[category].length;
+      }
+      return count;
+    }
+
+    // STATIONS CONFIGURATION with correct metrics and knobs
+    const STATIONS = {
+      1: {
+        name: 'Asterisk',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'RTP': '2356/s', 'L': '45ms' },
+        metricCount: countStationMetrics(1),
+        knobs: [
+          { name: 'codec', variable: 'codec_type', legal: "['G711','OPUS','G729']", preferred: "['OPUS']", current: 'OPUS' },
+          { name: 'ptime', variable: 'rtp_ptime_ms', legal: '10-60', preferred: '20-30', current: 20, unit: 'ms' },
+          { name: 'jitter_buffer', variable: 'jitter_buffer_ms', legal: '0-300', preferred: '30-80', current: 40, unit: 'ms' },
+          { name: 'AEC', variable: 'aec_enabled', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'QoS', variable: 'rtp_dscp_value', legal: '0-63', preferred: '46', current: 46 }
+        ]
+      },
+      2: {
+        name: 'Gateway',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '120ms' },
+        metricCount: countStationMetrics(2),
+        knobs: [
+          { name: 'sample_rate', variable: 'pcm_sample_rate', legal: '8000-48000', preferred: '16000-24000', current: 16000 },
+          { name: 'io_buffer', variable: 'io_buffer_size', legal: '256-4096', preferred: '1024-2048', current: 1024 },
+          { name: 'thread_pool', variable: 'thread_pool_size', legal: '1-64', preferred: '4-16', current: 8 },
+          { name: 'queue_length', variable: 'queue_len', legal: '4-512', preferred: '32-128', current: 64 },
+          { name: 'retry_policy', variable: 'retry_attempts', legal: '0-5', preferred: '1-2', current: 2 }
+        ]
+      },
+      3: {
+        name: 'STT Proc',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '210ms' },
+        metricCount: countStationMetrics(3),
+        knobs: [
+          { name: 'chunk_size', variable: 'chunk_ms', legal: '50-1000', preferred: '200-350', current: 250, unit: 'ms' },
+          { name: 'vad_sensitivity', variable: 'vad_level', legal: "['low','medium','high']", preferred: 'medium', current: 'medium' },
+          { name: 'stt_model', variable: 'stt_model', legal: "['fast','accurate','nova-2']", preferred: 'nova-2', current: 'nova-2' },
+          { name: 'max_concurrency', variable: 'concurrency_limit', legal: '1-128', preferred: '8-32', current: 16 },
+          { name: 'dsp_chain', variable: 'dsp_profile', legal: "['none','light','strong']", preferred: 'light', current: 'light' }
+        ]
+      },
+      4: {
+        name: 'Deepgram',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'Text': '12/s', 'L': '180ms' },
+        metricCount: countStationMetrics(4),
+        knobs: [
+          { name: 'streaming_mode', variable: 'streaming_mode', legal: "['on','off']", preferred: 'on', current: 'on' },
+          { name: 'enable_partials', variable: 'dg_partials', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'timeout', variable: 'dg_timeout_ms', legal: '500-5000', preferred: '1500-2500', current: 2000, unit: 'ms' },
+          { name: 'retry_logic', variable: 'dg_retry_attempts', legal: '0-5', preferred: '1-2', current: 2 }
+        ]
+      },
+      5: {
+        name: 'Translation',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'Req': '12/s', 'L': '95ms' },
+        metricCount: countStationMetrics(5),
+        knobs: []
+      },
+      6: {
+        name: 'DeepL API',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'API': '100%', 'L': '85ms' },
+        metricCount: countStationMetrics(6),
+        knobs: []
+      },
+      7: {
+        name: 'TTS Prep',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'Text': '12/s', 'L': '15ms' },
+        metricCount: countStationMetrics(7),
+        knobs: []
+      },
+      8: {
+        name: 'ElevenLabs',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '220ms' },
+        metricCount: countStationMetrics(8),
+        knobs: []
+      },
+      9: {
+        name: 'STT TX',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '45ms' },
+        metricCount: countStationMetrics(9),
+        knobs: [
+          { name: 'tts_model', variable: 'tts_model', legal: "['fast','hq','emotional']", preferred: 'hq', current: 'hq' },
+          { name: 'post_filter', variable: 'tts_post_filter', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'sample_rate', variable: 'tts_sample_rate', legal: '16000-48000', preferred: '24000', current: 24000 },
+          { name: 'chunk_size', variable: 'tts_chunk_ms', legal: '50-800', preferred: '150-300', current: 200, unit: 'ms' }
+        ]
+      },
+      10: {
+        name: 'Gateway',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'RTP': '2356/s', 'L': '120ms' },
+        metricCount: countStationMetrics(10),
+        knobs: [
+          { name: 'rtp_buffer', variable: 'rtp_buffer_ms', legal: '0-200', preferred: '20-60', current: 40, unit: 'ms' },
+          { name: 'codec_out', variable: 'rtp_codec_out', legal: "['G711','OPUS']", preferred: 'OPUS', current: 'OPUS' },
+          { name: 'ptime_out', variable: 'rtp_ptime_out_ms', legal: '10-60', preferred: '20-30', current: 20, unit: 'ms' },
+          { name: 'qos', variable: 'rtp_dscp_out', legal: '0-63', preferred: '46', current: 46 }
+        ]
+      },
+      11: {
+        name: 'Hume EVI',
+        type: 'voice',
+        status: 'OFF',
+        metrics: { 'Disabled': '', 'Quota Limit': '' },
+        metricCount: countStationMetrics(11),
+        knobs: [
+          { name: 'hume_mode', variable: 'hume_mode', legal: "['instant','stream']", preferred: 'instant', current: 'instant' },
+          { name: 'emotion_rate', variable: 'emotion_frame_rate', legal: '10-120', preferred: '20-60', current: 30, unit: 'fps' },
+          { name: 'sample_rate', variable: 'hume_sample_rate', legal: '16000-48000', preferred: '24000', current: 24000 },
+          { name: 'queue_priority', variable: 'hume_queue_priority', legal: '1-10', preferred: '3-6', current: 5 }
+        ]
+      }
+    };
+
+    // Generate Level 1 stations
+    function generateStations() {
+      const grid = document.getElementById('station-grid');
+      grid.innerHTML = '';
+
+      for (const [id, station] of Object.entries(STATIONS)) {
+        const card = document.createElement('div');
+        card.className = 'station-card';
+
+        const metricsHTML = Object.entries(station.metrics)
+          .map(([label, value]) => `
+            <div class="metric-row">
+              <span class="metric-label">${label}:</span>
+              <span class="metric-value">${value}</span>
+            </div>
+          `).join('');
+
+        card.innerHTML = `
+          <div class="station-header">
+            <div>
+              <span class="station-number">${id}.</span>
+              <span class="station-name">${station.name}</span>
+            </div>
+            <div class="station-status">
+              <div class="status-dot ${station.status === 'OFF' ? 'offline' : ''}"></div>
+              <span>${station.status}</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            ${metricsHTML}
+          </div>
+          <div class="metric-count">${station.metricCount} metrics</div>
+          <button class="expand-btn" onclick="openLevel2(${id})" title="Expand">[↗]</button>
+        `;
+
+        grid.appendChild(card);
+      }
+    }
+
+    // Open Level 2 with correct metrics
+    function openLevel2(stationId) {
+      const station = STATIONS[stationId];
+      const stationMetrics = STATION_METRICS[stationId];
+
+      document.getElementById('level1').style.display = 'none';
+      document.getElementById('level2').classList.add('active');
+
+      const title = `STATION ${stationId}: ${station.name} (${station.type === 'voice' ? 'Voice' : 'Text'})`;
+      document.getElementById('level2-title').textContent = title;
+
+      // Show/hide waveform for voice stations
+      document.getElementById('waveform-container').style.display =
+        station.type === 'voice' ? 'block' : 'none';
+
+      // Generate waveform bars
+      if (station.type === 'voice') {
+        const waveform = document.getElementById('waveform');
+        waveform.innerHTML = '';
+        for (let i = 0; i < 40; i++) {
+          const bar = document.createElement('div');
+          bar.className = 'wave-bar';
+          bar.style.height = Math.random() * 50 + 10 + 'px';
+          waveform.appendChild(bar);
+        }
+      }
+
+      // Generate metric groups based on ACTUAL station metrics
+      const metricGroups = document.getElementById('metric-groups');
+      metricGroups.innerHTML = '';
+      let totalMetrics = 0;
+
+      for (const [category, metrics] of Object.entries(stationMetrics)) {
+        const group = document.createElement('div');
+        group.className = 'metric-group';
+
+        let itemsHTML = '';
+        for (const metric of metrics) {
+          totalMetrics++;
+          const value = Math.random() * 100;
+          const percent = Math.min(value, 100);
+          const barClass = percent > 80 ? 'danger' : percent > 60 ? 'warning' : '';
+
+          itemsHTML += `
+            <div class="metric-item">
+              <span>▪ ${metric}: ${value.toFixed(1)}</span>
+              <div class="metric-bar-container">
+                <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
+              </div>
+            </div>
+          `;
+        }
+
+        group.innerHTML = `
+          <div class="metric-group-title">${category.toUpperCase()} (${metrics.length} metrics)</div>
+          ${itemsHTML}
+          <span class="edit-link" onclick="openLevel3('${category}')">[ Edit ↗ ]</span>
+        `;
+
+        metricGroups.appendChild(group);
+      }
+
+      document.getElementById('metric-count').textContent = totalMetrics;
+
+      // Generate knobs
+      const knobsList = document.getElementById('knobs-list');
+      knobsList.innerHTML = '';
+
+      for (const knob of station.knobs) {
+        const knobControl = document.createElement('div');
+        knobControl.className = 'knob-control';
+
+        const value = typeof knob.current === 'number' ? knob.current : knob.current;
+        let position = 50;
+
+        if (typeof knob.current === 'number' && knob.legal.includes('-')) {
+          const [min, max] = knob.legal.split('-').map(Number);
+          position = ((knob.current - min) / (max - min)) * 100;
+        }
+
+        knobControl.innerHTML = `
+          <div class="knob-label">
+            <span>${knob.variable}:</span>
+            <span class="knob-value">[${value}]${knob.unit || ''}</span>
+          </div>
+          <div class="knob-slider">
+            <div class="knob-slider-fill" style="width: ${position}%"></div>
+            <div class="knob-slider-thumb" style="left: ${position}%"></div>
+          </div>
+          <div class="knob-range">
+            <span>${knob.legal.includes('-') ? knob.legal.split('-')[0] : knob.legal.split(',')[0]}</span>
+            <span>(Pref: ${knob.preferred})</span>
+            <span>${knob.legal.includes('-') ? knob.legal.split('-')[1] : knob.legal.split(',').pop()}</span>
+          </div>
+        `;
+
+        knobsList.appendChild(knobControl);
+      }
+    }
+
+    // Close Level 2
+    function closeLevel2() {
+      document.getElementById('level2').classList.remove('active');
+      document.getElementById('level1').style.display = 'block';
+    }
+
+    // Placeholder functions
+    function openLevel3(category) { alert(`Opening editor for ${category} metrics...`); }
+    function toggleAIPanel() { alert('AI Optimization Panel - Coming Soon'); }
+    function applyKnobs() { alert('Applying knob changes...'); }
+    function resetKnobs() { alert('Resetting knobs to defaults...'); }
+    function saveKnobsDefault() { alert('Saving as default configuration...'); }
+
+    // Socket.IO connection
+    let socket;
+    function connectSocket() {
+      socket = io('http://20.170.155.53:3021', {
+        transports: ['websocket'],
+        reconnection: true
+      });
+
+      socket.on('connect', () => {
+        document.getElementById('system-health').classList.remove('offline');
+        document.getElementById('health-text').textContent = 'ONLINE';
+      });
+
+      socket.on('disconnect', () => {
+        document.getElementById('system-health').classList.add('offline');
+        document.getElementById('health-text').textContent = 'OFFLINE';
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      generateStations();
+      connectSocket();
+    });
+  </script>
+</body>
+</html>

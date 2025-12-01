@@ -18,6 +18,11 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
 const { applyDefaultProfile } = require('./hmlcp/default-profiles');
 
+// ========================================================================
+// MONITORING SYSTEM - Universal Collector (75 parameters across 7 stations)
+// ========================================================================
+const StationAgent = require('./monitoring/StationAgent');
+const ioClient = require('socket.io-client');
 
 const app = express();
 
@@ -64,6 +69,63 @@ const io = socketIo(server, {
 global.io = io;
 
 // ========================================================================
+// MONITORING: Initialize Station Agents
+// ========================================================================
+const station3_3333 = new StationAgent('STATION_3', '3333');
+const station3_4444 = new StationAgent('STATION_3', '4444');
+const station4_3333 = new StationAgent('STATION_4', '3333');
+const station4_4444 = new StationAgent('STATION_4', '4444');
+
+console.log('[Monitoring] ✓ Station agents initialized');
+console.log(`[Monitoring] ✓ Station 3 (3333): ${station3_3333.getParameterCount()} parameters`);
+console.log(`[Monitoring] ✓ Station 3 (4444): ${station3_4444.getParameterCount()} parameters`);
+console.log(`[Monitoring] ✓ Station 4 (3333): ${station4_3333.getParameterCount()} parameters`);
+console.log(`[Monitoring] ✓ Station 4 (4444): ${station4_4444.getParameterCount()} parameters`);
+
+// ========================================================================
+// MONITORING: Connect to Monitoring Server as CLIENT
+// ========================================================================
+const monitoringClient = ioClient('http://localhost:3001', {
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 10
+});
+
+// Global reference for monitoring emissions
+global.monitoringClient = monitoringClient;
+
+monitoringClient.on('connect', () => {
+  console.log('[Monitoring] ✓ Connected to monitoring server on port 3001');
+
+  // Register Station 3 with monitoring server
+  monitoringClient.emit('register-station', {
+    station_id: 'STATION_3',
+    capabilities: {
+      name: 'Voice Monitor/Enhancer (STTTTSserver)',
+      type: 'voice',
+      parameters: station3_3333.getParameterCount() + station3_4444.getParameterCount(),
+      extensions: ['3333', '4444'],
+      critical: true,
+      description: 'CRITICAL - Monitors and improves voice quality, directly impacts Deepgram performance'
+    }
+  });
+});
+
+monitoringClient.on('disconnect', () => {
+  console.log('[Monitoring] ⚠ Disconnected from monitoring server');
+});
+
+monitoringClient.on('apply-knobs', (data) => {
+  console.log('[Monitoring] 🔧 Received knob updates from monitoring server:', data);
+  // TODO: Apply knob changes to audio processing pipeline
+  // This is where Station 3 knobs would be applied to influence Deepgram
+});
+
+monitoringClient.on('error', (error) => {
+  console.error('[Monitoring] ✗ Connection error:', error.message);
+});
+
+// ========================================================================
 // OLD TIMING CLIENT - DISABLED 2025-11-12
 // ========================================================================
 // This external timing server on port 6000 is replaced by embedded timing model
@@ -85,6 +147,85 @@ console.log('[Server] ℹ OLD Timing client disabled - using embedded timing mod
 // Key: extension number (string), Value: session object
 global.activeSessions = new Map();
 console.log('[Phase2] Global session registry initialized');
+
+// ========================================================================
+// MONITORING: Collection Function
+// ========================================================================
+/**
+ * Collect and emit Station 3 metrics
+ * Non-blocking to avoid impacting audio pipeline
+ */
+async function collectAndEmitStation3Metrics(extension, pcmBuffer, buffers) {
+  const agent = extension === '3333' ? station3_3333 : station3_4444;
+
+  try {
+    // Build context for collectors
+    const context = {
+      pcmBuffer: pcmBuffer,
+      sampleRate: 16000,
+      buffers: buffers
+    };
+
+    // Collect metrics (automatically filtered to Station 3's 14 parameters)
+    const { metrics, alerts } = await agent.collect(context);
+
+    // Emit to monitoring-server.js (port 3001)
+    if (global.monitoringClient && global.monitoringClient.connected) {
+      global.monitoringClient.emit('metrics', {
+        station_id: 'STATION_3',
+        call_id: `call-${extension}-${Date.now()}`,
+        channel: extension === '3333' ? 'caller' : 'callee',
+        metrics: metrics,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Also emit to local dashboard clients (backward compatibility)
+    global.io.emit('stationMetrics', {
+      stationId: 'STATION-3',
+      extension: extension,
+      timestamp: Date.now(),
+      ...metrics
+    });
+
+  } catch (error) {
+    console.error(`[Station3-${extension}] Metric emission failed:`, error.message);
+  }
+}
+
+/**
+ * Collect and emit Station 4 metrics (Deepgram Response)
+ * Monitors ASR processing performance
+ */
+async function collectAndEmitStation4Metrics(extension, processingTime, resultData) {
+  const agent = extension === '3333' ? station4_3333 : station4_4444;
+
+  try {
+    // Build context for Station 4 (ASR response metrics)
+    const context = {
+      processingTime: processingTime,
+      resultData: resultData,
+      timestamp: Date.now()
+    };
+
+    // Collect metrics (automatically filtered to Station 4's 8 parameters)
+    const { metrics, alerts } = await agent.collect(context);
+
+    // Note: Station 4 (Deepgram STT) is excluded from V2.1.0 monitoring
+    // But we keep local emission for backward compatibility
+
+    // Only emit to local dashboard clients (Station 4 not sent to monitoring server)
+    global.io.emit('stationMetrics', {
+      stationId: 'STATION-4',
+      extension: extension,
+      timestamp: Date.now(),
+      ...metrics  // Spread metrics directly into the object
+    });
+
+  } catch (error) {
+    console.error(`[Station4-${extension}] Metric emission failed:`, error.message);
+  }
+}
 
 // [DISABLED FOR 9007/9008] // Start AudioSocket server (for Asterisk integration on port 5050)
 // [DISABLED FOR 9007/9008] // IMPORTANT: Must load AFTER global.io is set
@@ -2021,6 +2162,20 @@ async function createStreamingConnection(socket, participant) {
       const startTime = Date.now();
       console.log(`[Streaming STT] ${participant.username}: "${transcript}" (confidence: ${(confidence * 100).toFixed(1)}%)`);
 
+      // ========================================================================
+      // MONITORING: Collect Station 4 metrics (Deepgram Response)
+      // ========================================================================
+      const extension = socketToExtension.get(socket.id);
+      if (extension) {
+        setImmediate(() => {
+          collectAndEmitStation4Metrics(extension, 0, {
+            confidence: confidence,
+            transcriptLength: transcript.length,
+            isFinal: isFinal
+          });
+        });
+      }
+
       // Log STT complete
       socket.emit('pipeline-log', {
         type: 'client',
@@ -3699,6 +3854,15 @@ socket3333In.on('message', async (msg, rinfo) => {
     });
   }
 
+  // ========================================================================
+  // MONITORING: Collect Station 3 metrics every 50th packet
+  // ========================================================================
+  if (udpPcmStats.from3333Packets % 50 === 0) {
+    setImmediate(() => {
+      collectAndEmitStation3Metrics('3333', msg, udpAudioBuffers.get('3333'));
+    });
+  }
+
   // ========== PHASE 3-5: Deepgram Streaming WebSocket Integration ==========
   if (USE_DEEPGRAM_STREAMING && streamingStateManager) {
     let state = streamingStateManager.getState("3333");
@@ -3821,6 +3985,15 @@ socket4444In.on('message', async (msg, rinfo) => {
       timestamp: Date.now(),
       transport: 'udp-pcm',
       source: 'microphone'
+    });
+  }
+
+  // ========================================================================
+  // MONITORING: Collect Station 3 metrics every 50th packet
+  // ========================================================================
+  if (udpPcmStats.from4444Packets % 50 === 0) {
+    setImmediate(() => {
+      collectAndEmitStation3Metrics('4444', msg, udpAudioBuffers.get('4444'));
     });
   }
 

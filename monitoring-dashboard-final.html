@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Translation Pipeline Monitor</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* HEADER BAR */
+    .header-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 15px;
+    }
+
+    .header-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 18px;
+    }
+
+    .header-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    /* SYSTEM STATUS BAR */
+    .status-bar {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-top: none;
+      padding: 10px 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00c851;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.offline {
+      background: #ff3547;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* MAIN CONTAINER */
+    .main-container {
+      padding: 20px;
+    }
+
+    /* STATION GRID */
+    .station-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 1400px) {
+      .station-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 1000px) {
+      .station-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* STATION CARD */
+    .station-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 12px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .station-card:hover {
+      border-color: #475569;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .station-number {
+      font-size: 14px;
+      font-weight: bold;
+      color: #33b5e5;
+    }
+
+    .station-name {
+      font-size: 11px;
+      color: #a0a0a0;
+      margin-left: 5px;
+    }
+
+    .station-status {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00c851;
+    }
+
+    .status-dot.warning { background: #ffbb33; }
+    .status-dot.offline { background: #ff3547; }
+
+    .station-metrics {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 8px 0;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    .metric-label { color: #6b7280; }
+    .metric-value { font-family: 'Roboto Mono', monospace; color: #e0e0e0; }
+
+    .expand-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px;
+    }
+
+    .expand-btn:hover { color: #33b5e5; }
+
+    /* LEVEL 2: Expanded View */
+    .level2-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0a;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .level2-overlay.active { display: block; }
+
+    .level2-header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .back-btn {
+      background: transparent;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    .back-btn:hover {
+      border-color: #33b5e5;
+      color: #33b5e5;
+    }
+
+    .level2-content { padding: 20px; }
+
+    /* Waveform */
+    .waveform-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .waveform-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .waveform {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .wave-bar {
+      flex: 1;
+      background: #33b5e5;
+      opacity: 0.7;
+      min-height: 4px;
+      border-radius: 2px;
+    }
+
+    .recording-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      float: right;
+      color: #00c851;
+      font-size: 11px;
+    }
+
+    .rec-dot {
+      width: 8px;
+      height: 8px;
+      background: #00c851;
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    /* Metric Groups */
+    .metrics-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .metrics-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+    }
+
+    .metric-groups {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 800px) {
+      .metric-groups { grid-template-columns: 1fr; }
+    }
+
+    .metric-group {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      padding: 15px;
+      border-radius: 4px;
+    }
+
+    .metric-group-title {
+      font-size: 11px;
+      color: #a0a0a0;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .metric-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 11px;
+    }
+
+    .metric-bar-container {
+      width: 60px;
+      height: 4px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      background: #33b5e5;
+      transition: width 0.3s;
+    }
+
+    .metric-bar-fill.warning { background: #ffbb33; }
+    .metric-bar-fill.danger { background: #ff3547; }
+
+    .edit-link {
+      color: #33b5e5;
+      cursor: pointer;
+      font-size: 10px;
+      float: right;
+    }
+
+    .edit-link:hover { text-decoration: underline; }
+
+    /* Knobs & Controls */
+    .knobs-container {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      border-radius: 4px;
+    }
+
+    .knobs-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    .knob-control {
+      margin: 15px 0;
+    }
+
+    .knob-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 11px;
+    }
+
+    .knob-value {
+      color: #33b5e5;
+      font-weight: bold;
+    }
+
+    .knob-slider {
+      width: 100%;
+      height: 20px;
+      background: #2a2a2a;
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .knob-slider-fill {
+      height: 100%;
+      background: linear-gradient(to right, #ff3547, #ffbb33, #00c851);
+      border-radius: 10px;
+      position: relative;
+    }
+
+    .knob-slider-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border: 2px solid #33b5e5;
+      border-radius: 50%;
+      cursor: grab;
+    }
+
+    .knob-range {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #6b7280;
+      margin-top: 3px;
+    }
+
+    .knob-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .knob-btn {
+      flex: 1;
+      padding: 8px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+
+    .knob-btn:hover {
+      background: #333;
+      color: #e0e0e0;
+    }
+
+    .knob-btn.primary {
+      background: #33b5e5;
+      color: #000;
+      border-color: #33b5e5;
+    }
+
+    .knob-btn.primary:hover {
+      background: #4ac0ed;
+    }
+
+    /* LEVEL 3: Metric Editor */
+    .level3-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #0a0a0a;
+      z-index: 2000;
+      overflow-y: auto;
+    }
+
+    .level3-overlay.active { display: block; }
+
+    .level3-header {
+      background: #1a1a1a;
+      border-bottom: 1px solid #333;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .level3-content {
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* Current Value Display */
+    .current-value-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .current-value-display {
+      font-size: 32px;
+      font-weight: bold;
+      color: #e0e0e0;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .value-slider {
+      width: 100%;
+      height: 30px;
+      background: #2a2a2a;
+      border-radius: 15px;
+      position: relative;
+      margin: 20px 0;
+    }
+
+    .value-slider-fill {
+      height: 100%;
+      background: linear-gradient(to right, #00c851, #ffbb33, #ff3547);
+      border-radius: 15px;
+    }
+
+    .value-slider-thumb {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border: 3px solid #33b5e5;
+      border-radius: 50%;
+    }
+
+    .value-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    /* Range Configuration */
+    .range-config-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .range-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    .range-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    .range-label {
+      color: #a0a0a0;
+    }
+
+    .range-value {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .range-input {
+      width: 80px;
+      padding: 4px 8px;
+      background: #0a0a0a;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      border-radius: 3px;
+    }
+
+    .range-status {
+      color: #00c851;
+      font-size: 10px;
+    }
+
+    .range-status.warning { color: #ffbb33; }
+    .range-status.danger { color: #ff3547; }
+
+    /* Historical Graph */
+    .graph-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .graph-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    .graph-canvas {
+      background: #0a0a0a;
+      border: 1px solid #2a2a2a;
+      padding: 10px;
+      height: 150px;
+      position: relative;
+      font-family: monospace;
+      font-size: 10px;
+      color: #6b7280;
+      white-space: pre;
+      overflow: hidden;
+    }
+
+    /* Influencing Knobs */
+    .knobs-influence-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .knob-influence-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      margin: 5px 0;
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+    }
+
+    .knob-influence-name {
+      font-size: 12px;
+      color: #e0e0e0;
+    }
+
+    .knob-influence-value {
+      color: #33b5e5;
+      font-weight: bold;
+    }
+
+    .adjust-btn {
+      padding: 4px 12px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      color: #a0a0a0;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    .adjust-btn:hover {
+      background: #33b5e5;
+      color: #000;
+      border-color: #33b5e5;
+    }
+
+    /* Action Buttons */
+    .action-section {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 20px;
+      border-radius: 4px;
+    }
+
+    .ai-priority {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      font-size: 12px;
+    }
+
+    .ai-checkbox {
+      width: 16px;
+      height: 16px;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* AI Panel */
+    .ai-panel {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 10px 20px;
+      margin: 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ai-panel:hover { border-color: #475569; }
+    .ai-panel-title { font-size: 12px; color: #a0a0a0; }
+    .ai-panel-status { font-size: 11px; color: #ffbb33; }
+  </style>
+</head>
+<body>
+  <!-- LEVEL 1: Main Dashboard -->
+  <div id="level1">
+    <!-- Header Bar -->
+    <div class="header-bar">
+      <div class="header-title">REAL-TIME TRANSLATION PIPELINE MONITOR</div>
+      <div class="header-controls">
+        <button class="header-btn" title="Settings">⚙️</button>
+        <button class="header-btn" title="Analytics">📊</button>
+        <button class="header-btn" title="Help">❓</button>
+      </div>
+    </div>
+
+    <!-- System Status Bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span>System Health:</span>
+        <div class="status-indicator" id="system-health"></div>
+        <span id="health-text">ONLINE</span>
+      </div>
+      <div class="status-item">
+        <span>Latency:</span>
+        <span id="system-latency">182ms</span>
+      </div>
+      <div class="status-item">
+        <span>MOS:</span>
+        <span id="system-mos">4.6</span>
+      </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+      <div class="station-grid" id="station-grid">
+        <!-- Stations will be generated here -->
+      </div>
+    </div>
+
+    <!-- AI Optimization Panel -->
+    <div class="ai-panel" onclick="toggleAIPanel()">
+      <div class="ai-panel-title">▼ Global AI Optimization Panel</div>
+      <div class="ai-panel-status">Currently Manual Mode</div>
+    </div>
+  </div>
+
+  <!-- LEVEL 2: Station Expanded View -->
+  <div class="level2-overlay" id="level2">
+    <div class="level2-header">
+      <button class="back-btn" onclick="closeLevel2()">← Back</button>
+      <div id="level2-title">Station Details</div>
+      <div class="header-controls">
+        <button class="header-btn" title="Analytics">📊</button>
+        <button class="header-btn" title="Settings">⚙️</button>
+        <button class="header-btn" title="Close" onclick="closeLevel2()">✖️</button>
+      </div>
+    </div>
+    <div class="level2-content">
+      <!-- Audio Waveform (for voice stations) -->
+      <div class="waveform-container" id="waveform-container">
+        <div class="waveform-title">
+          Audio Waveform Visualization (Real-time PCM)
+          <div class="recording-indicator">
+            <div class="rec-dot"></div>
+            <span>Recording</span>
+          </div>
+        </div>
+        <div class="waveform" id="waveform"></div>
+      </div>
+
+      <!-- Monitoring Metrics -->
+      <div class="metrics-container">
+        <div class="metrics-title">MONITORING METRICS (<span id="metric-count">14</span> Active Parameters)</div>
+        <div class="metric-groups" id="metric-groups">
+          <!-- Metric groups will be generated here -->
+        </div>
+      </div>
+
+      <!-- Knobs & Controls -->
+      <div class="knobs-container">
+        <div class="knobs-title">KNOBS & CONTROLS</div>
+        <div id="knobs-list">
+          <!-- Knobs will be generated here -->
+        </div>
+        <div class="knob-buttons">
+          <button class="knob-btn primary" onclick="applyKnobs()">Apply Changes</button>
+          <button class="knob-btn" onclick="resetKnobs()">Reset to Default</button>
+          <button class="knob-btn" onclick="saveKnobsDefault()">Save as Default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEVEL 3: Metric Editor -->
+  <div class="level3-overlay" id="level3">
+    <div class="level3-header">
+      <button class="back-btn" onclick="closeLevel3()">← Back</button>
+      <div id="level3-title">Metric Editor</div>
+    </div>
+    <div class="level3-content">
+      <!-- Current Value -->
+      <div class="current-value-section">
+        <div class="current-value-display" id="current-value">210 ms</div>
+        <div class="value-slider">
+          <div class="value-slider-fill" style="width: 21%"></div>
+          <div class="value-slider-thumb" style="left: 21%"></div>
+        </div>
+        <div class="value-scale">
+          <span>0ms</span>
+          <span>210ms</span>
+          <span>1000ms</span>
+        </div>
+      </div>
+
+      <!-- Range Configuration -->
+      <div class="range-config-section">
+        <div class="range-title">Range Configuration:</div>
+        <div class="range-item">
+          <span class="range-label">• Legal Range:</span>
+          <div class="range-value">
+            <input type="number" class="range-input" value="0"> to
+            <input type="number" class="range-input" value="1000"> ms
+          </div>
+        </div>
+        <div class="range-item">
+          <span class="range-label">• Preferred Range:</span>
+          <div class="range-value">
+            <input type="number" class="range-input" value="80"> to
+            <input type="number" class="range-input" value="250"> ms
+            <span class="range-status">✓ (within range)</span>
+          </div>
+        </div>
+        <div class="range-item">
+          <span class="range-label">• Warning Level:</span>
+          <div class="range-value">
+            <input type="number" class="range-input" value="300"> ms
+          </div>
+        </div>
+        <div class="range-item">
+          <span class="range-label">• Critical Level:</span>
+          <div class="range-value">
+            <input type="number" class="range-input" value="500"> ms
+          </div>
+        </div>
+        <div class="range-item">
+          <span class="range-label">• Target Optimum:</span>
+          <div class="range-value">
+            <input type="number" class="range-input" value="150"> ms
+          </div>
+        </div>
+      </div>
+
+      <!-- Historical Graph -->
+      <div class="graph-section">
+        <div class="graph-title">Historical Graph (Last 60 seconds):</div>
+        <div class="graph-canvas" id="graph">
+300│      ╱╲
+250│  ╱╲ ╱  ╲    ╱╲
+200│ ╱  ╲    ╲  ╱  ╲  ━━━━━━━━━━━━━━━━━ current
+150│─────────╲╱────╲╱───────────────── target
+100│
+   └────────────────────────────────────────────────────
+        </div>
+      </div>
+
+      <!-- Influencing Knobs -->
+      <div class="knobs-influence-section">
+        <div class="range-title">Influencing Knobs (click to adjust):</div>
+        <div id="influencing-knobs">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="action-section">
+        <div class="ai-priority">
+          <input type="checkbox" class="ai-checkbox" id="ai-priority" checked>
+          <label for="ai-priority">High Priority for AI Optimization</label>
+        </div>
+        <div class="action-buttons">
+          <button class="knob-btn primary" onclick="applyThresholds()">Apply Custom Thresholds</button>
+          <button class="knob-btn" onclick="resetThresholds()">Reset</button>
+          <button class="knob-btn" onclick="saveAsDefault()">Save as Default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // STATIONS CONFIGURATION with real data from Excel
+    const STATIONS = {
+      1: {
+        name: 'Asterisk',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'RTP': '2356/s', 'L': '45ms' },
+        knobs: [
+          { name: 'codec', variable: 'codec_type', legal: "['G711','OPUS','G729']", preferred: "['OPUS']", current: 'OPUS' },
+          { name: 'ptime', variable: 'rtp_ptime_ms', legal: '10-60', preferred: '20-30', current: 20, unit: 'ms' },
+          { name: 'jitter_buffer', variable: 'jitter_buffer_ms', legal: '0-300', preferred: '30-80', current: 40, unit: 'ms' },
+          { name: 'AEC', variable: 'aec_enabled', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'QoS', variable: 'rtp_dscp_value', legal: '0-63', preferred: '46', current: 46 }
+        ],
+        parameters: {
+          'Buffer Metrics': { 'Total': 45, 'Input': 30, 'Output': 60 },
+          'Latency Metrics': { 'Avg': 45, 'Peak': 120, 'Min': 20 },
+          'Packet Metrics': { 'RX': 34560, 'TX': 34555, 'Loss': 0.01 },
+          'Audio Quality': { 'SNR': 45, 'THD': 0.02, 'MOS': 4.8 }
+        }
+      },
+      2: {
+        name: 'Gateway',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '120ms' },
+        knobs: [
+          { name: 'sample_rate', variable: 'pcm_sample_rate', legal: '8000-48000', preferred: '16000-24000', current: 16000 },
+          { name: 'io_buffer', variable: 'io_buffer_size', legal: '256-4096', preferred: '1024-2048', current: 1024 },
+          { name: 'thread_pool', variable: 'thread_pool_size', legal: '1-64', preferred: '4-16', current: 8 },
+          { name: 'queue_length', variable: 'queue_len', legal: '4-512', preferred: '32-128', current: 64 },
+          { name: 'retry_policy', variable: 'retry_attempts', legal: '0-5', preferred: '1-2', current: 2 }
+        ],
+        parameters: {
+          'Buffer Metrics': { 'Total': 78, 'Input': 60, 'Output': 85 },
+          'Latency Metrics': { 'Avg': 120, 'Peak': 250, 'Min': 80 },
+          'Packet Metrics': { 'RX': 340, 'TX': 340, 'Dropped': 0 }
+        }
+      },
+      3: {
+        name: 'STT Proc',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '210ms' },
+        knobs: [
+          { name: 'chunk_size', variable: 'chunk_ms', legal: '50-1000', preferred: '200-350', current: 250, unit: 'ms' },
+          { name: 'vad_sensitivity', variable: 'vad_level', legal: "['low','medium','high']", preferred: 'medium', current: 'medium' },
+          { name: 'stt_model', variable: 'stt_model', legal: "['fast','accurate','nova-2']", preferred: 'nova-2', current: 'nova-2' },
+          { name: 'max_concurrency', variable: 'concurrency_limit', legal: '1-128', preferred: '8-32', current: 16 },
+          { name: 'dsp_chain', variable: 'dsp_profile', legal: "['none','light','strong']", preferred: 'light', current: 'light' }
+        ],
+        parameters: {
+          'Buffer Metrics': { 'Total': 45, 'Input': 30, 'Output': 60 },
+          'Latency Metrics': { 'Avg': 210, 'Peak': 450, 'Min': 120 },
+          'Packet Metrics': { 'RX': 34560, 'TX': 34555, 'Loss': 0.01 },
+          'Audio Quality': { 'SNR': 45, 'THD': 0.02, 'MOS': 4.8 }
+        }
+      },
+      4: {
+        name: 'Deepgram',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'Text': '12/s', 'L': '180ms' },
+        knobs: [
+          { name: 'streaming_mode', variable: 'streaming_mode', legal: "['on','off']", preferred: 'on', current: 'on' },
+          { name: 'enable_partials', variable: 'dg_partials', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'timeout', variable: 'dg_timeout_ms', legal: '500-5000', preferred: '1500-2500', current: 2000, unit: 'ms' },
+          { name: 'retry_logic', variable: 'dg_retry_attempts', legal: '0-5', preferred: '1-2', current: 2 }
+        ],
+        parameters: {
+          'Latency Metrics': { 'Avg': 180, 'Peak': 320, 'Min': 120 },
+          'Performance': { 'CPU': 15, 'Memory': 256 },
+          'Custom': { 'Success Rate': 99.8 }
+        }
+      },
+      5: {
+        name: 'Translation',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'Req': '12/s', 'L': '95ms' },
+        knobs: [],
+        parameters: {
+          'Performance': { 'CPU': 8, 'Memory': 128 },
+          'Custom': { 'Total Processed': 54320, 'Process Speed': 12 },
+          'Latency': { 'Avg': 95 }
+        }
+      },
+      6: {
+        name: 'DeepL API',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'API': '100%', 'L': '85ms' },
+        knobs: [],
+        parameters: {
+          'Latency Metrics': { 'Avg': 85, 'Peak': 180 },
+          'Performance': { 'CPU': 5 },
+          'Custom': { 'Success Rate': 100 }
+        }
+      },
+      7: {
+        name: 'TTS Prep',
+        type: 'text',
+        status: 'ON',
+        metrics: { 'Text': '12/s', 'L': '15ms' },
+        knobs: [],
+        parameters: {
+          'Performance': { 'CPU': 3, 'Memory': 64 },
+          'Custom': { 'Process Speed': 12 },
+          'Latency': { 'Avg': 15 }
+        }
+      },
+      8: {
+        name: 'ElevenLabs',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '220ms' },
+        knobs: [],
+        parameters: {
+          'Latency Metrics': { 'Avg': 220, 'Peak': 380 },
+          'Audio': { 'Sample Rate': 16000, 'Bit Depth': 16 },
+          'Custom': { 'Voice Quality': 95 }
+        }
+      },
+      9: {
+        name: 'STT TX',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'PCM': '340/s', 'L': '45ms' },
+        knobs: [
+          { name: 'tts_model', variable: 'tts_model', legal: "['fast','hq','emotional']", preferred: 'hq', current: 'hq' },
+          { name: 'post_filter', variable: 'tts_post_filter', legal: 'true/false', preferred: 'true', current: true },
+          { name: 'sample_rate', variable: 'tts_sample_rate', legal: '16000-48000', preferred: '24000', current: 24000 },
+          { name: 'chunk_size', variable: 'tts_chunk_ms', legal: '50-800', preferred: '150-300', current: 200, unit: 'ms' }
+        ],
+        parameters: {
+          'Packet Metrics': { 'TX': 340, 'Dropped': 0 },
+          'Buffer': { 'Output': 42 },
+          'Latency': { 'Avg': 45 }
+        }
+      },
+      10: {
+        name: 'Gateway',
+        type: 'voice',
+        status: 'ON',
+        metrics: { 'RTP': '2356/s', 'L': '120ms' },
+        knobs: [
+          { name: 'rtp_buffer', variable: 'rtp_buffer_ms', legal: '0-200', preferred: '20-60', current: 40, unit: 'ms' },
+          { name: 'codec_out', variable: 'rtp_codec_out', legal: "['G711','OPUS']", preferred: 'OPUS', current: 'OPUS' },
+          { name: 'ptime_out', variable: 'rtp_ptime_out_ms', legal: '10-60', preferred: '20-30', current: 20, unit: 'ms' },
+          { name: 'qos', variable: 'rtp_dscp_out', legal: '0-63', preferred: '46', current: 46 }
+        ],
+        parameters: {
+          'Packet Metrics': { 'TX': 2356, 'Dropped': 5, 'Loss Rate': 0.21 },
+          'Latency Metrics': { 'Avg': 120, 'Peak': 250 }
+        }
+      },
+      11: {
+        name: 'Hume EVI',
+        type: 'voice',
+        status: 'OFF',
+        metrics: { 'Disabled': '', 'Quota Limit': '' },
+        knobs: [
+          { name: 'hume_mode', variable: 'hume_mode', legal: "['instant','stream']", preferred: 'instant', current: 'instant' },
+          { name: 'emotion_rate', variable: 'emotion_frame_rate', legal: '10-120', preferred: '20-60', current: 30, unit: 'fps' },
+          { name: 'sample_rate', variable: 'hume_sample_rate', legal: '16000-48000', preferred: '24000', current: 24000 },
+          { name: 'queue_priority', variable: 'hume_queue_priority', legal: '1-10', preferred: '3-6', current: 5 }
+        ],
+        parameters: {
+          'Custom': { 'State': 'disabled', 'Last Activity': 'N/A', 'Warnings': 0, 'Critical': 1 }
+        }
+      }
+    };
+
+    // Current state
+    let currentStation = null;
+    let currentMetric = null;
+
+    // Generate Level 1 stations
+    function generateStations() {
+      const grid = document.getElementById('station-grid');
+      grid.innerHTML = '';
+
+      for (const [id, station] of Object.entries(STATIONS)) {
+        const card = document.createElement('div');
+        card.className = 'station-card';
+
+        const metricsHTML = Object.entries(station.metrics)
+          .map(([label, value]) => `
+            <div class="metric-row">
+              <span class="metric-label">${label}:</span>
+              <span class="metric-value">${value}</span>
+            </div>
+          `).join('');
+
+        card.innerHTML = `
+          <div class="station-header">
+            <div>
+              <span class="station-number">${id}.</span>
+              <span class="station-name">${station.name}</span>
+            </div>
+            <div class="station-status">
+              <div class="status-dot ${station.status === 'OFF' ? 'offline' : ''}"></div>
+              <span>${station.status}</span>
+            </div>
+          </div>
+          <div class="station-metrics">
+            ${metricsHTML}
+          </div>
+          <button class="expand-btn" onclick="openLevel2(${id})" title="Expand">[↗]</button>
+        `;
+
+        grid.appendChild(card);
+      }
+    }
+
+    // Open Level 2
+    function openLevel2(stationId) {
+      currentStation = stationId;
+      const station = STATIONS[stationId];
+
+      document.getElementById('level1').style.display = 'none';
+      document.getElementById('level2').classList.add('active');
+      document.getElementById('level2-title').textContent =
+        `STATION ${stationId}: ${station.name} (${station.type === 'voice' ? 'Voice' : 'Text'})`;
+
+      // Show/hide waveform for voice stations
+      document.getElementById('waveform-container').style.display =
+        station.type === 'voice' ? 'block' : 'none';
+
+      // Generate waveform bars
+      if (station.type === 'voice') {
+        const waveform = document.getElementById('waveform');
+        waveform.innerHTML = '';
+        for (let i = 0; i < 40; i++) {
+          const bar = document.createElement('div');
+          bar.className = 'wave-bar';
+          bar.style.height = Math.random() * 50 + 10 + 'px';
+          waveform.appendChild(bar);
+        }
+      }
+
+      // Generate metric groups
+      const metricGroups = document.getElementById('metric-groups');
+      metricGroups.innerHTML = '';
+      let metricCount = 0;
+
+      for (const [groupName, metrics] of Object.entries(station.parameters)) {
+        const group = document.createElement('div');
+        group.className = 'metric-group';
+
+        let itemsHTML = '';
+        for (const [name, value] of Object.entries(metrics)) {
+          metricCount++;
+          const percent = typeof value === 'number' ? Math.min(value, 100) : 50;
+          const barClass = percent > 80 ? 'danger' : percent > 60 ? 'warning' : '';
+
+          itemsHTML += `
+            <div class="metric-item">
+              <span>▪ ${name}: ${value}${name.includes('Rate') || name.includes('Loss') ? '%' : ''}</span>
+              <div class="metric-bar-container">
+                <div class="metric-bar-fill ${barClass}" style="width: ${percent}%"></div>
+              </div>
+            </div>
+          `;
+        }
+
+        group.innerHTML = `
+          <div class="metric-group-title">${groupName}</div>
+          ${itemsHTML}
+          <span class="edit-link" onclick="openLevel3('${groupName.toLowerCase()}')">[ Edit ↗ ]</span>
+        `;
+
+        metricGroups.appendChild(group);
+      }
+
+      document.getElementById('metric-count').textContent = metricCount;
+
+      // Generate knobs
+      const knobsList = document.getElementById('knobs-list');
+      knobsList.innerHTML = '';
+
+      for (const knob of station.knobs) {
+        const knobControl = document.createElement('div');
+        knobControl.className = 'knob-control';
+
+        const value = typeof knob.current === 'number' ? knob.current : knob.current;
+        const position = typeof knob.current === 'number' ?
+          ((knob.current - parseInt(knob.legal.split('-')[0])) /
+           (parseInt(knob.legal.split('-')[1]) - parseInt(knob.legal.split('-')[0])) * 100) : 50;
+
+        knobControl.innerHTML = `
+          <div class="knob-label">
+            <span>${knob.variable}:</span>
+            <span class="knob-value">[${value}]${knob.unit || ''}</span>
+          </div>
+          <div class="knob-slider">
+            <div class="knob-slider-fill" style="width: ${position}%"></div>
+            <div class="knob-slider-thumb" style="left: ${position}%"></div>
+          </div>
+          <div class="knob-range">
+            <span>${knob.legal.includes('-') ? knob.legal.split('-')[0] : knob.legal.split(',')[0]}</span>
+            <span>(Pref: ${knob.preferred})</span>
+            <span>${knob.legal.includes('-') ? knob.legal.split('-')[1] : knob.legal.split(',').pop()}</span>
+          </div>
+        `;
+
+        knobsList.appendChild(knobControl);
+      }
+    }
+
+    // Open Level 3
+    function openLevel3(metricType) {
+      currentMetric = metricType;
+      const station = STATIONS[currentStation];
+
+      document.getElementById('level2').classList.remove('active');
+      document.getElementById('level3').classList.add('active');
+      document.getElementById('level3-title').textContent =
+        `Metric Editor: ${metricType}.avg @ STATION ${currentStation}`;
+
+      // Generate influencing knobs
+      const influencingKnobs = document.getElementById('influencing-knobs');
+      influencingKnobs.innerHTML = '';
+
+      // Add relevant knobs based on the metric type
+      const relevantKnobs = station.knobs.filter(k =>
+        metricType.includes('latency') || metricType.includes('buffer')
+      );
+
+      for (const knob of relevantKnobs.slice(0, 3)) {
+        const item = document.createElement('div');
+        item.className = 'knob-influence-item';
+        item.innerHTML = `
+          <span class="knob-influence-name">• ${knob.variable} (STATION_${currentStation})</span>
+          <span class="knob-influence-value">Current: ${knob.current}</span>
+          <button class="adjust-btn" onclick="adjustKnob('${knob.variable}')">[ Adjust → ]</button>
+        `;
+        influencingKnobs.appendChild(item);
+      }
+    }
+
+    // Close Level 2
+    function closeLevel2() {
+      document.getElementById('level2').classList.remove('active');
+      document.getElementById('level1').style.display = 'block';
+    }
+
+    // Close Level 3
+    function closeLevel3() {
+      document.getElementById('level3').classList.remove('active');
+      document.getElementById('level2').classList.add('active');
+    }
+
+    // Placeholder functions
+    function toggleAIPanel() {
+      alert('AI Optimization Panel - Coming Soon');
+    }
+
+    function applyKnobs() {
+      alert('Applying knob changes...');
+    }
+
+    function resetKnobs() {
+      alert('Resetting knobs to defaults...');
+    }
+
+    function saveKnobsDefault() {
+      alert('Saving as default configuration...');
+    }
+
+    function applyThresholds() {
+      alert('Applying custom thresholds...');
+    }
+
+    function resetThresholds() {
+      alert('Resetting thresholds...');
+    }
+
+    function saveAsDefault() {
+      alert('Saving as default...');
+    }
+
+    function adjustKnob(knobName) {
+      alert(`Adjusting ${knobName}...`);
+    }
+
+    // Socket.IO connection
+    let socket;
+    function connectSocket() {
+      socket = io('http://20.170.155.53:3021', {
+        transports: ['websocket'],
+        reconnection: true
+      });
+
+      socket.on('connect', () => {
+        document.getElementById('system-health').classList.remove('offline');
+        document.getElementById('health-text').textContent = 'ONLINE';
+      });
+
+      socket.on('disconnect', () => {
+        document.getElementById('system-health').classList.add('offline');
+        document.getElementById('health-text').textContent = 'OFFLINE';
+      });
+
+      socket.on('station-update', (data) => {
+        // Update station metrics in real-time
+        if (STATIONS[data.stationId]) {
+          // Update values and re-render if needed
+        }
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      generateStations();
+      connectSocket();
+    });
+  </script>
+</body>
+</html>

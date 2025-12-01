@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Records - Metrics & Knobs Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .records-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .record {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .record-header {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .record-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .field-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 2px;
+        }
+
+        .field-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .data-item {
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .data-item-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .data-item-value {
+            color: #666;
+        }
+
+        .data-item-value.na {
+            color: #ccc;
+            font-style: italic;
+        }
+
+        .refresh-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+            }
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .summary-category {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .summary-count {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .available {
+            color: #4CAF50;
+        }
+
+        .total {
+            color: #666;
+        }
+
+        .export-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .export-btn:hover {
+            background: #764ba2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Database Records Monitor - Metrics & Knobs <span class="refresh-indicator"></span></h1>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">Total Records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCalls">0</div>
+                    <div class="stat-label">Unique Calls</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalStations">0</div>
+                    <div class="stat-label">Active Stations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalMetrics">75</div>
+                    <div class="stat-label">Metrics Tracked</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalKnobs">250+</div>
+                    <div class="stat-label">Knobs Tracked</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastUpdate">--:--:--</div>
+                    <div class="stat-label">Last Update</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Record ID</label>
+                    <input type="text" id="filterRecordId" placeholder="Enter record ID">
+                </div>
+                <div class="filter-group">
+                    <label>Station</label>
+                    <select id="filterStation">
+                        <option value="">All Stations</option>
+                        <option value="STATION_3">Station 3 (STT)</option>
+                        <option value="STATION_9">Station 9 (TTS)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Channel/Extension</label>
+                    <input type="text" id="filterChannel" placeholder="e.g., 7777, 8888, caller">
+                </div>
+                <div class="filter-group">
+                    <label>From Timestamp</label>
+                    <input type="datetime-local" id="filterFromTime">
+                </div>
+                <div class="filter-group">
+                    <label>To Timestamp</label>
+                    <input type="datetime-local" id="filterToTime">
+                </div>
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button class="export-btn" onclick="exportToCSV()">Export CSV</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="records-container" id="recordsContainer">
+            <!-- Records will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        let allRecords = [];
+        let refreshInterval;
+
+        // Categories for metrics
+        const metricCategories = {
+            buffer: ['buffer_usage_pct', 'buffer_underruns', 'buffer_overruns', 'jitter_buffer_size_ms', 'adaptive_buffer_status'],
+            latency: ['end_to_end_latency_ms', 'network_latency_ms', 'processing_latency_ms', 'jitter_ms', 'round_trip_time_ms'],
+            packet: ['packet_loss_pct', 'packets_received', 'packets_sent', 'packet_reorder_rate', 'duplicate_packets'],
+            audio_quality: ['snr_db', 'noise_floor_db', 'audio_level_dbfs', 'clipping_detected', 'voice_activity_ratio'],
+            performance: ['cpu_usage_pct', 'memory_usage_mb', 'transcription_accuracy', 'error_rate', 'throughput_kbps']
+        };
+
+        // Categories for knobs
+        const knobCategories = {
+            audio: ['input_gain_db', 'output_gain_db', 'input_sample_rate', 'output_sample_rate', 'input_codec'],
+            buffer: ['buffer_size_ms', 'jitter_buffer_ms', 'adaptive_jitter_buffer', 'buffer_low_watermark', 'buffer_high_watermark'],
+            network: ['packet_size', 'fec_enabled', 'retransmission_enabled', 'congestion_control', 'bandwidth_limit_kbps'],
+            deepgram: ['deepgram.model', 'deepgram.language', 'deepgram.punctuate', 'deepgram.interim_results', 'deepgram.endpointing'],
+            elevenlabs: ['elevenlabs.model_id', 'elevenlabs.voice_id', 'elevenlabs.stability', 'elevenlabs.similarity_boost', 'elevenlabs.optimize_streaming_latency']
+        };
+
+        async function fetchRecords() {
+            try {
+                const response = await fetch('http://localhost:8081/api/snapshots');
+                const data = await response.json();
+                allRecords = data;
+                updateDisplay();
+                updateStats();
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error('Error fetching records:', error);
+                // Try fallback to port 8080
+                try {
+                    const response = await fetch('http://localhost:8080/api/database-records');
+                    const data = await response.json();
+                    allRecords = data;
+                    updateDisplay();
+                    updateStats();
+                } catch (fallbackError) {
+                    console.error('Fallback also failed:', fallbackError);
+                }
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalRecords').textContent = allRecords.length;
+
+            const uniqueCalls = new Set(allRecords.map(r => r.call_id).filter(Boolean));
+            document.getElementById('totalCalls').textContent = uniqueCalls.size;
+
+            const uniqueStations = new Set(allRecords.map(r => r.station_id).filter(Boolean));
+            document.getElementById('totalStations').textContent = uniqueStations.size;
+        }
+
+        function applyFilters() {
+            const recordId = document.getElementById('filterRecordId').value.toLowerCase();
+            const station = document.getElementById('filterStation').value;
+            const channel = document.getElementById('filterChannel').value.toLowerCase();
+            const fromTime = document.getElementById('filterFromTime').value;
+            const toTime = document.getElementById('filterToTime').value;
+
+            let filtered = [...allRecords];
+
+            if (recordId) {
+                filtered = filtered.filter(r => r.id && r.id.toLowerCase().includes(recordId));
+            }
+
+            if (station) {
+                filtered = filtered.filter(r => r.station_id === station);
+            }
+
+            if (channel) {
+                filtered = filtered.filter(r => {
+                    const channelStr = (r.channel || '').toLowerCase();
+                    const callIdStr = (r.call_id || '').toLowerCase();
+                    return channelStr.includes(channel) || callIdStr.includes(channel);
+                });
+            }
+
+            if (fromTime) {
+                filtered = filtered.filter(r => new Date(r.timestamp) >= new Date(fromTime));
+            }
+
+            if (toTime) {
+                filtered = filtered.filter(r => new Date(r.timestamp) <= new Date(toTime));
+            }
+
+            // LIFO sorting
+            filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            return filtered;
+        }
+
+        function updateDisplay() {
+            const filtered = applyFilters();
+            const container = document.getElementById('recordsContainer');
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;">No records found</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(record => createRecordHTML(record)).join('');
+        }
+
+        function createRecordHTML(record) {
+            const metrics = record.metrics || {};
+            const knobs = record.knobs || {};
+            const totals = record.totals || {};
+
+            // Count available values
+            const metricsAvailable = Object.values(metrics).filter(v => v !== 'NA' && v !== null).length;
+            const knobsAvailable = Object.values(knobs).filter(v => v !== 'NA' && v !== null).length;
+
+            return `
+                <div class="record">
+                    <div class="record-header">
+                        <div class="record-field">
+                            <span class="field-label">Record ID</span>
+                            <span class="field-value">${record.id || 'N/A'}</span>
+                        </div>
+                        <div class="record-field">
+                            <span class="field-label">Station</span>
+                            <span class="field-value">${record.station_id || 'N/A'}</span>
+                        </div>
+                        <div class="record-field">
+                            <span class="field-label">Call ID</span>
+                            <span class="field-value">${record.call_id || 'N/A'}</span>
+                        </div>
+                        <div class="record-field">
+                            <span class="field-label">Channel</span>
+                            <span class="field-value">${record.channel || 'N/A'}</span>
+                        </div>
+                        <div class="record-field">
+                            <span class="field-label">Timestamp</span>
+                            <span class="field-value">${new Date(record.timestamp).toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-grid">
+                        ${Object.entries(metricCategories).map(([cat, items]) => {
+                            const available = items.filter(item => metrics[item] && metrics[item] !== 'NA').length;
+                            return `
+                                <div class="summary-item">
+                                    <div class="summary-category">${cat.replace('_', ' ')}</div>
+                                    <div><span class="summary-count available">${available}</span>/<span class="summary-count total">${items.length}</span></div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab(event, '${record.id}', 'metrics')">
+                            Metrics (${metricsAvailable}/75)
+                        </button>
+                        <button class="tab" onclick="switchTab(event, '${record.id}', 'knobs')">
+                            Knobs (${knobsAvailable}/250+)
+                        </button>
+                        <button class="tab" onclick="switchTab(event, '${record.id}', 'summary')">
+                            Summary
+                        </button>
+                    </div>
+
+                    <div id="metrics-${record.id}" class="tab-content active">
+                        <div class="data-grid">
+                            ${Object.entries(metrics).map(([key, value]) => `
+                                <div class="data-item">
+                                    <div class="data-item-name">${key}</div>
+                                    <div class="data-item-value ${value === 'NA' ? 'na' : ''}">${value}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div id="knobs-${record.id}" class="tab-content">
+                        <div class="data-grid">
+                            ${Object.entries(knobs).map(([key, value]) => `
+                                <div class="data-item">
+                                    <div class="data-item-name">${key}</div>
+                                    <div class="data-item-value ${value === 'NA' ? 'na' : ''}">${value}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div id="summary-${record.id}" class="tab-content">
+                        <div style="padding: 20px;">
+                            <h4>Data Summary</h4>
+                            <p>Total Metrics: ${metricsAvailable} available out of 75</p>
+                            <p>Total Knobs: ${knobsAvailable} available out of 250+</p>
+                            <p>Data Completeness: ${Math.round((metricsAvailable + knobsAvailable) / 325 * 100)}%</p>
+                            <br>
+                            <h4>Key Values</h4>
+                            ${metrics.snr_db !== 'NA' ? `<p>SNR: ${metrics.snr_db} dB</p>` : ''}
+                            ${metrics.packet_loss_pct !== 'NA' ? `<p>Packet Loss: ${metrics.packet_loss_pct}%</p>` : ''}
+                            ${metrics.end_to_end_latency_ms !== 'NA' ? `<p>E2E Latency: ${metrics.end_to_end_latency_ms} ms</p>` : ''}
+                            ${knobs.input_gain_db !== 'NA' ? `<p>Input Gain: ${knobs.input_gain_db} dB</p>` : ''}
+                            ${knobs['deepgram.model'] !== 'NA' ? `<p>STT Model: ${knobs['deepgram.model']}</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function switchTab(event, recordId, tabName) {
+            const record = event.target.closest('.record');
+
+            // Update tab buttons
+            record.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            record.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            const targetContent = record.querySelector(`#${tabName}-${recordId}`);
+            if (targetContent) {
+                targetContent.classList.add('active');
+            }
+        }
+
+        function exportToCSV() {
+            const filtered = applyFilters();
+
+            // Prepare CSV headers
+            const headers = ['Record ID', 'Station', 'Call ID', 'Channel', 'Timestamp'];
+
+            // Add all metric names
+            const allMetricKeys = new Set();
+            const allKnobKeys = new Set();
+
+            filtered.forEach(record => {
+                Object.keys(record.metrics || {}).forEach(key => allMetricKeys.add(key));
+                Object.keys(record.knobs || {}).forEach(key => allKnobKeys.add(key));
+            });
+
+            const metricHeaders = Array.from(allMetricKeys).sort();
+            const knobHeaders = Array.from(allKnobKeys).sort();
+
+            const csvHeaders = [...headers, ...metricHeaders.map(h => `metric.${h}`), ...knobHeaders.map(h => `knob.${h}`)];
+
+            // Create CSV content
+            const csvContent = [
+                csvHeaders.join(','),
+                ...filtered.map(record => {
+                    const row = [
+                        record.id || '',
+                        record.station_id || '',
+                        record.call_id || '',
+                        record.channel || '',
+                        record.timestamp || ''
+                    ];
+
+                    // Add metrics
+                    metricHeaders.forEach(key => {
+                        row.push((record.metrics && record.metrics[key]) || 'NA');
+                    });
+
+                    // Add knobs
+                    knobHeaders.forEach(key => {
+                        row.push((record.knobs && record.knobs[key]) || 'NA');
+                    });
+
+                    return row.map(v => `"${v}"`).join(',');
+                })
+            ].join('\n');
+
+            // Download CSV
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `database-records-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        document.getElementById('filterRecordId').addEventListener('input', updateDisplay);
+        document.getElementById('filterStation').addEventListener('change', updateDisplay);
+        document.getElementById('filterChannel').addEventListener('input', updateDisplay);
+        document.getElementById('filterFromTime').addEventListener('change', updateDisplay);
+        document.getElementById('filterToTime').addEventListener('change', updateDisplay);
+
+        // Initial fetch and auto-refresh
+        fetchRecords();
+        refreshInterval = setInterval(fetchRecords, 5000); // Refresh every 5 seconds
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

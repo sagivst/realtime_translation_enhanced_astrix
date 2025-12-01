@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Monitoring Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #00ff00;
+            text-align: center;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .stat {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 36px;
+            color: #00ff00;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #2a2a2a;
+            padding: 10px;
+            text-align: left;
+            color: #00ff00;
+        }
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+        .station-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .station-1 { background: #ff6b6b; color: black; }
+        .station-2 { background: #4ecdc4; color: black; }
+        .station-3 { background: #ffff00; color: black; }
+        .station-7 { background: #95e1d3; color: black; }
+        .station-9 { background: #a8e6cf; color: black; }
+        .station-11 { background: #ff8b94; color: black; }
+        .knob {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 2px;
+            display: inline-block;
+            font-size: 11px;
+        }
+        .export-btn {
+            background: #00ff00;
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px;
+        }
+        .export-btn:hover {
+            background: #00cc00;
+        }
+        #error {
+            background: #ff3333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Real-Time Station Monitoring</h1>
+
+    <div style="text-align: center;">
+        <button class="export-btn" onclick="exportToExcel()">📊 Export to Excel with Knobs</button>
+    </div>
+
+    <div id="error"></div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value" id="total">0</div>
+            <div>Total Records</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="station3">0</div>
+            <div>Station 3 (Critical)</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="calls">0</div>
+            <div>Active Calls</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Station</th>
+                <th>Call ID</th>
+                <th>Channel</th>
+                <th>Key Metrics</th>
+                <th>Knobs</th>
+            </tr>
+        </thead>
+        <tbody id="data">
+            <tr><td colspan="6" style="text-align: center;">Loading...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        let allData = [];
+
+        async function fetchData() {
+            try {
+                const response = await fetch('http://20.170.155.53:8080/api/snapshots');
+                const data = await response.json();
+                allData = data;
+                updateDisplay(data);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Error loading data: ' + error.message;
+            }
+        }
+
+        function updateDisplay(data) {
+            // Update stats
+            document.getElementById('total').textContent = data.length;
+            document.getElementById('station3').textContent = data.filter(d =>
+                d.station_id === 'STATION_3' ||
+                (d.metrics && d.metrics.station_id === 'STATION_3')
+            ).length;
+
+            const uniqueCalls = new Set(data.map(d =>
+                d.call_id || (d.metrics && d.metrics.call_id) || 'unknown'
+            ));
+            document.getElementById('calls').textContent = uniqueCalls.size;
+
+            // Update table
+            const tbody = document.getElementById('data');
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.slice(0, 20).map(row => {
+                const timestamp = new Date(row.timestamp || row.created_at).toLocaleTimeString();
+                const stationId = row.station_id || (row.metrics && row.metrics.station_id) || 'Unknown';
+                const stationNum = stationId.split('_')[1] || '0';
+                const callId = row.call_id || (row.metrics && row.metrics.call_id) || '--';
+                const channel = row.channel || (row.metrics && row.metrics.channel) || '--';
+
+                // Extract key metrics
+                let keyMetrics = '';
+                const metrics = row.metrics && row.metrics.metrics ? row.metrics.metrics : row.metrics || {};
+                if (metrics.snr_db) keyMetrics += `SNR: ${metrics.snr_db.toFixed(1)}dB `;
+                if (metrics.cpu_usage_pct) keyMetrics += `CPU: ${metrics.cpu_usage_pct.toFixed(0)}% `;
+                if (metrics.jitter_ms) keyMetrics += `Jitter: ${metrics.jitter_ms.toFixed(1)}ms`;
+
+                // Extract knobs
+                let knobsHtml = '';
+                const knobs = row.knobs_effective || row.knobs || (row.metrics && row.metrics.knobs) || [];
+                if (Array.isArray(knobs)) {
+                    knobsHtml = knobs.slice(0, 3).map(k =>
+                        `<span class="knob">${k.name}: ${k.value}</span>`
+                    ).join('');
+                }
+
+                return `
+                    <tr>
+                        <td>${timestamp}</td>
+                        <td><span class="station-badge station-${stationNum}">${stationId}</span></td>
+                        <td>${callId.substring(0, 15)}...</td>
+                        <td>${channel}</td>
+                        <td>${keyMetrics || '--'}</td>
+                        <td>${knobsHtml || '--'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function exportToExcel() {
+            if (allData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            // Prepare CSV content
+            let csv = 'Timestamp,Station ID,Call ID,Channel,SNR (dB),CPU (%),Jitter (ms),Knobs\n';
+
+            allData.forEach(row => {
+                const timestamp = new Date(row.timestamp || row.created_at).toISOString();
+                const stationId = row.station_id || (row.metrics && row.metrics.station_id) || '';
+                const callId = row.call_id || (row.metrics && row.metrics.call_id) || '';
+                const channel = row.channel || (row.metrics && row.metrics.channel) || '';
+
+                const metrics = row.metrics && row.metrics.metrics ? row.metrics.metrics : row.metrics || {};
+                const snr = metrics.snr_db || '';
+                const cpu = metrics.cpu_usage_pct || '';
+                const jitter = metrics.jitter_ms || '';
+
+                const knobs = row.knobs_effective || row.knobs || (row.metrics && row.metrics.knobs) || [];
+                const knobsStr = Array.isArray(knobs) ?
+                    knobs.map(k => `${k.name}=${k.value}`).join('; ') : '';
+
+                csv += `"${timestamp}","${stationId}","${callId}","${channel}",${snr},${cpu},${jitter},"${knobsStr}"\n`;
+            });
+
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `station_data_with_knobs_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            alert('Excel file downloaded with knobs data!');
+        }
+
+        // Initial fetch
+        fetchData();
+
+        // Auto-refresh every 5 seconds
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>

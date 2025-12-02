@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Monitoring Dashboard - 75 Metrics & 113 Knobs</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .status-active {
+            background: #4CAF50;
+            color: white;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            color: #333;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .metric-value {
+            color: #2196F3;
+        }
+        .knob-value {
+            color: #FF9800;
+        }
+        .data-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .metric-item {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+        }
+        .knob-item {
+            background: #fff3e0;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #FF9800;
+        }
+        .item-name {
+            font-weight: 600;
+            color: #555;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .item-value {
+            font-size: 16px;
+            color: #333;
+            word-break: break-all;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 18px;
+            color: #666;
+        }
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .station-selector {
+            margin-bottom: 20px;
+        }
+        select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+        }
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .refresh-indicator.active {
+            opacity: 1;
+        }
+        .error-message {
+            background: #f44336;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .metric-category {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .category-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="refresh-indicator" id="refreshIndicator">Refreshing...</div>
+
+    <div class="container">
+        <div class="header">
+            <h1>
+                Enhanced Monitoring Dashboard
+                <span class="status-badge status-active" id="connectionStatus">CONNECTED</span>
+            </h1>
+            <div class="station-selector">
+                <label for="stationFilter">Filter by Station: </label>
+                <select id="stationFilter">
+                    <option value="all">All Stations</option>
+                    <option value="STATION_3">STATION_3 - Voice Monitor/Enhancer</option>
+                    <option value="STATION_4">STATION_4 - Deepgram STT</option>
+                </select>
+            </div>
+            <div class="timestamp" id="lastUpdate">Last update: Never</div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Records</div>
+                <div class="stat-value" id="totalRecords">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Metrics</div>
+                <div class="stat-value metric-value" id="totalMetrics">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Knobs</div>
+                <div class="stat-value knob-value" id="totalKnobs">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Station 3 Records</div>
+                <div class="stat-value" id="station3Count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Station 4 Records</div>
+                <div class="stat-value" id="station4Count">0</div>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <h2 class="section-title">Latest Snapshot Details</h2>
+            <div id="snapshotInfo" class="loading">Loading data...</div>
+        </div>
+
+        <div class="data-section">
+            <h2 class="section-title">All 75 Metrics (Live)</h2>
+            <div id="metricsContainer" class="loading">Loading metrics...</div>
+        </div>
+
+        <div class="data-section">
+            <h2 class="section-title">All 113 Knobs (Configuration)</h2>
+            <div id="knobsContainer" class="loading">Loading knobs...</div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let currentStation = 'all';
+
+        const metricCategories = {
+            'DSP Metrics': ['dsp.agc', 'dsp.aec', 'dsp.noiseReduction', 'dsp.compressor', 'dsp.limiter', 'dsp.eq'],
+            'Audio Quality': ['audioQuality.'],
+            'Buffer Metrics': ['buffer.'],
+            'Latency Metrics': ['latency.'],
+            'Packet Metrics': ['packet.'],
+            'Performance Metrics': ['performance.'],
+            'Custom Metrics': ['custom.']
+        };
+
+        const knobFamilies = {
+            'AGC Control': ['agc.'],
+            'AEC Control': ['aec.'],
+            'Noise Reduction': ['nr.'],
+            'Compressor': ['compressor.'],
+            'Limiter': ['limiter.'],
+            'EQ': ['eq.'],
+            'Buffer Settings': ['buffer.'],
+            'Network Settings': ['network.'],
+            'Codec Settings': ['codec.'],
+            'Deepgram Settings': ['deepgram.'],
+            'Translation Settings': ['translation.'],
+            'TTS Settings': ['tts.'],
+            'System Settings': ['system.']
+        };
+
+        function categorizeMetrics(metrics) {
+            const categorized = {};
+            for (const [category, patterns] of Object.entries(metricCategories)) {
+                categorized[category] = {};
+                for (const [key, value] of Object.entries(metrics || {})) {
+                    if (patterns.some(pattern => key.startsWith(pattern))) {
+                        categorized[category][key] = value;
+                    }
+                }
+            }
+            return categorized;
+        }
+
+        function categorizeKnobs(knobs) {
+            const categorized = {};
+            for (const [family, patterns] of Object.entries(knobFamilies)) {
+                categorized[family] = {};
+                for (const [key, value] of Object.entries(knobs || {})) {
+                    if (patterns.some(pattern => key.startsWith(pattern))) {
+                        categorized[family][key] = value;
+                    }
+                }
+            }
+            return categorized;
+        }
+
+        function formatValue(value) {
+            if (value === null || value === undefined) return 'N/A';
+            if (typeof value === 'boolean') return value ? 'ON' : 'OFF';
+            if (typeof value === 'number') {
+                if (Number.isInteger(value)) return value.toString();
+                return value.toFixed(2);
+            }
+            return String(value);
+        }
+
+        function renderMetrics(metrics) {
+            const container = document.getElementById('metricsContainer');
+            const categorized = categorizeMetrics(metrics);
+
+            let html = '';
+            for (const [category, items] of Object.entries(categorized)) {
+                const itemCount = Object.keys(items).length;
+                if (itemCount === 0) continue;
+
+                html += `<div class="metric-category">
+                    <div class="category-title">${category} (${itemCount})</div>
+                    <div class="metrics-grid">`;
+
+                for (const [key, value] of Object.entries(items)) {
+                    html += `
+                        <div class="metric-item">
+                            <div class="item-name">${key}</div>
+                            <div class="item-value">${formatValue(value)}</div>
+                        </div>`;
+                }
+                html += '</div></div>';
+            }
+
+            container.innerHTML = html || '<p>No metrics available</p>';
+        }
+
+        function renderKnobs(knobs) {
+            const container = document.getElementById('knobsContainer');
+            const categorized = categorizeKnobs(knobs);
+
+            let html = '';
+            for (const [family, items] of Object.entries(categorized)) {
+                const itemCount = Object.keys(items).length;
+                if (itemCount === 0) continue;
+
+                html += `<div class="metric-category">
+                    <div class="category-title">${family} (${itemCount})</div>
+                    <div class="metrics-grid">`;
+
+                for (const [key, value] of Object.entries(items)) {
+                    html += `
+                        <div class="knob-item">
+                            <div class="item-name">${key}</div>
+                            <div class="item-value">${formatValue(value)}</div>
+                        </div>`;
+                }
+                html += '</div></div>';
+            }
+
+            container.innerHTML = html || '<p>No knobs available</p>';
+        }
+
+        function updateDisplay(data) {
+            allData = data;
+
+            // Filter by station if needed
+            let filteredData = data;
+            if (currentStation !== 'all') {
+                filteredData = data.filter(d => d.station_id === currentStation);
+            }
+
+            // Update stats
+            document.getElementById('totalRecords').textContent = data.length;
+            document.getElementById('station3Count').textContent =
+                data.filter(d => d.station_id === 'STATION_3').length;
+            document.getElementById('station4Count').textContent =
+                data.filter(d => d.station_id === 'STATION_4').length;
+
+            // Get latest snapshot
+            if (filteredData.length > 0) {
+                const latest = filteredData[0];
+
+                // Count metrics and knobs
+                const metricCount = Object.keys(latest.metrics || {}).length;
+                const knobCount = Object.keys(latest.knobs || {}).length;
+
+                document.getElementById('totalMetrics').textContent = metricCount;
+                document.getElementById('totalKnobs').textContent = knobCount;
+
+                // Update snapshot info
+                const snapshotInfo = document.getElementById('snapshotInfo');
+                snapshotInfo.innerHTML = `
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="item-name">Station ID</div>
+                            <div class="item-value">${latest.station_id || 'N/A'}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="item-name">Extension</div>
+                            <div class="item-value">${latest.extension || 'N/A'}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="item-name">Timestamp</div>
+                            <div class="item-value">${new Date(latest.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="item-name">Metric Count</div>
+                            <div class="item-value">${latest.metric_count || metricCount}</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="item-name">Knob Count</div>
+                            <div class="item-value">${latest.knob_count || knobCount}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Render metrics and knobs
+                renderMetrics(latest.metrics);
+                renderKnobs(latest.knobs);
+            } else {
+                document.getElementById('snapshotInfo').innerHTML = '<p>No data available</p>';
+                document.getElementById('metricsContainer').innerHTML = '<p>No metrics available</p>';
+                document.getElementById('knobsContainer').innerHTML = '<p>No knobs available</p>';
+            }
+
+            // Update timestamp
+            document.getElementById('lastUpdate').textContent =
+                'Last update: ' + new Date().toLocaleTimeString();
+        }
+
+        async function fetchData() {
+            const indicator = document.getElementById('refreshIndicator');
+            indicator.classList.add('active');
+
+            try {
+                const response = await fetch('http://20.170.155.53:8080/api/snapshots');
+                if (!response.ok) throw new Error('Failed to fetch data');
+
+                const data = await response.json();
+                updateDisplay(data);
+
+                document.getElementById('connectionStatus').textContent = 'CONNECTED';
+                document.getElementById('connectionStatus').className = 'status-badge status-active';
+                document.getElementById('errorMessage').style.display = 'none';
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                document.getElementById('connectionStatus').textContent = 'ERROR';
+                document.getElementById('connectionStatus').className = 'status-badge';
+                document.getElementById('connectionStatus').style.background = '#f44336';
+
+                const errorMsg = document.getElementById('errorMessage');
+                errorMsg.textContent = 'Error: ' + error.message;
+                errorMsg.style.display = 'block';
+            } finally {
+                setTimeout(() => {
+                    indicator.classList.remove('active');
+                }, 500);
+            }
+        }
+
+        // Station filter
+        document.getElementById('stationFilter').addEventListener('change', (e) => {
+            currentStation = e.target.value;
+            updateDisplay(allData);
+        });
+
+        // Initial fetch and periodic updates
+        fetchData();
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>

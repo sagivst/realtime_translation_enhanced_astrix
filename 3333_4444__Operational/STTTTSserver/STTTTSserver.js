@@ -19,9 +19,9 @@ const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
 const { applyDefaultProfile } = require('./hmlcp/default-profiles');
 
 // ========================================================================
-// MONITORING SYSTEM - Universal Collector (75 parameters across 7 stations)
+// MONITORING SYSTEM - Unified Collector (ALL 75 metrics + 113 knobs)
 // ========================================================================
-const StationAgent = require('./monitoring/StationAgent');
+const StationAgent = require('./monitoring/StationAgent-Unified');
 // ========================================================================
 // REAL-TIME MONITORING INTEGRATION - Connect to monitoring server
 // ========================================================================
@@ -137,11 +137,11 @@ const station3_4444 = new StationAgent('STATION_3', '4444');
 const station4_3333 = new StationAgent('STATION_4', '3333');
 const station4_4444 = new StationAgent('STATION_4', '4444');
 
-console.log('[Monitoring] ✓ Station agents initialized');
-console.log(`[Monitoring] ✓ Station 3 (3333): ${station3_3333.getParameterCount()} parameters`);
-console.log(`[Monitoring] ✓ Station 3 (4444): ${station3_4444.getParameterCount()} parameters`);
-console.log(`[Monitoring] ✓ Station 4 (3333): ${station4_3333.getParameterCount()} parameters`);
-console.log(`[Monitoring] ✓ Station 4 (4444): ${station4_4444.getParameterCount()} parameters`);
+console.log('[Monitoring] ✓ Unified Station agents initialized');
+console.log(`[Monitoring] ✓ Station 3 (3333): Collecting ALL 75 metrics + ${station3_3333.collector.getKnobCount()} knobs`);
+console.log(`[Monitoring] ✓ Station 3 (4444): Collecting ALL 75 metrics + ${station3_4444.collector.getKnobCount()} knobs`);
+console.log(`[Monitoring] ✓ Station 4 (3333): Collecting ALL 75 metrics + ${station4_3333.collector.getKnobCount()} knobs`);
+console.log(`[Monitoring] ✓ Station 4 (4444): Collecting ALL 75 metrics + ${station4_4444.collector.getKnobCount()} knobs`);
 
 // ========================================================================
 // OLD TIMING CLIENT - DISABLED 2025-11-12
@@ -3786,13 +3786,14 @@ server.listen(PORT, HOST, () => {
 const dgram = require('dgram');
 
 // Database Integration for AI-Driven Optimization
-const { Unified75MetricsCollector, stationCollectors } = require("./unified-75-metrics-collector");
-const DatabaseIntegration = require("./database-integration-module");
-const dbIntegration = new DatabaseIntegration();
+// COMMENTED OUT - Using UnifiedStationCollector instead which collects ALL 75 metrics and 103 knobs
+// const { Unified75MetricsCollector, stationCollectors } = require("./unified-75-metrics-collector");
+// const DatabaseIntegration = require("./database-integration-module");
+// const dbIntegration = new DatabaseIntegration();
 
 // Initialize collectors for embedded stations
-const station3Collector = stationCollectors["STATION_3"]; // Before Deepgram
-const station9Collector = stationCollectors["STATION_9"]; // TTS Output
+// const station3Collector = stationCollectors["STATION_3"]; // Before Deepgram
+// const station9Collector = stationCollectors["STATION_9"]; // TTS Output
 
 // Configuration (from conf-server-phase1.js lines 28-40)
 const UDP_PCM_CONFIG = {
@@ -4288,38 +4289,39 @@ function startMonitoring(extensionNumber) {
 async function collectAndSendSegment() {
   try {
     const now = Date.now();
-    
-    // Station 3 metrics (before Deepgram)
-    station3Collector.updateFromRawData({
-      bufferUsage: Math.random() * 100,
-      snr: 20 + Math.random() * 20,
-      noiseFloor: -70 + Math.random() * 10,
-      speechActivity: 50 + Math.random() * 30,
-      peak: -10 + Math.random() * 7,
-      rms: -25 + Math.random() * 10,
-      preprocessingLatency: 10 + Math.random() * 20
-    });
-    
-    // Send Station 3 snapshot
-    await station3Collector.sendSnapshot(currentCallId, {
-      start_ms: segmentStartTime,
-      end_ms: now
-    }, null);
-    
-    // Station 9 metrics (TTS output)
-    station9Collector.updateFromRawData({
-      outputBuffer: Math.random() * 100,
-      ttsLatency: 50 + Math.random() * 100,
-      outputPeak: -5 + Math.random() * 2,
-      outputRms: -18 + Math.random() * 6,
-      qualityScore: 3.5 + Math.random() * 1.5
-    });
-    
-    // Send Station 9 snapshot
-    await station9Collector.sendSnapshot(currentCallId, {
-      start_ms: segmentStartTime,
-      end_ms: now
-    }, null);
+
+    // Station 3 metrics (before Deepgram) - COMMENTED OUT
+    // Using UnifiedStationCollector instead which collects ALL 75 metrics and 103 knobs
+    // station3Collector.updateFromRawData({
+    //   bufferUsage: Math.random() * 100,
+    //   snr: 20 + Math.random() * 20,
+    //   noiseFloor: -70 + Math.random() * 10,
+    //   speechActivity: 50 + Math.random() * 30,
+    //   peak: -10 + Math.random() * 7,
+    //   rms: -25 + Math.random() * 10,
+    //   preprocessingLatency: 10 + Math.random() * 20
+    // });
+
+    // Send Station 3 snapshot - COMMENTED OUT
+    // await station3Collector.sendSnapshot(currentCallId, {
+    //   start_ms: segmentStartTime,
+    //   end_ms: now
+    // }, null);
+
+    // Station 9 metrics (TTS output) - COMMENTED OUT
+    // station9Collector.updateFromRawData({
+    //   outputBuffer: Math.random() * 100,
+    //   ttsLatency: 50 + Math.random() * 100,
+    //   outputPeak: -5 + Math.random() * 2,
+    //   outputRms: -18 + Math.random() * 6,
+    //   qualityScore: 3.5 + Math.random() * 1.5
+    // });
+
+    // Send Station 9 snapshot - COMMENTED OUT
+    // await station9Collector.sendSnapshot(currentCallId, {
+    //   start_ms: segmentStartTime,
+    //   end_ms: now
+    // }, null);
     
     segmentStartTime = now;
     console.log("[DB Integration] Segments sent to database");

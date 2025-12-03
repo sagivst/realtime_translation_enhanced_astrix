@@ -18,73 +18,7 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
 const { applyDefaultProfile } = require('./hmlcp/default-profiles');
 
-// ========================================================================
-// MONITORING SYSTEM - Unified Collector (ALL 75 metrics + 113 knobs)
-// ========================================================================
-const StationAgent = require('./monitoring/StationAgent-Unified');
-// ========================================================================
-// REAL-TIME MONITORING INTEGRATION - Connect to monitoring server
-// ========================================================================
-const ioClient = require("socket.io-client");
-const monitoringClient = ioClient("http://localhost:3001", {
-  reconnection: true,
-  reconnectionDelay: 1000
-});
 
-let station3Registered = false;
-let activeCallId = null;
-
-monitoringClient.on("connect", () => {
-  console.log("[Monitoring] ✅ Connected to monitoring server on port 3001");
-  if (!station3Registered) {
-    console.log("[Monitoring] 📡 Registering STATION_3...");
-    monitoringClient.emit("register-station", {
-      station_id: "STATION_3",
-      capabilities: {
-        name: "Voice Monitor/Enhancer (STTTTSserver)",
-        type: "voice",
-        parameters: 22,
-        extensions: ["3333", "4444"],
-        critical: true,
-        description: "CRITICAL - Monitors and improves voice quality for Deepgram"
-      }
-    });
-    station3Registered = true;
-  }
-});
-
-// Function to send metrics for active calls
-function sendStation3Metrics(extension, metrics) {
-  if (!monitoringClient.connected) return;
-  if (!activeCallId) activeCallId = "CALL-" + Date.now();
-  
-  const snapshot = {
-    station_id: "STATION_3",
-    call_id: activeCallId,
-    channel: extension === "3333" ? "caller" : "callee",
-    metrics: {
-      snr_db: metrics.snr || 25,
-      audio_level_dbfs: metrics.audioLevel || -18,
-      voice_activity_ratio: metrics.voiceActivity || 0.7,
-      cpu_usage_pct: process.cpuUsage().system / 1000000,
-      memory_usage_mb: process.memoryUsage().heapUsed / 1048576
-    },
-    knobs_effective: [
-      { name: "agc.enabled", value: true },
-      { name: "agc.target_level_dbfs", value: -18 }
-    ],
-    timestamp: new Date().toISOString()
-  };
-  
-  monitoringClient.emit("metrics", snapshot);
-  console.log(`[Monitoring] 📊 Sent metrics for STATION_3 (${extension})`);
-}
-
-global.sendStation3Metrics = sendStation3Metrics;
-
-
-
-// Load real-time monitoring integration\nrequire("./monitoring-integration.js");
 const app = express();
 
 // Create HTTPS server if certificates exist, otherwise HTTP
@@ -130,20 +64,6 @@ const io = socketIo(server, {
 global.io = io;
 
 // ========================================================================
-// MONITORING: Initialize Station Agents
-// ========================================================================
-const station3_3333 = new StationAgent('STATION_3', '3333');
-const station3_4444 = new StationAgent('STATION_3', '4444');
-const station4_3333 = new StationAgent('STATION_4', '3333');
-const station4_4444 = new StationAgent('STATION_4', '4444');
-
-console.log('[Monitoring] ✓ Unified Station agents initialized');
-console.log(`[Monitoring] ✓ Station 3 (3333): Collecting ALL 75 metrics + ${station3_3333.collector.getKnobCount()} knobs`);
-console.log(`[Monitoring] ✓ Station 3 (4444): Collecting ALL 75 metrics + ${station3_4444.collector.getKnobCount()} knobs`);
-console.log(`[Monitoring] ✓ Station 4 (3333): Collecting ALL 75 metrics + ${station4_3333.collector.getKnobCount()} knobs`);
-console.log(`[Monitoring] ✓ Station 4 (4444): Collecting ALL 75 metrics + ${station4_4444.collector.getKnobCount()} knobs`);
-
-// ========================================================================
 // OLD TIMING CLIENT - DISABLED 2025-11-12
 // ========================================================================
 // This external timing server on port 6000 is replaced by embedded timing model
@@ -165,71 +85,6 @@ console.log('[Server] ℹ OLD Timing client disabled - using embedded timing mod
 // Key: extension number (string), Value: session object
 global.activeSessions = new Map();
 console.log('[Phase2] Global session registry initialized');
-
-// ========================================================================
-// MONITORING: Collection Function
-// ========================================================================
-/**
- * Collect and emit Station 3 metrics
- * Non-blocking to avoid impacting audio pipeline
- */
-async function collectAndEmitStation3Metrics(extension, pcmBuffer, buffers) {
-  const agent = extension === '3333' ? station3_3333 : station3_4444;
-
-  try {
-    // Build context for collectors
-    const context = {
-      pcmBuffer: pcmBuffer,
-      sampleRate: 16000,
-      buffers: buffers
-    };
-
-    // Collect metrics (automatically filtered to Station 3's 14 parameters)
-    const { metrics, alerts } = await agent.collect(context);
-
-    // Emit to monitoring-server.js (port 3021)
-    global.io.emit('stationMetrics', {
-      stationId: 'STATION-3',
-      extension: extension,
-      timestamp: Date.now(),
-      ...metrics  // Spread metrics directly into the object
-    });
-
-  } catch (error) {
-    console.error(`[Station3-${extension}] Metric emission failed:`, error.message);
-  }
-}
-
-/**
- * Collect and emit Station 4 metrics (Deepgram Response)
- * Monitors ASR processing performance
- */
-async function collectAndEmitStation4Metrics(extension, processingTime, resultData) {
-  const agent = extension === '3333' ? station4_3333 : station4_4444;
-
-  try {
-    // Build context for Station 4 (ASR response metrics)
-    const context = {
-      processingTime: processingTime,
-      resultData: resultData,
-      timestamp: Date.now()
-    };
-
-    // Collect metrics (automatically filtered to Station 4's 8 parameters)
-    const { metrics, alerts } = await agent.collect(context);
-
-    // Emit to monitoring-server.js (port 3021)
-    global.io.emit('stationMetrics', {
-      stationId: 'STATION-4',
-      extension: extension,
-      timestamp: Date.now(),
-      ...metrics  // Spread metrics directly into the object
-    });
-
-  } catch (error) {
-    console.error(`[Station4-${extension}] Metric emission failed:`, error.message);
-  }
-}
 
 // [DISABLED FOR 9007/9008] // Start AudioSocket server (for Asterisk integration on port 5050)
 // [DISABLED FOR 9007/9008] // IMPORTANT: Must load AFTER global.io is set
@@ -1612,6 +1467,8 @@ const extensionBufferSettings = new Map();
 // Initialize with defaults (autoSync: true per user request)
 extensionBufferSettings.set('9007', { autoSync: true, manualLatencyMs: 0 });
 extensionBufferSettings.set('9008', { autoSync: true, manualLatencyMs: 0 });
+extensionBufferSettings.set('3333', { autoSync: true, manualLatencyMs: 0 });
+extensionBufferSettings.set('4444', { autoSync: true, manualLatencyMs: 0 });
 
 console.log('[TimingModule] Step 1: Classes initialized (not yet integrated into pipeline)');
 console.log('[TimingModule] Step 3: Buffer settings storage initialized (autoSync: ON by default)');
@@ -1646,9 +1503,9 @@ const streamingConnections = new Map(); // key: socket.id, value: { connection, 
 // Per-extension audio gain factors (key: extension, value: gainFactor)
 const extensionGainFactors = new Map(); // Default 1.2x for all
 // Initialize with proper gain reduction
-extensionGainFactors.set("3333", 2.0);
-extensionGainFactors.set("4444", 2.0);
-console.log("[GAIN] Initialized extensions 3333/4444 with gain 2.0");
+extensionGainFactors.set("3333", 7.5);
+extensionGainFactors.set("4444", 7.5);
+console.log("[GAIN] Initialized extensions 3333/4444 with gain 1.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
 const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
 const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
@@ -2165,20 +2022,6 @@ async function createStreamingConnection(socket, participant) {
     if (isFinal) {
       const startTime = Date.now();
       console.log(`[Streaming STT] ${participant.username}: "${transcript}" (confidence: ${(confidence * 100).toFixed(1)}%)`);
-
-      // ========================================================================
-      // MONITORING: Collect Station 4 metrics (Deepgram Response)
-      // ========================================================================
-      const extension = socketToExtension.get(socket.id);
-      if (extension) {
-        setImmediate(() => {
-          collectAndEmitStation4Metrics(extension, 0, {
-            confidence: confidence,
-            transcriptLength: transcript.length,
-            isFinal: isFinal
-          });
-        });
-      }
 
       // Log STT complete
       socket.emit('pipeline-log', {
@@ -3785,16 +3628,6 @@ server.listen(PORT, HOST, () => {
 
 const dgram = require('dgram');
 
-// Database Integration for AI-Driven Optimization
-// COMMENTED OUT - Using UnifiedStationCollector instead which collects ALL 75 metrics and 103 knobs
-// const { Unified75MetricsCollector, stationCollectors } = require("./unified-75-metrics-collector");
-// const DatabaseIntegration = require("./database-integration-module");
-// const dbIntegration = new DatabaseIntegration();
-
-// Initialize collectors for embedded stations
-// const station3Collector = stationCollectors["STATION_3"]; // Before Deepgram
-// const station9Collector = stationCollectors["STATION_9"]; // TTS Output
-
 // Configuration (from conf-server-phase1.js lines 28-40)
 const UDP_PCM_CONFIG = {
   port3333In: 6120,
@@ -3806,7 +3639,7 @@ const UDP_PCM_CONFIG = {
   channels: 1,
   frameSizeMs: 5,  // Changed from 20ms to 5ms to match gateway output
   frameSizeBytes: 160,  // Changed from 640 to 160 bytes (actual gateway frame size)
-  bufferThreshold: 48000  // Reduced from 32000 to 8000 for faster processing (1.5 seconds of audio)
+  bufferThreshold: 32000  // Reduced from 32000 to 8000 for faster processing (1.5 seconds of audio)
 };
 
 // Socket Creation (from conf-server-phase1.js lines 62-65)
@@ -3865,15 +3698,6 @@ socket3333In.on('message', async (msg, rinfo) => {
       timestamp: Date.now(),
       transport: 'udp-pcm',
       source: 'microphone'
-    });
-  }
-
-  // ========================================================================
-  // MONITORING: Collect Station 3 metrics every 50th packet
-  // ========================================================================
-  if (udpPcmStats.from3333Packets % 50 === 0) {
-    setImmediate(() => {
-      collectAndEmitStation3Metrics('3333', msg, udpAudioBuffers.get('3333'));
     });
   }
 
@@ -3999,15 +3823,6 @@ socket4444In.on('message', async (msg, rinfo) => {
       timestamp: Date.now(),
       transport: 'udp-pcm',
       source: 'microphone'
-    });
-  }
-
-  // ========================================================================
-  // MONITORING: Collect Station 3 metrics every 50th packet
-  // ========================================================================
-  if (udpPcmStats.from4444Packets % 50 === 0) {
-    setImmediate(() => {
-      collectAndEmitStation3Metrics('4444', msg, udpAudioBuffers.get('4444'));
     });
   }
 
@@ -4268,66 +4083,3 @@ setInterval(() => {
   console.log(`Errors: ${udpPcmStats.translationErrors}`);
   console.log('='.repeat(60) + '\n');
 }, 30000);
-// Station monitoring integration
-let currentCallId = null;
-let segmentStartTime = Date.now();
-const SEGMENT_DURATION = 5000; // 5 seconds
-
-function startMonitoring(extensionNumber) {
-  currentCallId = "call-" + Date.now() + "-" + extensionNumber;
-  segmentStartTime = Date.now();
-  console.log("[DB Integration] Started monitoring for call:", currentCallId);
-  
-  // Start segment collection timer
-  setInterval(() => {
-    if (currentCallId) {
-      collectAndSendSegment();
-    }
-  }, SEGMENT_DURATION);
-}
-
-async function collectAndSendSegment() {
-  try {
-    const now = Date.now();
-
-    // Station 3 metrics (before Deepgram) - COMMENTED OUT
-    // Using UnifiedStationCollector instead which collects ALL 75 metrics and 103 knobs
-    // station3Collector.updateFromRawData({
-    //   bufferUsage: Math.random() * 100,
-    //   snr: 20 + Math.random() * 20,
-    //   noiseFloor: -70 + Math.random() * 10,
-    //   speechActivity: 50 + Math.random() * 30,
-    //   peak: -10 + Math.random() * 7,
-    //   rms: -25 + Math.random() * 10,
-    //   preprocessingLatency: 10 + Math.random() * 20
-    // });
-
-    // Send Station 3 snapshot - COMMENTED OUT
-    // await station3Collector.sendSnapshot(currentCallId, {
-    //   start_ms: segmentStartTime,
-    //   end_ms: now
-    // }, null);
-
-    // Station 9 metrics (TTS output) - COMMENTED OUT
-    // station9Collector.updateFromRawData({
-    //   outputBuffer: Math.random() * 100,
-    //   ttsLatency: 50 + Math.random() * 100,
-    //   outputPeak: -5 + Math.random() * 2,
-    //   outputRms: -18 + Math.random() * 6,
-    //   qualityScore: 3.5 + Math.random() * 1.5
-    // });
-
-    // Send Station 9 snapshot - COMMENTED OUT
-    // await station9Collector.sendSnapshot(currentCallId, {
-    //   start_ms: segmentStartTime,
-    //   end_ms: now
-    // }, null);
-    
-    segmentStartTime = now;
-    console.log("[DB Integration] Segments sent to database");
-  } catch (error) {
-    console.error("[DB Integration] Error sending segment:", error.message);
-  }
-}
-
-

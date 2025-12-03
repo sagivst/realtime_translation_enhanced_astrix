@@ -42,13 +42,19 @@ Audio flows through several processing nodes:
 	6.	Hume (or similar) – optional branch for affect/emotion analytics
 
 Monitoring stations are defined along this path (subset relevant here):
-	•	STATION 1: Inside Asterisk → before sending RTP to Gateway
-	•	STATION 2: Inside Gateway → before sending PCM to STTTTSserver
-	•	STATION 3: Inside STTTTSserver → before sending PCM to Deepgram API
-	•	STATION 4: Inside Deepgram client → before sending text response back
-	•	STATION 9: Inside STTTTSserver → before sending PCM to Gateway (post-TTS)
-	•	STATION 10: Inside Gateway → before sending RTP back to Asterisk
-	•	STATION 11: Inside STTTTSserver → before sending PCM to Hume API (branch)
+	| ID | Name | Status | Coverage |
+|----|------|--------|----------|
+| STATION-1 | Asterisk ARI | RTP source monitoring |
+| STATION-2 | Gateway RX (3333) | Real packet counts |
+| STATION-3 | STT Processing | Deepgram metrics |
+| STATION-4 | Translation | DeepL metrics |
+| STATION-5 | TTS Generation | ElevenLabs metrics |
+| STATION-6 | STT Server TX | PCM output |
+| STATION-7 | Gateway TX (4444) | Real packet counts |
+| STATION-9 | STTTTSserver TX | PCM to Gateway | Add to station-parameter-map |
+| STATION-10 | Gateway Return | RTP to Asterisk | Add monitoring hooks |
+| STATION-11 | Hume EVI | Emotion branch | Currently disabled (quota) |
+| STATION-12 | Hume PCM | PCM to Hume | Branch monitoring |
 
 At each station we can:
 	•	Measure up to 75 monitoring parameters (SNR, jitter, latency, buffer usage, CPU, etc.)

@@ -1,0 +1,169 @@
+{
+  "description": "Example of how parameter config files should be extended with operational settings",
+  "examples": {
+    "buffer.total": {
+      "id": "buffer.total",
+      "name": "Total Buffer",
+      "category": "Buffer",
+      "unit": "%",
+      "ranges": { "min": 0, "max": 100, "recommendedMin": 20, "recommendedMax": 80 },
+      "thresholds": { "warningLow": 20, "warningHigh": 80, "criticalLow": 10, "criticalHigh": 95 },
+      "alerts": { "enabled": true, "audioAlert": true, "visualAlert": true },
+      "metadata": { "updateFrequency": 1000, "priority": "high" },
+      "operationalSettings": {
+        "bufferSize": { "value": 512, "unit": "KB", "min": 64, "max": 4096, "description": "Total buffer allocation size" },
+        "bufferCount": { "value": 4, "unit": "count", "min": 2, "max": 32, "description": "Number of buffer instances" },
+        "autoAdjust": { "value": true, "description": "Automatically adjust buffer size based on load" },
+        "preallocation": { "value": true, "description": "Allocate all buffers at startup" },
+        "flushInterval": { "value": 100, "unit": "ms", "min": 10, "max": 1000, "description": "How often to flush buffers" }
+      }
+    },
+    "audioQuality.sampleRate": {
+      "id": "audioQuality.sampleRate",
+      "name": "Sample Rate",
+      "category": "Audio Quality",
+      "unit": "Hz",
+      "ranges": { "min": 8000, "max": 48000, "recommendedMin": 16000, "recommendedMax": 16000 },
+      "thresholds": { "warningLow": null, "warningHigh": null, "criticalLow": null, "criticalHigh": null },
+      "operationalSettings": {
+        "sampleRate": {
+          "value": 16000,
+          "unit": "Hz",
+          "options": [8000, 16000, 22050, 44100, 48000],
+          "description": "Audio sample rate - ACTUAL SYSTEM PARAMETER"
+        },
+        "bitDepth": {
+          "value": 16,
+          "unit": "bit",
+          "options": [8, 16, 24, 32],
+          "description": "Audio bit depth"
+        },
+        "channels": {
+          "value": 1,
+          "unit": "channels",
+          "options": [1, 2],
+          "description": "Mono (1) or Stereo (2)"
+        },
+        "codec": {
+          "value": "pcm_s16le",
+          "options": ["pcm_s16le", "pcm_mulaw", "pcm_alaw", "opus", "mp3"],
+          "description": "Audio codec format"
+        }
+      }
+    },
+    "packet.protocol": {
+      "id": "packet.protocol",
+      "name": "Network Protocol",
+      "category": "Packet",
+      "operationalSettings": {
+        "protocol": {
+          "value": "udp",
+          "options": ["udp", "tcp", "websocket"],
+          "description": "Network transport protocol"
+        },
+        "port": {
+          "value": 3020,
+          "unit": "port",
+          "min": 1024,
+          "max": 65535,
+          "description": "Listening port number"
+        },
+        "mtu": {
+          "value": 1500,
+          "unit": "bytes",
+          "min": 576,
+          "max": 9000,
+          "description": "Maximum Transmission Unit"
+        },
+        "ttl": {
+          "value": 64,
+          "min": 1,
+          "max": 255,
+          "description": "Time To Live for packets"
+        }
+      }
+    },
+    "dsp.agc.targetLevel": {
+      "id": "dsp.agc.targetLevel",
+      "name": "AGC Target Level",
+      "category": "DSP",
+      "unit": "dBFS",
+      "ranges": { "min": -30, "max": -3, "recommendedMin": -18, "recommendedMax": -9 },
+      "operationalSettings": {
+        "agcMode": {
+          "value": "medium",
+          "options": ["off", "soft", "medium", "aggressive"],
+          "description": "AGC processing mode - CONTROLS ACTUAL AGC"
+        },
+        "targetLevel": {
+          "value": -12,
+          "unit": "dBFS",
+          "min": -30,
+          "max": -3,
+          "description": "Target audio level for AGC"
+        },
+        "maxGain": {
+          "value": 20,
+          "unit": "dB",
+          "min": 0,
+          "max": 40,
+          "description": "Maximum gain AGC can apply"
+        },
+        "attackTime": {
+          "value": 10,
+          "unit": "ms",
+          "min": 1,
+          "max": 100,
+          "description": "AGC attack time"
+        },
+        "releaseTime": {
+          "value": 100,
+          "unit": "ms",
+          "min": 10,
+          "max": 1000,
+          "description": "AGC release time"
+        }
+      }
+    },
+    "latency.targetLatency": {
+      "id": "latency.targetLatency",
+      "name": "Target Latency",
+      "category": "Latency",
+      "unit": "ms",
+      "ranges": { "min": 0, "max": 500, "recommendedMin": 50, "recommendedMax": 150 },
+      "operationalSettings": {
+        "targetLatency": {
+          "value": 100,
+          "unit": "ms",
+          "min": 10,
+          "max": 1000,
+          "description": "Target end-to-end latency"
+        },
+        "jitterBufferMode": {
+          "value": "adaptive",
+          "options": ["fixed", "adaptive", "disabled"],
+          "description": "Jitter buffer behavior - CONTROLS ACTUAL JITTER BUFFER"
+        },
+        "jitterBufferMin": {
+          "value": 20,
+          "unit": "ms",
+          "min": 0,
+          "max": 200,
+          "description": "Minimum jitter buffer size"
+        },
+        "jitterBufferMax": {
+          "value": 200,
+          "unit": "ms",
+          "min": 50,
+          "max": 500,
+          "description": "Maximum jitter buffer size"
+        },
+        "latencyCompensation": {
+          "value": true,
+          "description": "Enable automatic latency compensation"
+        }
+      }
+    }
+  },
+  "implementation_note": "These operationalSettings values are the ACTUAL parameters that control system behavior. When saved, they should update the running system configuration and be loaded on startup."
+}

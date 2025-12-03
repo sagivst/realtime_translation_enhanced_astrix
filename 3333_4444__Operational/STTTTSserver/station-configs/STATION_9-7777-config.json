@@ -1,0 +1,106 @@
+{
+  "station_id": "STATION_9",
+  "extension": 7777,
+  "timestamp": "2025-12-01T20:52:13.758Z",
+  "optimization_version": "2.0",
+  "audio_processing": {
+    "agc": {
+      "enabled": true,
+      "targetLevel": -6,
+      "maxGain": 35,
+      "attackTime": 3,
+      "releaseTime": 170,
+      "holdTime": 50
+    },
+    "aec": {
+      "enabled": true,
+      "filterLength": 640,
+      "adaptationRate": 0.9000000000000001,
+      "suppressionLevel": 24,
+      "tailLength": 172,
+      "convergenceTime": 450,
+      "echoCancellation": 29
+    },
+    "noiseReduction": {
+      "enabled": true,
+      "level": 19,
+      "spectralFloor": -66,
+      "preserveVoice": true,
+      "adaptiveMode": true,
+      "suppressionBands": 24
+    },
+    "compressor": {
+      "enabled": true,
+      "threshold": -16,
+      "ratio": 3,
+      "attack": 7,
+      "release": 170,
+      "knee": 1
+    },
+    "limiter": {
+      "enabled": true,
+      "threshold": -4,
+      "release": 85,
+      "lookahead": 3
+    }
+  },
+  "codec": {
+    "type": "opus",
+    "bitrate": 80000,
+    "complexity": 8,
+    "vbr": false,
+    "dtx": true,
+    "fec": true,
+    "packetLossPercentage": 7,
+    "frameSize": 24
+  },
+  "buffers": {
+    "jitterBuffer": {
+      "enabled": true,
+      "minDepth": 45,
+      "maxDepth": 300,
+      "targetDepth": 100,
+      "adaptiveMode": true
+    },
+    "playback": {
+      "size": 5120,
+      "latency": 60
+    },
+    "record": {
+      "size": 5120,
+      "latency": 43
+    }
+  },
+  "deepgram": {
+    "model": "nova-2-general",
+    "language": "en",
+    "punctuate": true,
+    "diarize": true,
+    "multichannel": true,
+    "alternatives": 2,
+    "interim": true,
+    "endpointing": 550
+  },
+  "translation": {
+    "enabled": true,
+    "sourceLanguage": "auto",
+    "targetLanguage": "fr",
+    "formality": "formal",
+    "timeout": 5200
+  },
+  "tts": {
+    "voice": "drew",
+    "speed": 1.02,
+    "pitch": 1.01,
+    "volume": 1,
+    "emphasis": "strong",
+    "sentencePause": 600,
+    "ssml": true
+  },
+  "quality_targets": {
+    "target_snr": 44,
+    "target_mos": 4.6,
+    "max_latency": 220,
+    "max_packet_loss": 2
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "dsp.nr.residualNoise",
+  "name": "Residual Noise Level",
+  "category": "dsp",
+  "subcategory": "noise_reduction",
+  "path": "dsp.nr.residualNoise",
+  "unit": "dB",
+  "description": "Remaining noise after NR processing",
+  "ranges": {
+    "min": -60,
+    "max": -30,
+    "recommendedMin": -55,
+    "recommendedMax": -40
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": -35,
+    "criticalLow": null,
+    "criticalHigh": -30
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 3
+  },
+  "default": false
+}

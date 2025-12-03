@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station-3 Live Monitor</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status {
+            display: inline-block;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-top: 15px;
+        }
+
+        .status.connected {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .status.disconnected {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .metric-category {
+            font-size: 0.9em;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .metric-name {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #fbbf24;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .metric-unit {
+            font-size: 0.5em;
+            opacity: 0.9;
+            margin-left: 5px;
+        }
+
+        .stats-bar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto 30px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #10b981;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 1.2em;
+            opacity: 0.7;
+        }
+
+        .timestamp {
+            text-align: center;
+            margin-top: 20px;
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Station-3 Live Monitor</h1>
+        <div>Real-time Translation Pipeline Metrics</div>
+        <div>STTTTSserver → Deepgram (Pre-ASR Analysis)</div>
+        <div class="status" id="status">Connecting...</div>
+    </div>
+
+    <div class="stats-bar" id="statsBar" style="display: none;">
+        <div class="stat-item">
+            <div class="stat-value" id="paramCount">0</div>
+            <div class="stat-label">Parameters</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="updateCount">0</div>
+            <div class="stat-label">Updates</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="successRate">100%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+
+    <div class="metrics-grid" id="metricsGrid">
+        <div class="no-data">
+            Waiting for Station-3 data...<br>
+            <small>Make a test call to see live metrics</small>
+        </div>
+    </div>
+
+    <div class="timestamp" id="timestamp"></div>
+
+    <script>
+        const socket = io('http://20.170.155.53:3020');
+        let updateCount = 0;
+
+        // Metric display configuration
+        const metricConfig = {
+            'audioQuality.snr': { name: 'Signal-to-Noise Ratio', unit: 'dB', category: 'Audio Quality' },
+            'audioQuality.speechLevel': { name: 'Speech Level', unit: 'dBFS', category: 'Audio Quality' },
+            'audioQuality.clipping': { name: 'Clipping', unit: '%', category: 'Audio Quality' },
+            'audioQuality.noise': { name: 'Noise Level', unit: 'dBFS', category: 'Audio Quality' },
+            'performance.cpu': { name: 'CPU Usage', unit: '%', category: 'Performance' },
+            'performance.memory': { name: 'Memory Usage', unit: '%', category: 'Performance' },
+            'performance.bandwidth': { name: 'Bandwidth', unit: 'Mbps', category: 'Performance' },
+            'buffer.processing': { name: 'Buffer Processing', unit: 'ms', category: 'Buffer' },
+            'latency.processing': { name: 'Processing Latency', unit: 'ms', category: 'Latency' },
+            'dsp.agc.currentGain': { name: 'AGC Gain', unit: 'dB', category: 'DSP' },
+            'dsp.noiseReduction.noiseLevel': { name: 'Noise Reduction', unit: 'dB', category: 'DSP' },
+            'custom.state': { name: 'State', unit: '', category: 'Status' },
+            'custom.totalProcessed': { name: 'Total Processed', unit: 'packets', category: 'Status' },
+            'custom.successRate': { name: 'Success Rate', unit: '%', category: 'Status' }
+        };
+
+        socket.on('connect', () => {
+            console.log('✓ Connected to monitoring server');
+            updateStatus('connected');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('✗ Disconnected');
+            updateStatus('disconnected');
+        });
+
+        socket.on('stations-state', (stations) => {
+            console.log('Received stations state:', Object.keys(stations).length, 'stations');
+            if (stations['station-3']) {
+                console.log('Station-3 found in initial state');
+                updateMetrics(stations['station-3'].metrics);
+            }
+        });
+
+        socket.on('station-update', (data) => {
+            console.log('Station update:', data.stationId);
+            if (data.stationId === 'station-3') {
+                console.log('Station-3 update received with', Object.keys(data.metrics).length, 'metrics');
+                updateMetrics(data.metrics);
+            }
+        });
+
+        socket.on('stationUpdate', (data) => {
+            console.log('stationUpdate event:', data.stationId);
+            if (data.stationId === 'station-3') {
+                console.log('Station-3 stationUpdate received');
+                updateMetrics(data.metrics);
+            }
+        });
+
+        // Listen for direct Station-3 metrics from STTTTSserver
+        socket.on('station3_metrics', (data) => {
+            console.log('✓ station3_metrics received from', data.extension, 'with', Object.keys(data.metrics).length, 'parameters');
+            updateMetrics(data.metrics);
+        });
+
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            if (status === 'connected') {
+                statusEl.textContent = 'Connected ✓';
+                statusEl.className = 'status connected';
+            } else {
+                statusEl.textContent = 'Disconnected ✗';
+                statusEl.className = 'status disconnected';
+            }
+        }
+
+        function updateMetrics(metrics) {
+            if (!metrics || Object.keys(metrics).length === 0) {
+                console.log('No metrics to display');
+                return;
+            }
+
+            updateCount++;
+            console.log('Updating display with metrics:', Object.keys(metrics));
+
+            // Show stats bar
+            document.getElementById('statsBar').style.display = 'flex';
+            document.getElementById('paramCount').textContent = Object.keys(metrics).length;
+            document.getElementById('updateCount').textContent = updateCount;
+
+            if (metrics['custom.successRate'] !== undefined) {
+                document.getElementById('successRate').textContent =
+                    metrics['custom.successRate'].toFixed(1) + '%';
+            }
+
+            // Build metrics grid
+            const grid = document.getElementById('metricsGrid');
+            grid.innerHTML = '';
+
+            for (const [key, value] of Object.entries(metrics)) {
+                const config = metricConfig[key] || {
+                    name: key.split('.').pop(),
+                    unit: '',
+                    category: key.split('.')[0]
+                };
+
+                const card = document.createElement('div');
+                card.className = 'metric-card';
+
+                let displayValue = value;
+                if (typeof value === 'number') {
+                    if (key.includes('Rate') || key.includes('cpu')) {
+                        displayValue = value.toFixed(1);
+                    } else if (key.includes('memory')) {
+                        displayValue = (value * 100).toFixed(1);
+                    } else if (typeof value === 'number') {
+                        displayValue = value.toFixed(2);
+                    }
+                }
+
+                card.innerHTML = `
+                    <div class="metric-category">${config.category}</div>
+                    <div class="metric-name">${config.name}</div>
+                    <div class="metric-value">
+                        ${displayValue}
+                        <span class="metric-unit">${config.unit}</span>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            }
+
+            // Update timestamp
+            const now = new Date();
+            document.getElementById('timestamp').textContent =
+                `Last update: ${now.toLocaleTimeString()}`;
+        }
+
+        // Log all events for debugging
+        socket.onAny((event, ...args) => {
+            console.log(`[Event] ${event}`, args);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>75 Param - Monitoring Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', Monaco, monospace;
+      background: #0a0e27;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 30px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border: 1px solid #334155;
+    }
+    .header h1 { color: #10b981; font-size: 2em; }
+    .header p { color: #94a3b8; margin-top: 10px; }
+    .stats { display: flex; gap: 20px; margin-top: 15px; }
+    .stat-box {
+      background: rgba(16, 185, 129, 0.1);
+      padding: 15px 25px;
+      border-radius: 8px;
+      border: 1px solid #10b981;
+    }
+    .stat-value { font-size: 2em; font-weight: bold; color: #10b981; }
+    .stat-label { font-size: 0.85em; color: #94a3b8; margin-top: 5px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .param-card {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .param-card h3 {
+      color: #10b981;
+      font-size: 0.9em;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+    .param-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #fff;
+    }
+    .param-unit {
+      font-size: 0.85em;
+      color: #94a3b8;
+      margin-left: 5px;
+    }
+    .category-header {
+      grid-column: 1 / -1;
+      background: #10b981;
+      color: #0a0e27;
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-size: 1.2em;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    .status-ok { border-color: #10b981; }
+    .status-warning { border-color: #f59e0b; }
+    .status-critical { border-color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎯 75-Parameter Monitoring System</h1>
+    <p>Real-time Audio Translation Monitoring (55 Base + 20 DSP Enhancement Parameters)</p>
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-value" id="totalParams">75</div>
+        <div class="stat-label">Total Parameters</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stationCount">0</div>
+        <div class="stat-label">Active Stations</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="dspCount">20</div>
+        <div class="stat-label">DSP Parameters</div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="parameters" class="grid"></div>
+
+  <script>
+    const socket = io('http://20.170.155.53:3021');
+    let currentStation = 'station-1';
+
+    async function loadMetrics() {
+      try {
+        const response = await fetch('http://20.170.155.53:3021/api/stations/' + currentStation + '/metrics');
+        const data = await response.json();
+        displayMetrics(data.metrics);
+      } catch (error) {
+        console.error('Error loading metrics:', error);
+      }
+    }
+
+    function displayMetrics(metrics) {
+      const container = document.getElementById('parameters');
+      let html = '';
+      
+      // Count total parameters
+      let totalCount = 0;
+      
+      // Display each category
+      for (const [category, values] of Object.entries(metrics)) {
+        html += '<div class="category-header">' + category.toUpperCase() + '</div>';
+        
+        for (const [key, value] of Object.entries(values)) {
+          if (typeof value === 'object' && value !== null) {
+            // Nested object (like DSP subcategories)
+            for (const [subkey, subvalue] of Object.entries(value)) {
+              totalCount++;
+              html += '<div class="param-card status-ok">';
+              html += '  <h3>' + category + '.' + key + '.' + subkey + '</h3>';
+              html += '  <div class="param-value">' + (typeof subvalue === 'number' ? subvalue.toFixed(2) : subvalue);
+              html += '    <span class="param-unit"></span>';
+              html += '  </div>';
+              html += '</div>';
+            }
+          } else {
+            totalCount++;
+            html += '<div class="param-card status-ok">';
+            html += '  <h3>' + category + '.' + key + '</h3>';
+            html += '  <div class="param-value">' + (typeof value === 'number' ? value.toFixed(2) : value);
+            html += '    <span class="param-unit"></span>';
+            html += '  </div>';
+            html += '</div>';
+          }
+        }
+      }
+      
+      container.innerHTML = html;
+      document.getElementById('totalParams').textContent = totalCount;
+    }
+
+    async function loadStations() {
+      const response = await fetch('http://20.170.155.53:3021/api/stations');
+      const data = await response.json();
+      document.getElementById('stationCount').textContent = data.stations.length;
+    }
+
+    socket.on('station-update', (station) => {
+      if (station.id === currentStation) {
+        loadMetrics();
+      }
+    });
+
+    loadStations();
+    loadMetrics();
+    setInterval(loadMetrics, 2000);
+  </script>
+</body>
+</html>

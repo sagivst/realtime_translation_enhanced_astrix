@@ -1,0 +1,33 @@
+{
+  "id": "performance.uptime",
+  "name": "System Uptime",
+  "category": "Performance",
+  "path": "performance.uptime",
+  "unit": "sec",
+  "description": "System uptime in seconds",
+  "ranges": {
+    "min": 0,
+    "max": 86400,
+    "recommendedMin": 0,
+    "recommendedMax": 86400
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 86400,
+    "criticalLow": 0,
+    "criticalHigh": 86400
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 48
+  }
+}

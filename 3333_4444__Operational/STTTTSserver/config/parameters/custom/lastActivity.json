@@ -1,0 +1,33 @@
+{
+  "id": "custom.lastActivity",
+  "name": "Last Activity",
+  "category": "Custom",
+  "path": "custom.lastActivity",
+  "unit": "ms",
+  "description": "Time since last activity",
+  "ranges": {
+    "min": 0,
+    "max": 10000,
+    "recommendedMin": 0,
+    "recommendedMax": 5000
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 5000,
+    "criticalLow": 0,
+    "criticalHigh": 8000
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 50
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "id": "buffer.total",
+  "name": "Total Buffer",
+  "category": "Buffer",
+  "path": "buffer.total",
+  "unit": "%",
+  "description": "Overall buffer utilization across all stages",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 20,
+    "recommendedMax": 80
+  },
+  "thresholds": {
+    "warningLow": 20,
+    "warningHigh": 80,
+    "criticalLow": 10,
+    "criticalHigh": 95
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 1
+  },
+  "operationalSettings": {
+    "bufferSize": {
+      "value": 512,
+      "unit": "KB",
+      "min": 64,
+      "max": 4096,
+      "step": 64,
+      "description": "Total buffer allocation size"
+    },
+    "bufferCount": {
+      "value": 4,
+      "unit": "count",
+      "min": 2,
+      "max": 32,
+      "step": 1,
+      "description": "Number of buffer instances"
+    },
+    "autoAdjust": {
+      "value": true,
+      "description": "Automatically adjust buffer size based on load"
+    },
+    "preallocation": {
+      "value": true,
+      "description": "Allocate all buffers at startup"
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "station_id": "STATION_DEFAULTS",
+  "extension": 1111,
+  "timestamp": "2025-12-01T21:31:09.171Z",
+  "optimization_version": "2.0",
+  "source": "captured_system_defaults",
+  "audio_processing": {
+    "agc": {
+      "enabled": true,
+      "targetLevel": -18,
+      "maxGain": 30,
+      "attackTime": 3,
+      "releaseTime": 100,
+      "holdTime": 50
+    },
+    "aec": {
+      "enabled": true,
+      "filterLength": 256,
+      "adaptationRate": 0.3,
+      "suppressionLevel": 20,
+      "tailLength": 200,
+      "convergenceTime": 500,
+      "echoCancellation": 25
+    },
+    "noiseReduction": {
+      "enabled": true,
+      "level": 15,
+      "spectralFloor": -60,
+      "preserveVoice": true,
+      "adaptiveMode": true,
+      "suppressionBands": 24
+    }
+  },
+  "codec": {
+    "type": "opus",
+    "bitrate": 64000,
+    "complexity": 8,
+    "vbr": true,
+    "dtx": false,
+    "fec": true,
+    "packetLossPercentage": 5,
+    "frameSize": 20
+  },
+  "buffers": {
+    "jitterBuffer": {
+      "enabled": true,
+      "minDepth": 40,
+      "maxDepth": 300,
+      "targetDepth": 100,
+      "adaptiveMode": true
+    },
+    "playback": {
+      "size": 4096,
+      "latency": 50
+    },
+    "record": {
+      "size": 4096,
+      "latency": 30
+    }
+  },
+  "deepgram": {},
+  "translation": {
+    "enabled": true,
+    "sourceLanguage": "auto",
+    "targetLanguage": "es",
+    "formality": "default",
+    "timeout": 5000
+  },
+  "tts": {
+    "voice": "matthew",
+    "speed": 1,
+    "pitch": 1,
+    "volume": 0.95,
+    "emphasis": "moderate",
+    "sentencePause": 500
+  },
+  "quality_targets": {},
+  "last_updated": "2025-12-01T21:31:09.171Z",
+  "update_source": "system_capture"
+}

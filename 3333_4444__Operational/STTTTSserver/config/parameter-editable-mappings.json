@@ -1,0 +1,431 @@
+{
+  "commonEditableFields": {
+    "thresholds": {
+      "warningLow": {
+        "label": "Warning Low Threshold",
+        "type": "number",
+        "nullable": true,
+        "description": "Value below which a warning is triggered (null = disabled)"
+      },
+      "warningHigh": {
+        "label": "Warning High Threshold",
+        "type": "number",
+        "nullable": true,
+        "description": "Value above which a warning is triggered (null = disabled)"
+      },
+      "criticalLow": {
+        "label": "Critical Low Threshold",
+        "type": "number",
+        "nullable": true,
+        "description": "Value below which a critical alert is triggered (null = disabled)"
+      },
+      "criticalHigh": {
+        "label": "Critical High Threshold",
+        "type": "number",
+        "nullable": true,
+        "description": "Value above which a critical alert is triggered (null = disabled)"
+      }
+    },
+    "ranges": {
+      "recommendedMin": {
+        "label": "Recommended Min",
+        "type": "number",
+        "description": "Recommended minimum operational value"
+      },
+      "recommendedMax": {
+        "label": "Recommended Max",
+        "type": "number",
+        "description": "Recommended maximum operational value"
+      }
+    },
+    "alerts": {
+      "enabled": {
+        "label": "Alerts Enabled",
+        "type": "boolean",
+        "description": "Enable/disable all alerts for this parameter"
+      },
+      "audioAlert": {
+        "label": "Audio Alert",
+        "type": "boolean",
+        "description": "Play sound when threshold exceeded"
+      },
+      "visualAlert": {
+        "label": "Visual Alert",
+        "type": "boolean",
+        "description": "Show visual notification"
+      },
+      "emailAlert": {
+        "label": "Email Alert",
+        "type": "boolean",
+        "description": "Send email notification"
+      },
+      "webhookAlert": {
+        "label": "Webhook Alert",
+        "type": "boolean",
+        "description": "Trigger webhook callback"
+      }
+    },
+    "metadata": {
+      "updateFrequency": {
+        "label": "Update Frequency",
+        "type": "select",
+        "options": [100, 250, 500, 1000, 2000, 5000],
+        "unit": "ms",
+        "description": "How often to update this parameter"
+      },
+      "priority": {
+        "label": "Priority",
+        "type": "select",
+        "options": ["low", "medium", "high", "critical"],
+        "description": "Monitoring priority level"
+      }
+    }
+  },
+  "categorySpecificFields": {
+    "buffer": {
+      "bufferSize": {
+        "label": "Buffer Size",
+        "type": "number",
+        "unit": "KB",
+        "min": 64,
+        "max": 4096,
+        "step": 64,
+        "default": 512,
+        "description": "Size of buffer allocation"
+      },
+      "bufferCount": {
+        "label": "Buffer Count",
+        "type": "number",
+        "min": 2,
+        "max": 32,
+        "step": 1,
+        "default": 4,
+        "description": "Number of buffer instances"
+      },
+      "autoAdjust": {
+        "label": "Auto Adjust",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically adjust buffer size based on load"
+      },
+      "preallocation": {
+        "label": "Pre-allocate",
+        "type": "boolean",
+        "default": true,
+        "description": "Allocate all buffers at startup"
+      }
+    },
+    "latency": {
+      "maxAcceptableLatency": {
+        "label": "Max Acceptable Latency",
+        "type": "number",
+        "unit": "ms",
+        "min": 10,
+        "max": 1000,
+        "step": 10,
+        "default": 150,
+        "description": "Maximum latency before action taken"
+      },
+      "latencyCompensation": {
+        "label": "Latency Compensation",
+        "type": "boolean",
+        "default": true,
+        "description": "Enable automatic latency compensation"
+      },
+      "jitterBufferMode": {
+        "label": "Jitter Buffer Mode",
+        "type": "select",
+        "options": ["fixed", "adaptive", "disabled"],
+        "default": "adaptive",
+        "description": "Jitter buffer behavior"
+      }
+    },
+    "packet": {
+      "maxPacketLoss": {
+        "label": "Max Packet Loss",
+        "type": "number",
+        "unit": "%",
+        "min": 0,
+        "max": 10,
+        "step": 0.1,
+        "default": 1.0,
+        "description": "Maximum acceptable packet loss rate"
+      },
+      "fecEnabled": {
+        "label": "FEC (Forward Error Correction)",
+        "type": "boolean",
+        "default": true,
+        "description": "Enable forward error correction"
+      },
+      "retransmitEnabled": {
+        "label": "Retransmit",
+        "type": "boolean",
+        "default": true,
+        "description": "Enable packet retransmission"
+      },
+      "retransmitMaxAttempts": {
+        "label": "Max Retransmit Attempts",
+        "type": "number",
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "default": 3,
+        "description": "Maximum retransmission attempts"
+      }
+    },
+    "audioQuality": {
+      "minSNR": {
+        "label": "Min SNR",
+        "type": "number",
+        "unit": "dB",
+        "min": 10,
+        "max": 60,
+        "step": 1,
+        "default": 25,
+        "description": "Minimum acceptable signal-to-noise ratio"
+      },
+      "targetMOS": {
+        "label": "Target MOS",
+        "type": "number",
+        "min": 1.0,
+        "max": 5.0,
+        "step": 0.1,
+        "default": 4.0,
+        "description": "Target Mean Opinion Score"
+      },
+      "noiseGateThreshold": {
+        "label": "Noise Gate Threshold",
+        "type": "number",
+        "unit": "dBFS",
+        "min": -90,
+        "max": -20,
+        "step": 1,
+        "default": -50,
+        "description": "Threshold for noise gate activation"
+      }
+    },
+    "performance": {
+      "cpuLimit": {
+        "label": "CPU Limit",
+        "type": "number",
+        "unit": "%",
+        "min": 10,
+        "max": 100,
+        "step": 5,
+        "default": 80,
+        "description": "Maximum CPU usage allowed"
+      },
+      "memoryLimit": {
+        "label": "Memory Limit",
+        "type": "number",
+        "unit": "MB",
+        "min": 256,
+        "max": 8192,
+        "step": 256,
+        "default": 2048,
+        "description": "Maximum memory usage allowed"
+      },
+      "threadPoolSize": {
+        "label": "Thread Pool Size",
+        "type": "number",
+        "min": 1,
+        "max": 32,
+        "step": 1,
+        "default": 4,
+        "description": "Number of worker threads"
+      }
+    },
+    "dsp": {
+      "agc": {
+        "mode": {
+          "label": "AGC Mode",
+          "type": "select",
+          "options": ["off", "soft", "medium", "aggressive"],
+          "default": "medium",
+          "description": "Automatic Gain Control mode"
+        },
+        "targetLevel": {
+          "label": "Target Level",
+          "type": "number",
+          "unit": "dBFS",
+          "min": -30,
+          "max": -3,
+          "step": 1,
+          "default": -12,
+          "description": "Target audio level"
+        },
+        "maxGain": {
+          "label": "Max Gain",
+          "type": "number",
+          "unit": "dB",
+          "min": 0,
+          "max": 40,
+          "step": 1,
+          "default": 20,
+          "description": "Maximum gain allowed"
+        },
+        "attackTime": {
+          "label": "Attack Time",
+          "type": "number",
+          "unit": "ms",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "description": "Time to reach target when signal increases"
+        },
+        "releaseTime": {
+          "label": "Release Time",
+          "type": "number",
+          "unit": "ms",
+          "min": 10,
+          "max": 1000,
+          "step": 10,
+          "default": 100,
+          "description": "Time to reach target when signal decreases"
+        }
+      },
+      "aec": {
+        "mode": {
+          "label": "AEC Mode",
+          "type": "select",
+          "options": ["off", "standard", "enhanced"],
+          "default": "standard",
+          "description": "Acoustic Echo Cancellation mode"
+        },
+        "tailLength": {
+          "label": "Tail Length",
+          "type": "select",
+          "options": [64, 128, 256, 512],
+          "unit": "ms",
+          "default": 128,
+          "description": "Echo tail length for cancellation"
+        },
+        "nlpEnabled": {
+          "label": "NLP (Non-Linear Processing)",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable non-linear processing for residual echo"
+        }
+      },
+      "noiseReduction": {
+        "mode": {
+          "label": "Noise Reduction Mode",
+          "type": "select",
+          "options": ["off", "low", "medium", "high"],
+          "default": "medium",
+          "description": "Noise reduction aggressiveness"
+        },
+        "noiseFloor": {
+          "label": "Noise Floor",
+          "type": "number",
+          "unit": "dBFS",
+          "min": -90,
+          "max": -30,
+          "step": 1,
+          "default": -60,
+          "description": "Estimated noise floor level"
+        }
+      },
+      "compressor": {
+        "threshold": {
+          "label": "Threshold",
+          "type": "number",
+          "unit": "dBFS",
+          "min": -60,
+          "max": 0,
+          "step": 1,
+          "default": -20,
+          "description": "Level above which compression starts"
+        },
+        "ratio": {
+          "label": "Ratio",
+          "type": "select",
+          "options": ["1:1", "2:1", "4:1", "8:1", "16:1"],
+          "default": "4:1",
+          "description": "Compression ratio"
+        },
+        "attack": {
+          "label": "Attack",
+          "type": "number",
+          "unit": "ms",
+          "min": 0.1,
+          "max": 50,
+          "step": 0.1,
+          "default": 5,
+          "description": "Attack time"
+        },
+        "release": {
+          "label": "Release",
+          "type": "number",
+          "unit": "ms",
+          "min": 10,
+          "max": 1000,
+          "step": 10,
+          "default": 100,
+          "description": "Release time"
+        }
+      },
+      "limiter": {
+        "threshold": {
+          "label": "Limit Threshold",
+          "type": "number",
+          "unit": "dBFS",
+          "min": -12,
+          "max": 0,
+          "step": 0.1,
+          "default": -1,
+          "description": "Maximum output level"
+        },
+        "release": {
+          "label": "Release",
+          "type": "number",
+          "unit": "ms",
+          "min": 1,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "description": "Release time"
+        }
+      },
+      "equalizer": {
+        "preset": {
+          "label": "EQ Preset",
+          "type": "select",
+          "options": ["flat", "voice", "music", "conference", "custom"],
+          "default": "voice",
+          "description": "Equalizer preset"
+        },
+        "bandCount": {
+          "label": "Band Count",
+          "type": "select",
+          "options": [3, 5, 10, 31],
+          "default": 10,
+          "description": "Number of equalizer bands"
+        }
+      }
+    },
+    "custom": {
+      "samplingWindow": {
+        "label": "Sampling Window",
+        "type": "number",
+        "unit": "s",
+        "min": 1,
+        "max": 300,
+        "step": 1,
+        "default": 60,
+        "description": "Time window for metric calculation"
+      },
+      "resetInterval": {
+        "label": "Reset Interval",
+        "type": "number",
+        "unit": "s",
+        "min": 0,
+        "max": 86400,
+        "step": 60,
+        "default": 3600,
+        "description": "How often to reset counters (0 = never)"
+      }
+    }
+  }
+}

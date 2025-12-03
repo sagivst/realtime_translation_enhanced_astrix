@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Microphone Diagnostic Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .pass { color: #0f0; }
+        .fail { color: #f00; }
+        .warn { color: #ff0; }
+        #results { margin-top: 20px; }
+        .test { padding: 5px; margin: 5px 0; }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover { background: #0c0; }
+        #audioLevel {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            margin: 20px 0;
+            border: 1px solid #0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Microphone Diagnostic Test</h1>
+    <p>Click the button below to test your microphone:</p>
+
+    <button id="testBtn">🎤 Test Microphone Access</button>
+
+    <div id="results"></div>
+    <canvas id="audioLevel"></canvas>
+
+    <script>
+        const results = document.getElementById('results');
+        const testBtn = document.getElementById('testBtn');
+        const canvas = document.getElementById('audioLevel');
+        const ctx = canvas.getContext('2d');
+
+        function log(message, type = 'pass') {
+            const div = document.createElement('div');
+            div.className = 'test ' + type;
+            const emoji = type === 'pass' ? '✅' : type === 'fail' ? '❌' : '⚠️';
+            div.textContent = emoji + ' ' + message;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function clearLog() {
+            results.innerHTML = '';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        testBtn.addEventListener('click', async () => {
+            clearLog();
+            log('Starting microphone test...');
+
+            // Test 1: Check if getUserMedia exists
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                log('getUserMedia not supported by browser!', 'fail');
+                log('Please use Chrome, Firefox, or Safari', 'fail');
+                return;
+            }
+            log('✓ getUserMedia API available');
+
+            // Test 2: Check HTTPS
+            if (location.protocol !== 'https:') {
+                log('⚠️ Not using HTTPS - microphone may be blocked', 'warn');
+                log('Current protocol: ' + location.protocol, 'warn');
+            } else {
+                log('✓ Using HTTPS');
+            }
+
+            // Test 3: Check permissions API
+            try {
+                const result = await navigator.permissions.query({ name: 'microphone' });
+                log('Permission state: ' + result.state, result.state === 'granted' ? 'pass' : 'warn');
+
+                if (result.state === 'denied') {
+                    log('❌ MICROPHONE PERMISSION DENIED!', 'fail');
+                    log('Fix: Go to chrome://settings/content/siteDetails?site=' + location.origin, 'fail');
+                }
+            } catch (e) {
+                log('⚠️ Permissions API check failed: ' + e.message, 'warn');
+            }
+
+            // Test 4: Enumerate devices
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(d => d.kind === 'audioinput');
+                log('✓ Found ' + audioInputs.length + ' audio input device(s)');
+
+                audioInputs.forEach((device, i) => {
+                    log('  Device ' + (i+1) + ': ' + (device.label || 'No label (permission not granted)'), 'pass');
+                });
+
+                if (audioInputs.length === 0) {
+                    log('❌ No microphone devices found!', 'fail');
+                    return;
+                }
+            } catch (e) {
+                log('❌ Failed to enumerate devices: ' + e.message, 'fail');
+            }
+
+            // Test 5: Actually request microphone access
+            log('');
+            log('Requesting microphone access...');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                log('🎉 SUCCESS! Microphone access granted!', 'pass');
+                log('Stream ID: ' + stream.id);
+                log('Audio tracks: ' + stream.getAudioTracks().length);
+
+                // Test 6: Visualize audio
+                const audioContext = new AudioContext();
+                const analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256;
+
+                log('✓ Audio context created, visualizing audio...');
+                log('Speak into your microphone - you should see the bars move!', 'pass');
+
+                // Visualize
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+
+                function draw() {
+                    requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let x = 0;
+
+                    for (let i = 0; i < bufferLength; i++) {
+                        const barHeight = (dataArray[i] / 255) * canvas.height;
+                        ctx.fillStyle = '#0f0';
+                        ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        x += barWidth + 1;
+                    }
+                }
+
+                draw();
+
+                // Test 7: Check for silence
+                setTimeout(() => {
+                    const sum = dataArray.reduce((a, b) => a + b, 0);
+                    const avg = sum / bufferLength;
+
+                    if (avg < 10) {
+                        log('⚠️ No audio detected - is your microphone muted?', 'warn');
+                    } else {
+                        log('✓ Audio levels detected: ' + avg.toFixed(2), 'pass');
+                    }
+                }, 2000);
+
+            } catch (error) {
+                log('❌ FAILED TO ACCESS MICROPHONE!', 'fail');
+                log('Error: ' + error.name, 'fail');
+                log('Message: ' + error.message, 'fail');
+
+                if (error.name === 'NotAllowedError') {
+                    log('', 'fail');
+                    log('🔧 FIX: Microphone permission was DENIED', 'fail');
+                    log('', 'fail');
+                    log('Option 1: Click the 🔒 icon in address bar → Change Microphone to "Allow"', 'warn');
+                    log('', 'warn');
+                    log('Option 2: Go to this URL:', 'warn');
+                    log('chrome://settings/content/siteDetails?site=' + location.origin, 'warn');
+                    log('Then set Microphone to "Allow"', 'warn');
+                } else if (error.name === 'NotFoundError') {
+                    log('🔧 FIX: No microphone found on your device', 'fail');
+                } else if (error.name === 'NotReadableError') {
+                    log('🔧 FIX: Microphone is already in use by another application', 'fail');
+                }
+            }
+        });
+
+        // Auto-run test
+        log('Click the button above to start the test', 'warn');
+    </script>
+</body>
+</html>

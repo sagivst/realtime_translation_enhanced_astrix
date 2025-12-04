@@ -13,7 +13,6 @@ const deepl = require('deepl-node');
 // const sdk = require('microsoft-cognitiveservices-speech-sdk'); // Replaced with ElevenLabs
 const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 const HumeStreamingClient = require('./hume-streaming-client');
-const Station3Handler = require('./station3-handler');
 
 // Import HMLCP modules
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
@@ -498,14 +497,6 @@ async function createDeepgramStreamingConnection(extensionId) {
         console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
         
         // TODO Phase 4: Handle transcript and integrate with translation pipeline
-      // STATION-3 MONITORING: Record metrics
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onTranscript(data);
-      
-      // Reset timer for next segment
-      if (data.is_final) {
-        audioStartTimes[extensionId] = Date.now();
-      }
         // For now, just log it
         if (isFinal) {
           // Final transcript - ready for translation
@@ -517,9 +508,6 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Error occurred
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       console.error(`[WEBSOCKET] Error for extension ${extensionId}:`, error);
-      // STATION-3 MONITORING: Record error
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onError(error);
       streamingStateManager.stats.errors++;
       state.errors.push({
         timestamp: Date.now(),
@@ -536,9 +524,6 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Metadata received
     connection.on(LiveTranscriptionEvents.Metadata, (data) => {
       console.log(`[WEBSOCKET] Metadata received for extension ${extensionId}:`, JSON.stringify(data));
-      // STATION-3 MONITORING: Record metadata
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onMetadata(data);
     });
 
     console.log(`[WEBSOCKET] ✓ Deepgram streaming connection created for extension ${extensionId}`);
@@ -1522,26 +1507,6 @@ extensionGainFactors.set("3333", 7.5);
 extensionGainFactors.set("4444", 7.5);
 console.log("[GAIN] Initialized extensions 3333/4444 with gain 1.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
-
-// Station-3 monitoring handlers
-const station3_3333 = new Station3Handler("3333");
-const station3_4444 = new Station3Handler("4444");
-
-// Initialize StationAgent when available
-try {
-  const StationAgent = require("./monitoring/StationAgent");
-  station3_3333.initStationAgent(StationAgent);
-  station3_4444.initStationAgent(StationAgent);
-  console.log("[STATION-3] Monitoring agents initialized");
-} catch (e) {
-  console.log("[STATION-3] StationAgent not available, metrics disabled");
-}
-
-// Track audio start times for latency calculation
-const audioStartTimes = {
-  "3333": Date.now(),
-  "4444": Date.now()
-};
 const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
 const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
 

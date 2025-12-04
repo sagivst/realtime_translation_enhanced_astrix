@@ -247,8 +247,8 @@ function getAllKnobs() {
 
 // Station configurations
 const stations = [
-  { id: 'STATION_3', extension: '3333', name: 'Voice Monitor (Caller)' },
-  { id: 'STATION_3', extension: '4444', name: 'Voice Monitor (Callee)' },
+  { id: 'STATION_3', extension: '3333', name: 'STT Processing (Caller)' },
+  { id: 'STATION_3', extension: '4444', name: 'STT Processing (Callee)' },
   { id: 'STATION_4', extension: '3333', name: 'Deepgram STT (Caller)' },
   { id: 'STATION_4', extension: '4444', name: 'Deepgram STT (Callee)' }
 ];

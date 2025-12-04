@@ -150,6 +150,8 @@ io.on('connection', (socket) => {
     console.log(`  - Alerts: ${(alerts || []).length}`);
     console.log(`  - State: ${metadata?.state || 'unknown'}`);
 
+    // Also re-emit unified-metrics for database bridge
+    io.emit("unified-metrics", data);
     // Broadcast to dashboard clients
     io.emit('metrics-update', {
       station_id,

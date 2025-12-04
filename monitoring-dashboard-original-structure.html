@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Translation Pipeline Monitor</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --border-color: #333;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-green: #00c851;
+            --accent-yellow: #ffbb33;
+            --accent-red: #ff3547;
+            --accent-blue: #33b5e5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+        }
+
+        .header-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: all 0.3s;
+        }
+
+        .header-btn:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .status-bar {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-metrics {
+            display: flex;
+            gap: 30px;
+        }
+
+        .status-metric {
+            display: flex;
+            gap: 10px;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Station Grid - Original monitoring-box--large structure */
+        .stations-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stations-grid.row-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .monitoring-box--large {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            position: relative;
+            min-height: 180px;
+            transition: all 0.3s;
+        }
+
+        .monitoring-box--large:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 10px rgba(51, 181, 229, 0.3);
+        }
+
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .box-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.good {
+            background: var(--accent-green);
+            color: #000;
+        }
+
+        .status-badge.warning {
+            background: var(--accent-yellow);
+            color: #000;
+        }
+
+        .status-badge.error {
+            background: var(--accent-red);
+            color: #fff;
+        }
+
+        .status-badge.disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .box-metrics {
+            margin: 15px 0;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .metric-row .label {
+            color: var(--text-secondary);
+        }
+
+        .metric-row .value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .bar-visualization {
+            margin: 15px 0;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            position: absolute;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+            transition: width 0.3s;
+        }
+
+        .waveform-bars {
+            display: flex;
+            align-items: flex-end;
+            height: 40px;
+            gap: 2px;
+            padding: 5px;
+        }
+
+        .wave-bar {
+            flex: 1;
+            background: var(--accent-blue);
+            opacity: 0.7;
+            min-height: 2px;
+            transition: height 0.1s;
+        }
+
+        .expand-btn {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 5px 12px;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 11px;
+            transition: all 0.3s;
+        }
+
+        .expand-btn:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        /* AI Panel */
+        .ai-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .ai-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .ai-panel-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .mode-indicator {
+            padding: 5px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--accent-yellow);
+            color: var(--accent-yellow);
+            font-size: 12px;
+        }
+
+        .ai-controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .ai-control {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .ai-control-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .ai-control-value {
+            font-size: 14px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Level 2 - Expanded View */
+        .level2 {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .level2.active {
+            display: block;
+        }
+
+        .level2-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+        }
+
+        .level2-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .back-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+
+        .back-btn:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .level2-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .waveform-section {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            height: 200px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .metric-group {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+        }
+
+        .metric-group-title {
+            font-size: 12px;
+            color: var(--accent-blue);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 12px;
+        }
+
+        .knobs-section {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            margin-top: 30px;
+        }
+
+        .knobs-title {
+            font-size: 14px;
+            margin-bottom: 20px;
+            color: var(--accent-blue);
+        }
+
+        .knobs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .knob-control {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+        }
+
+        .knob-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .knob-input {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 5px;
+            font-size: 12px;
+        }
+
+        .knob-slider {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .knob-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .knob-btn {
+            flex: 1;
+            padding: 8px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .knob-btn:hover {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .knob-btn.apply {
+            background: var(--accent-green);
+            color: #000;
+        }
+
+        .knob-btn.reset {
+            background: var(--accent-yellow);
+            color: #000;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1400px) {
+            .stations-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .stations-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .stations-grid.row-3 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .stations-grid,
+            .stations-grid.row-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>REAL-TIME TRANSLATION PIPELINE MONITOR</h1>
+            <div class="header-controls">
+                <button class="header-btn" onclick="openSettings()">⚙️ Settings</button>
+                <button class="header-btn" onclick="openAnalytics()">📊 Analytics</button>
+                <button class="header-btn" onclick="openHelp()">❓ Help</button>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="system-status">
+                <div class="status-indicator"></div>
+                <span>System Health: ONLINE</span>
+            </div>
+            <div class="status-metrics">
+                <div class="status-metric">
+                    <span class="metric-label">Latency:</span>
+                    <span class="metric-value" id="global-latency">182ms</span>
+                </div>
+                <div class="status-metric">
+                    <span class="metric-label">MOS:</span>
+                    <span class="metric-value" id="global-mos">4.6</span>
+                </div>
+                <div class="status-metric">
+                    <span class="metric-label">Active Calls:</span>
+                    <span class="metric-value" id="active-calls">3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stations Grid - First Row (1-4) -->
+        <div class="stations-grid">
+            <!-- Station 1: Asterisk -->
+            <div class="monitoring-box--large" id="station-1">
+                <div class="box-header">
+                    <div class="box-title">STATION 1: ASTERISK</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">RTP:</span>
+                        <span class="value">2356/s</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Codec:</span>
+                        <span class="value">OPUS</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Jitter:</span>
+                        <span class="value">3.2ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">45ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="waveform-bars">
+                        <div class="wave-bar" style="height: 60%"></div>
+                        <div class="wave-bar" style="height: 80%"></div>
+                        <div class="wave-bar" style="height: 40%"></div>
+                        <div class="wave-bar" style="height: 90%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 50%"></div>
+                        <div class="wave-bar" style="height: 85%"></div>
+                        <div class="wave-bar" style="height: 65%"></div>
+                    </div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-1')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 2: Gateway -->
+            <div class="monitoring-box--large" id="station-2">
+                <div class="box-header">
+                    <div class="box-title">STATION 2: GATEWAY</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">PCM:</span>
+                        <span class="value">340/s</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Buffer:</span>
+                        <span class="value">1024</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Queue:</span>
+                        <span class="value">32</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">12ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="waveform-bars">
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 60%"></div>
+                        <div class="wave-bar" style="height: 80%"></div>
+                        <div class="wave-bar" style="height: 55%"></div>
+                        <div class="wave-bar" style="height: 75%"></div>
+                        <div class="wave-bar" style="height: 65%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 60%"></div>
+                    </div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-2')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 3: STT Proc -->
+            <div class="monitoring-box--large" id="station-3">
+                <div class="box-header">
+                    <div class="box-title">STATION 3: STT PROC</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Chunk:</span>
+                        <span class="value">250ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">VAD:</span>
+                        <span class="value">medium</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Model:</span>
+                        <span class="value">nova-2</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">180ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="bar-fill" style="width: 75%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-3')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 4: Deepgram -->
+            <div class="monitoring-box--large" id="station-4">
+                <div class="box-header">
+                    <div class="box-title">STATION 4: DEEPGRAM</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Stream:</span>
+                        <span class="value">ON</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Partials:</span>
+                        <span class="value">true</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Timeout:</span>
+                        <span class="value">2000ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">89ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="bar-fill" style="width: 60%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-4')">EXPAND ↗</button>
+            </div>
+        </div>
+
+        <!-- Stations Grid - Second Row (5-8) -->
+        <div class="stations-grid">
+            <!-- Station 5: Translation -->
+            <div class="monitoring-box--large" id="station-5">
+                <div class="box-header">
+                    <div class="box-title">STATION 5: TRANSLATION</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Text:</span>
+                        <span class="value">12/s</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Buffer:</span>
+                        <span class="value">85%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Cache:</span>
+                        <span class="value">92%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">145ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="bar-fill" style="width: 85%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-5')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 6: DeepL -->
+            <div class="monitoring-box--large" id="station-6">
+                <div class="box-header">
+                    <div class="box-title">STATION 6: DEEPL</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">API:</span>
+                        <span class="value">Pro</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Queue:</span>
+                        <span class="value">3</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Rate:</span>
+                        <span class="value">98%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">210ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="bar-fill" style="width: 70%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-6')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 7: TTS Prep -->
+            <div class="monitoring-box--large" id="station-7">
+                <div class="box-header">
+                    <div class="box-title">STATION 7: TTS PREP</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Text:</span>
+                        <span class="value">8/s</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Format:</span>
+                        <span class="value">SSML</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Queue:</span>
+                        <span class="value">2</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">35ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="bar-fill" style="width: 50%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-7')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 8: ElevenLabs -->
+            <div class="monitoring-box--large" id="station-8">
+                <div class="box-header">
+                    <div class="box-title">STATION 8: ELEVENLABS</div>
+                    <div class="status-badge warning">SLOW</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Voice:</span>
+                        <span class="value">Rachel</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Model:</span>
+                        <span class="value">turbo-v2</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Queue:</span>
+                        <span class="value">5</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">320ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="waveform-bars">
+                        <div class="wave-bar" style="height: 40%"></div>
+                        <div class="wave-bar" style="height: 60%"></div>
+                        <div class="wave-bar" style="height: 50%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 45%"></div>
+                        <div class="wave-bar" style="height: 55%"></div>
+                        <div class="wave-bar" style="height: 65%"></div>
+                        <div class="wave-bar" style="height: 50%"></div>
+                    </div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-8')">EXPAND ↗</button>
+            </div>
+        </div>
+
+        <!-- Stations Grid - Third Row (9-11) -->
+        <div class="stations-grid row-3">
+            <!-- Station 9: STT TX -->
+            <div class="monitoring-box--large" id="station-9">
+                <div class="box-header">
+                    <div class="box-title">STATION 9: STT TX</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">TTS Model:</span>
+                        <span class="value">HQ</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Filter:</span>
+                        <span class="value">ON</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Sample:</span>
+                        <span class="value">24kHz</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">95ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="waveform-bars">
+                        <div class="wave-bar" style="height: 80%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 85%"></div>
+                        <div class="wave-bar" style="height: 65%"></div>
+                        <div class="wave-bar" style="height: 75%"></div>
+                        <div class="wave-bar" style="height: 80%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 75%"></div>
+                    </div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-9')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 10: Gateway -->
+            <div class="monitoring-box--large" id="station-10">
+                <div class="box-header">
+                    <div class="box-title">STATION 10: GATEWAY</div>
+                    <div class="status-badge good">ONLINE</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">RTP Out:</span>
+                        <span class="value">2340/s</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Codec:</span>
+                        <span class="value">OPUS</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Buffer:</span>
+                        <span class="value">40ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">38ms</span>
+                    </div>
+                </div>
+                <div class="bar-visualization">
+                    <div class="waveform-bars">
+                        <div class="wave-bar" style="height: 75%"></div>
+                        <div class="wave-bar" style="height: 65%"></div>
+                        <div class="wave-bar" style="height: 80%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                        <div class="wave-bar" style="height: 75%"></div>
+                        <div class="wave-bar" style="height: 60%"></div>
+                        <div class="wave-bar" style="height: 85%"></div>
+                        <div class="wave-bar" style="height: 70%"></div>
+                    </div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-10')">EXPAND ↗</button>
+            </div>
+
+            <!-- Station 11: Hume EVI -->
+            <div class="monitoring-box--large" id="station-11">
+                <div class="box-header">
+                    <div class="box-title">STATION 11: HUME EVI</div>
+                    <div class="status-badge disabled">QUOTA LIMIT</div>
+                </div>
+                <div class="box-metrics">
+                    <div class="metric-row">
+                        <span class="label">Mode:</span>
+                        <span class="value">--</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Rate:</span>
+                        <span class="value">--</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">Queue:</span>
+                        <span class="value">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="label">L:</span>
+                        <span class="value">--</span>
+                    </div>
+                </div>
+                <div class="bar-visualization" style="opacity: 0.3">
+                    <div class="bar-fill" style="width: 0%"></div>
+                </div>
+                <button class="expand-btn" onclick="showLevel2('station-11')">EXPAND ↗</button>
+            </div>
+        </div>
+
+        <!-- AI Optimization Panel -->
+        <div class="ai-panel">
+            <div class="ai-panel-header">
+                <div class="ai-panel-title">Global AI Optimization Panel</div>
+                <div class="mode-indicator">Manual Mode</div>
+            </div>
+            <div class="ai-controls">
+                <div class="ai-control">
+                    <div class="ai-control-label">Optimization Level</div>
+                    <div class="ai-control-value">Medium</div>
+                </div>
+                <div class="ai-control">
+                    <div class="ai-control-label">Target Latency</div>
+                    <div class="ai-control-value">< 200ms</div>
+                </div>
+                <div class="ai-control">
+                    <div class="ai-control-label">Quality Priority</div>
+                    <div class="ai-control-value">Balanced</div>
+                </div>
+                <div class="ai-control">
+                    <div class="ai-control-label">Auto-Tune</div>
+                    <div class="ai-control-value">Disabled</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level 2 Container -->
+    <div class="level2" id="level2-view">
+        <div class="level2-container">
+            <div class="level2-header">
+                <h2 id="level2-title">Station Details</h2>
+                <button class="back-btn" onclick="hideLevel2()">← Back</button>
+            </div>
+
+            <div class="level2-content">
+                <!-- Audio Waveform -->
+                <div class="waveform-section">
+                    <h3>Audio Waveform</h3>
+                    <div id="level2-waveform"></div>
+                    <div style="margin-top: 10px; color: var(--accent-red);">● Recording</div>
+                </div>
+
+                <!-- Monitoring Metrics -->
+                <div class="metrics-grid">
+                    <div class="metric-group">
+                        <div class="metric-group-title">Buffer Metrics</div>
+                        <div class="metric-item">
+                            <span>▪ Input Buffer</span>
+                            <span>85%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Output Buffer</span>
+                            <span>72%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Jitter Buffer</span>
+                            <span>45ms</span>
+                        </div>
+                        <button class="expand-btn" style="position: static; margin-top: 10px;">Edit ↗</button>
+                    </div>
+
+                    <div class="metric-group">
+                        <div class="metric-group-title">Latency Metrics</div>
+                        <div class="metric-item">
+                            <span>▪ Processing</span>
+                            <span>45ms</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Network</span>
+                            <span>12ms</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Total</span>
+                            <span>180ms</span>
+                        </div>
+                        <button class="expand-btn" style="position: static; margin-top: 10px;">Edit ↗</button>
+                    </div>
+
+                    <div class="metric-group">
+                        <div class="metric-group-title">Packet Metrics</div>
+                        <div class="metric-item">
+                            <span>▪ Loss Rate</span>
+                            <span>0.1%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Retransmit</span>
+                            <span>2</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Bandwidth</span>
+                            <span>128kbps</span>
+                        </div>
+                        <button class="expand-btn" style="position: static; margin-top: 10px;">Edit ↗</button>
+                    </div>
+
+                    <div class="metric-group">
+                        <div class="metric-group-title">Audio Quality</div>
+                        <div class="metric-item">
+                            <span>▪ MOS Score</span>
+                            <span>4.6</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ SNR</span>
+                            <span>42dB</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>▪ Noise Level</span>
+                            <span>-48dB</span>
+                        </div>
+                        <button class="expand-btn" style="position: static; margin-top: 10px;">Edit ↗</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knobs & Controls -->
+            <div class="knobs-section">
+                <div class="knobs-title">KNOBS & CONTROLS</div>
+                <div class="knobs-grid" id="knobs-container">
+                    <!-- Knobs will be populated dynamically based on station -->
+                </div>
+                <div class="knob-buttons">
+                    <button class="knob-btn apply">Apply Changes</button>
+                    <button class="knob-btn reset">Reset to Default</button>
+                    <button class="knob-btn">Save as Default</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io('http://20.170.155.53:3021');
+
+        // Station configurations with proper metrics and knobs from Excel
+        const stationConfigs = {
+            'station-1': {
+                name: 'STATION 1: ASTERISK',
+                knobs: [
+                    { name: 'codec', label: 'Codec', type: 'select', options: ['G711', 'OPUS', 'G729'], value: 'OPUS' },
+                    { name: 'ptime', label: 'PTime (ms)', type: 'range', min: 10, max: 60, value: 20 },
+                    { name: 'jitter_buffer', label: 'Jitter Buffer (ms)', type: 'range', min: 0, max: 300, value: 50 },
+                    { name: 'aec_enabled', label: 'AEC', type: 'checkbox', value: true },
+                    { name: 'rtp_dscp_value', label: 'QoS DSCP', type: 'range', min: 0, max: 63, value: 46 }
+                ]
+            },
+            'station-2': {
+                name: 'STATION 2: GATEWAY',
+                knobs: [
+                    { name: 'sample_rate', label: 'Sample Rate', type: 'select', options: ['8000', '16000', '24000', '48000'], value: '16000' },
+                    { name: 'io_buffer_size', label: 'IO Buffer', type: 'range', min: 256, max: 4096, value: 1024 },
+                    { name: 'thread_pool_size', label: 'Thread Pool', type: 'range', min: 1, max: 64, value: 8 },
+                    { name: 'queue_len', label: 'Queue Length', type: 'range', min: 4, max: 512, value: 32 },
+                    { name: 'retry_attempts', label: 'Retry Policy', type: 'range', min: 0, max: 5, value: 2 }
+                ]
+            },
+            'station-3': {
+                name: 'STATION 3: STT PROC',
+                knobs: [
+                    { name: 'chunk_ms', label: 'Chunk Size (ms)', type: 'range', min: 50, max: 1000, value: 250 },
+                    { name: 'vad_level', label: 'VAD Sensitivity', type: 'select', options: ['low', 'medium', 'high'], value: 'medium' },
+                    { name: 'stt_model', label: 'STT Model', type: 'select', options: ['fast', 'accurate', 'nova-2'], value: 'nova-2' },
+                    { name: 'concurrency_limit', label: 'Max Concurrency', type: 'range', min: 1, max: 128, value: 16 },
+                    { name: 'dsp_profile', label: 'DSP Chain', type: 'select', options: ['none', 'light', 'strong'], value: 'light' }
+                ]
+            },
+            'station-4': {
+                name: 'STATION 4: DEEPGRAM',
+                knobs: [
+                    { name: 'streaming_mode', label: 'Streaming Mode', type: 'checkbox', value: true },
+                    { name: 'dg_partials', label: 'Enable Partials', type: 'checkbox', value: true },
+                    { name: 'dg_timeout_ms', label: 'Timeout (ms)', type: 'range', min: 500, max: 5000, value: 2000 },
+                    { name: 'dg_retry_attempts', label: 'Retry Logic', type: 'range', min: 0, max: 5, value: 2 }
+                ]
+            },
+            'station-5': {
+                name: 'STATION 5: TRANSLATION',
+                knobs: [
+                    { name: 'buffer_size', label: 'Buffer Size', type: 'range', min: 10, max: 100, value: 50 },
+                    { name: 'cache_enabled', label: 'Cache', type: 'checkbox', value: true },
+                    { name: 'batch_size', label: 'Batch Size', type: 'range', min: 1, max: 20, value: 5 }
+                ]
+            },
+            'station-6': {
+                name: 'STATION 6: DEEPL',
+                knobs: [
+                    { name: 'api_tier', label: 'API Tier', type: 'select', options: ['Free', 'Pro'], value: 'Pro' },
+                    { name: 'formality', label: 'Formality', type: 'select', options: ['default', 'more', 'less'], value: 'default' },
+                    { name: 'glossary', label: 'Use Glossary', type: 'checkbox', value: false }
+                ]
+            },
+            'station-7': {
+                name: 'STATION 7: TTS PREP',
+                knobs: [
+                    { name: 'format', label: 'Format', type: 'select', options: ['Plain', 'SSML'], value: 'SSML' },
+                    { name: 'prosody_rate', label: 'Speech Rate', type: 'range', min: 0.5, max: 2.0, value: 1.0, step: 0.1 },
+                    { name: 'prosody_pitch', label: 'Pitch', type: 'range', min: -20, max: 20, value: 0 }
+                ]
+            },
+            'station-8': {
+                name: 'STATION 8: ELEVENLABS',
+                knobs: [
+                    { name: 'voice_id', label: 'Voice', type: 'select', options: ['Rachel', 'Josh', 'Emily', 'Adam'], value: 'Rachel' },
+                    { name: 'model', label: 'Model', type: 'select', options: ['turbo-v2', 'eleven_multilingual_v2'], value: 'turbo-v2' },
+                    { name: 'stability', label: 'Stability', type: 'range', min: 0, max: 1, value: 0.5, step: 0.1 },
+                    { name: 'similarity_boost', label: 'Similarity', type: 'range', min: 0, max: 1, value: 0.5, step: 0.1 }
+                ]
+            },
+            'station-9': {
+                name: 'STATION 9: STT TX',
+                knobs: [
+                    { name: 'tts_model', label: 'TTS Model', type: 'select', options: ['fast', 'hq', 'emotional'], value: 'hq' },
+                    { name: 'tts_post_filter', label: 'Post Filter', type: 'checkbox', value: true },
+                    { name: 'tts_sample_rate', label: 'Sample Rate', type: 'select', options: ['16000', '24000', '48000'], value: '24000' },
+                    { name: 'tts_chunk_ms', label: 'Chunk Size (ms)', type: 'range', min: 50, max: 800, value: 200 }
+                ]
+            },
+            'station-10': {
+                name: 'STATION 10: GATEWAY',
+                knobs: [
+                    { name: 'rtp_buffer_ms', label: 'RTP Buffer (ms)', type: 'range', min: 0, max: 200, value: 40 },
+                    { name: 'rtp_codec_out', label: 'Output Codec', type: 'select', options: ['G711', 'OPUS'], value: 'OPUS' },
+                    { name: 'rtp_ptime_out_ms', label: 'PTime Out (ms)', type: 'range', min: 10, max: 60, value: 20 },
+                    { name: 'rtp_dscp_out', label: 'QoS DSCP Out', type: 'range', min: 0, max: 63, value: 46 }
+                ]
+            },
+            'station-11': {
+                name: 'STATION 11: HUME EVI',
+                knobs: [
+                    { name: 'hume_mode', label: 'Hume Mode', type: 'select', options: ['instant', 'stream'], value: 'instant' },
+                    { name: 'emotion_frame_rate', label: 'Emotion Rate (fps)', type: 'range', min: 10, max: 120, value: 30 }
+                ]
+            }
+        };
+
+        // Show Level 2 view
+        function showLevel2(stationId) {
+            const level2 = document.getElementById('level2-view');
+            const title = document.getElementById('level2-title');
+            const knobsContainer = document.getElementById('knobs-container');
+
+            const config = stationConfigs[stationId];
+            if (config) {
+                title.textContent = config.name + ' - Details';
+
+                // Clear and populate knobs
+                knobsContainer.innerHTML = '';
+                config.knobs.forEach(knob => {
+                    const knobControl = document.createElement('div');
+                    knobControl.className = 'knob-control';
+
+                    let inputHTML = '';
+                    if (knob.type === 'range') {
+                        inputHTML = `
+                            <input type="range" class="knob-slider"
+                                min="${knob.min}" max="${knob.max}"
+                                value="${knob.value}" ${knob.step ? `step="${knob.step}"` : ''}
+                                id="${knob.name}">
+                            <input type="number" class="knob-input"
+                                min="${knob.min}" max="${knob.max}"
+                                value="${knob.value}" ${knob.step ? `step="${knob.step}"` : ''}
+                                onchange="document.getElementById('${knob.name}').value = this.value">
+                        `;
+                    } else if (knob.type === 'select') {
+                        inputHTML = `
+                            <select class="knob-input" id="${knob.name}">
+                                ${knob.options.map(opt =>
+                                    `<option value="${opt}" ${opt === knob.value ? 'selected' : ''}>${opt}</option>`
+                                ).join('')}
+                            </select>
+                        `;
+                    } else if (knob.type === 'checkbox') {
+                        inputHTML = `
+                            <input type="checkbox" id="${knob.name}" ${knob.value ? 'checked' : ''}>
+                            <label for="${knob.name}">Enabled</label>
+                        `;
+                    }
+
+                    knobControl.innerHTML = `
+                        <div class="knob-label">${knob.label}</div>
+                        ${inputHTML}
+                    `;
+
+                    knobsContainer.appendChild(knobControl);
+                });
+            }
+
+            level2.classList.add('active');
+        }
+
+        // Hide Level 2 view
+        function hideLevel2() {
+            document.getElementById('level2-view').classList.remove('active');
+        }
+
+        // Header button handlers
+        function openSettings() {
+            alert('Settings panel - To be implemented');
+        }
+
+        function openAnalytics() {
+            alert('Analytics panel - To be implemented');
+        }
+
+        function openHelp() {
+            alert('Help panel - To be implemented');
+        }
+
+        // WebSocket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to monitoring server');
+        });
+
+        socket.on('metric-update', (data) => {
+            // Update metrics in real-time
+            if (data.stationId && data.metrics) {
+                updateStationMetrics(data.stationId, data.metrics);
+            }
+        });
+
+        socket.on('system-status', (data) => {
+            // Update system status
+            if (data.latency) {
+                document.getElementById('global-latency').textContent = data.latency + 'ms';
+            }
+            if (data.mos) {
+                document.getElementById('global-mos').textContent = data.mos;
+            }
+            if (data.activeCalls) {
+                document.getElementById('active-calls').textContent = data.activeCalls;
+            }
+        });
+
+        function updateStationMetrics(stationId, metrics) {
+            const station = document.getElementById(stationId);
+            if (!station) return;
+
+            // Update metric values
+            Object.keys(metrics).forEach(key => {
+                const element = station.querySelector(`[data-metric="${key}"]`);
+                if (element) {
+                    element.textContent = metrics[key];
+                }
+            });
+
+            // Update status badge if needed
+            const statusBadge = station.querySelector('.status-badge');
+            if (metrics.status && statusBadge) {
+                statusBadge.className = `status-badge ${metrics.status}`;
+                statusBadge.textContent = metrics.status.toUpperCase();
+            }
+        }
+
+        // Simulate real-time updates (remove in production)
+        setInterval(() => {
+            // Animate waveform bars
+            document.querySelectorAll('.wave-bar').forEach(bar => {
+                bar.style.height = (Math.random() * 80 + 20) + '%';
+            });
+        }, 200);
+
+        // Initialize
+        console.log('Monitoring dashboard initialized');
+    </script>
+</body>
+</html>

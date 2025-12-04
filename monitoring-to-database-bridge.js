@@ -9,7 +9,7 @@ const io = require('socket.io-client');
 const http = require('http');
 
 // Connect to monitoring server
-const monitoringSocket = io('http://20.170.155.53:3001');
+const monitoringSocket = io('http://localhost:3001');
 
 console.log('🌉 Monitoring-to-Database Bridge Starting...');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -60,7 +60,7 @@ monitoringSocket.on('unified-metrics', async (data) => {
     const options = {
         hostname: 'localhost',
         port: 8083,
-        path: '/api/v2.1/ingest',
+        path: '/api/monitoring-data',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

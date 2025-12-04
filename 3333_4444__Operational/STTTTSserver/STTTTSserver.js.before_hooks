@@ -498,14 +498,6 @@ async function createDeepgramStreamingConnection(extensionId) {
         console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
         
         // TODO Phase 4: Handle transcript and integrate with translation pipeline
-      // STATION-3 MONITORING: Record metrics
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onTranscript(data);
-      
-      // Reset timer for next segment
-      if (data.is_final) {
-        audioStartTimes[extensionId] = Date.now();
-      }
         // For now, just log it
         if (isFinal) {
           // Final transcript - ready for translation
@@ -517,9 +509,6 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Error occurred
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       console.error(`[WEBSOCKET] Error for extension ${extensionId}:`, error);
-      // STATION-3 MONITORING: Record error
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onError(error);
       streamingStateManager.stats.errors++;
       state.errors.push({
         timestamp: Date.now(),
@@ -536,9 +525,6 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Metadata received
     connection.on(LiveTranscriptionEvents.Metadata, (data) => {
       console.log(`[WEBSOCKET] Metadata received for extension ${extensionId}:`, JSON.stringify(data));
-      // STATION-3 MONITORING: Record metadata
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onMetadata(data);
     });
 
     console.log(`[WEBSOCKET] ✓ Deepgram streaming connection created for extension ${extensionId}`);

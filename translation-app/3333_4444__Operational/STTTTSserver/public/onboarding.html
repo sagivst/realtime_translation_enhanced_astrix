@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Calibration - Real-time Translation</title>
+    <link rel="stylesheet" href="css/onboarding.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Determine initial screen based on URL parameter (runs before page render)
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasPreselectedLang = urlParams.has('lang');
+        // Store this for use after DOM loads
+        window.__initialScreen = hasPreselectedLang ? 'micSetup' : 'welcome';
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Welcome/Language Selection Screen -->
+        <div id="welcomeScreen" class="screen">
+            <div class="logo">🎤</div>
+            <h1>Welcome to Real-time Translation</h1>
+            <p class="subtitle">Select your language to get started</p>
+
+            <div class="language-grid">
+                <button class="language-card" data-lang="en">
+                    <span class="flag">🇺🇸</span>
+                    <span class="lang-name">English</span>
+                </button>
+                <button class="language-card" data-lang="es">
+                    <span class="flag">🇪🇸</span>
+                    <span class="lang-name">Spanish</span>
+                </button>
+                <button class="language-card" data-lang="fr">
+                    <span class="flag">🇫🇷</span>
+                    <span class="lang-name">French</span>
+                </button>
+                <button class="language-card" data-lang="de">
+                    <span class="flag">🇩🇪</span>
+                    <span class="lang-name">German</span>
+                </button>
+                <button class="language-card" data-lang="it">
+                    <span class="flag">🇮🇹</span>
+                    <span class="lang-name">Italian</span>
+                </button>
+                <button class="language-card" data-lang="pt">
+                    <span class="flag">🇵🇹</span>
+                    <span class="lang-name">Portuguese</span>
+                </button>
+                <button class="language-card" data-lang="ja">
+                    <span class="flag">🇯🇵</span>
+                    <span class="lang-name">Japanese</span>
+                </button>
+                <button class="language-card" data-lang="ko">
+                    <span class="flag">🇰🇷</span>
+                    <span class="lang-name">Korean</span>
+                </button>
+                <button class="language-card" data-lang="zh">
+                    <span class="flag">🇨🇳</span>
+                    <span class="lang-name">Chinese</span>
+                </button>
+                <button class="language-card" data-lang="ru">
+                    <span class="flag">🇷🇺</span>
+                    <span class="lang-name">Russian</span>
+                </button>
+            </div>
+
+            <!-- Info Box -->
+            <div class="info-box-small">
+                <strong>What is calibration?</strong>
+                <p>We analyze your voice to improve recognition of your unique accent, pronunciation, and speech patterns.</p>
+            </div>
+        </div>
+
+        <!-- Options Screen (shown after language selection) -->
+        <div id="optionsScreen" class="screen">
+            <div class="logo">🎤</div>
+            <h1>Welcome to Real-time Translation</h1>
+            <p class="subtitle" id="optionsSubtitle">Choose how you'd like to get started</p>
+
+            <!-- Previous Profile Section (shown if profile exists for selected language) -->
+            <div id="existingProfileSection" class="option-section" style="display: none;">
+                <div class="option-card option-primary">
+                    <div class="option-icon">✅</div>
+                    <h3>Continue with Your Profile</h3>
+                    <p>Use your existing voice calibration for <strong id="existingProfileLangName">English</strong></p>
+                    <div class="profile-info">
+                        <span class="profile-label">Profile ID:</span>
+                        <span class="profile-value" id="existingProfileId">Loading...</span>
+                    </div>
+                    <button id="continueWithProfileBtn" class="btn btn-option btn-primary">
+                        Continue with Profile
+                    </button>
+                </div>
+            </div>
+
+            <!-- New Calibration Section -->
+            <div class="option-section">
+                <div class="option-card option-highlighted">
+                    <div class="option-badge">RECOMMENDED</div>
+                    <div class="option-icon">🎯</div>
+                    <h3>Perform Voice Calibration</h3>
+                    <p>Get personalized speech recognition (2-3 minutes)</p>
+                    <div class="benefits-list">
+                        <span class="benefit">✨ +10-15% accuracy</span>
+                        <span class="benefit">🎯 Learns your accent</span>
+                        <span class="benefit">🔒 Private & secure</span>
+                    </div>
+                    <button id="startCalibrationBtn" class="btn btn-option btn-success">
+                        Start Calibration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Skip Calibration Section -->
+            <div class="option-section">
+                <div class="option-card option-simple">
+                    <div class="option-icon">⚡</div>
+                    <h3>Skip Calibration</h3>
+                    <p>Use default settings for <strong id="skipLanguageName">your language</strong></p>
+                    <div class="skip-note">
+                        <small>⚠️ You can calibrate later from settings</small>
+                    </div>
+                    <button id="skipCalibrationBtn" class="btn btn-option btn-secondary">
+                        Continue Without Calibration
+                    </button>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="backToLanguageBtn" class="btn btn-secondary">Change Language</button>
+            </div>
+        </div>
+
+        <!-- Language Selection (for calibration flow) -->
+        <div id="languageScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 20%"></div>
+            </div>
+
+            <h2>Select Your Language</h2>
+            <p class="subtitle">Choose the language you'll be speaking</p>
+
+            <div class="language-grid">
+                <button class="language-card" data-lang="en">
+                    <span class="flag">🇺🇸</span>
+                    <span class="lang-name">English</span>
+                </button>
+                <button class="language-card" data-lang="es">
+                    <span class="flag">🇪🇸</span>
+                    <span class="lang-name">Spanish</span>
+                </button>
+                <button class="language-card" data-lang="fr">
+                    <span class="flag">🇫🇷</span>
+                    <span class="lang-name">French</span>
+                </button>
+                <button class="language-card" data-lang="de">
+                    <span class="flag">🇩🇪</span>
+                    <span class="lang-name">German</span>
+                </button>
+                <button class="language-card" data-lang="it">
+                    <span class="flag">🇮🇹</span>
+                    <span class="lang-name">Italian</span>
+                </button>
+                <button class="language-card" data-lang="pt">
+                    <span class="flag">🇵🇹</span>
+                    <span class="lang-name">Portuguese</span>
+                </button>
+                <button class="language-card" data-lang="ja">
+                    <span class="flag">🇯🇵</span>
+                    <span class="lang-name">Japanese</span>
+                </button>
+                <button class="language-card" data-lang="ko">
+                    <span class="flag">🇰🇷</span>
+                    <span class="lang-name">Korean</span>
+                </button>
+                <button class="language-card" data-lang="zh">
+                    <span class="flag">🇨🇳</span>
+                    <span class="lang-name">Chinese</span>
+                </button>
+                <button class="language-card" data-lang="ru">
+                    <span class="flag">🇷🇺</span>
+                    <span class="lang-name">Russian</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Microphone Setup -->
+        <div id="micSetupScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 40%"></div>
+            </div>
+
+            <h2>Microphone Setup</h2>
+            <p class="subtitle">We need access to your microphone</p>
+
+            <div class="mic-visual">
+                <div id="micIcon" class="mic-icon">🎤</div>
+                <canvas id="micVisualizer" width="300" height="100"></canvas>
+            </div>
+
+            <div id="micStatus" class="status-message">
+                Click "Allow Microphone" and grant permission in your browser
+            </div>
+
+            <div class="button-group">
+                <button id="allowMicBtn" class="btn btn-primary">Allow Microphone</button>
+                <button id="backToLangBtn" class="btn btn-secondary">Back</button>
+            </div>
+        </div>
+
+        <!-- Calibration Instructions -->
+        <div id="instructionsScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 60%"></div>
+            </div>
+
+            <h2>Calibration Instructions</h2>
+            <p class="subtitle">You'll read 5 short phrases</p>
+
+            <div class="info-box">
+                <h3>Tips for best results:</h3>
+                <ul>
+                    <li>📍 Find a quiet place</li>
+                    <li>🔊 Speak clearly at normal volume</li>
+                    <li>⏱️ Take your time, no rush</li>
+                    <li>🎯 Read exactly what's shown on screen</li>
+                </ul>
+            </div>
+
+            <div class="button-group">
+                <button id="startRecordingBtn" class="btn btn-primary">Start Recording</button>
+                <button id="backToMicBtn" class="btn btn-secondary">Back</button>
+            </div>
+        </div>
+
+        <!-- Recording Screen -->
+        <div id="recordingScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" id="phraseProgress" style="width: 60%"></div>
+            </div>
+
+            <div class="phrase-counter">
+                Phrase <span id="currentPhraseNum">1</span> of <span id="totalPhrases">5</span>
+            </div>
+
+            <div class="phrase-display">
+                <div id="phraseText" class="phrase-text">
+                    Hello, my name is John and I'm testing the voice calibration system.
+                </div>
+            </div>
+
+            <div class="recording-visual">
+                <div id="recordingIcon" class="recording-icon">⏺️</div>
+                <canvas id="recordingVisualizer" width="400" height="120"></canvas>
+            </div>
+
+            <div id="recordingStatus" class="status-message">
+                Click "Record" when ready, then read the phrase above
+            </div>
+
+            <div class="button-group">
+                <button id="recordPhraseBtn" class="btn btn-record">
+                    <span class="btn-icon">⏺️</span>
+                    <span class="btn-text">Record</span>
+                </button>
+                <button id="stopRecordingBtn" class="btn btn-stop" style="display: none;">
+                    <span class="btn-icon">✓</span>
+                    <span class="btn-text">Done</span>
+                </button>
+                <button id="nextPhraseBtn" class="btn btn-primary" style="display: none;">
+                    Next Phrase
+                </button>
+            </div>
+        </div>
+
+        <!-- Processing Screen -->
+        <div id="processingScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 80%"></div>
+            </div>
+
+            <h2>Processing Your Voice Profile</h2>
+            <p class="subtitle">Analyzing your speech patterns...</p>
+
+            <div class="spinner"></div>
+
+            <div class="processing-status">
+                <div id="processingMessage">Analyzing voice characteristics...</div>
+            </div>
+        </div>
+
+        <!-- Completion Screen -->
+        <div id="completionScreen" class="screen">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+            </div>
+
+            <div class="success-icon">✅</div>
+            <h2>Calibration Complete!</h2>
+            <p class="subtitle">Your voice profile has been created</p>
+
+            <div class="stats-box">
+                <h3>Your Profile:</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Language:</span>
+                    <span class="stat-value" id="profileLanguage">English</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Phrases Recorded:</span>
+                    <span class="stat-value" id="profilePhrases">5</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Profile ID:</span>
+                    <span class="stat-value" id="profileId">XXXXX-XXXXX</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Expected Accuracy Boost:</span>
+                    <span class="stat-value">+10-15%</span>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="goToConferenceBtn" class="btn btn-primary">Start Using App</button>
+                <button id="recalibrateBtn" class="btn btn-secondary">Recalibrate</button>
+            </div>
+        </div>
+
+        <!-- Error Screen -->
+        <div id="errorScreen" class="screen">
+            <div class="error-icon">❌</div>
+            <h2>Oops! Something went wrong</h2>
+            <p class="subtitle" id="errorMessage">Please try again</p>
+
+            <div class="button-group">
+                <button id="retryBtn" class="btn btn-primary">Try Again</button>
+                <button id="skipErrorBtn" class="btn btn-secondary">Skip Calibration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status">
+        <span id="connectionText">Connecting to server...</span>
+    </div>
+
+    <script src="js/onboarding.js"></script>
+</body>
+</html>

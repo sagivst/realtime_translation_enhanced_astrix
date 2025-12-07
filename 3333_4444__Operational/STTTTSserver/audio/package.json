@@ -1,0 +1,34 @@
+{
+  "name": "station-audio-streaming-system",
+  "version": "1.0.0",
+  "description": "Real-time RTP to PCM audio streaming with WebSocket transport and professional visualization",
+  "main": "integrated-audio-server.js",
+  "scripts": {
+    "start": "node integrated-audio-server.js",
+    "start:dev": "NODE_ENV=development VERBOSE_LOGGING=true node integrated-audio-server.js",
+    "start:custom": "node integrated-audio-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "audio",
+    "streaming",
+    "rtp",
+    "pcm",
+    "websocket",
+    "visualization",
+    "monitoring"
+  ],
+  "author": "Station Monitoring System",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0",
+    "socket.io": "^4.6.0",
+    "socket.io-client": "^4.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

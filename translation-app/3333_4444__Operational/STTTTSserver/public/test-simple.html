@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Test Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0a0e27;
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      color: #667eea;
+      font-size: 48px;
+    }
+    .status {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 10px;
+      margin: 20px auto;
+      max-width: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>✅ Test Page Loaded Successfully!</h1>
+  <div class="status">
+    <p>If you can see this, the monitoring server is serving HTML files correctly.</p>
+    <p>Server: Azure VM 20.170.155.53</p>
+    <p>Port: 3021</p>
+    <p>Timestamp: <span id="timestamp"></span></p>
+  </div>
+  <script>
+    document.getElementById('timestamp').textContent = new Date().toISOString();
+    console.log('[Test Page] Successfully loaded and JavaScript is working!');
+  </script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>75 Param - Modular Monitoring</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', monospace;
+      background: #0a0e27;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; }
+    
+    .category-section {
+      margin-bottom: 30px;
+    }
+    
+    .category-header {
+      background: #667eea;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .param-count {
+      background: rgba(255,255,255,0.2);
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    
+    .param-box {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid #334155;
+      padding: 12px;
+      border-radius: 8px;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    .param-box:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .param-category {
+      font-size: 9px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    
+    .param-name {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    .param-value {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .param-unit {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    
+    .param-status {
+      font-size: 9px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      display: inline-block;
+      font-weight: bold;
+    }
+    
+    .status-ok {
+      border-color: #10b981;
+    }
+    .status-ok .param-value { color: #10b981; }
+    .status-ok .param-status {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+    
+    .status-warning {
+      border-color: #f59e0b;
+    }
+    .status-warning .param-value { color: #f59e0b; }
+    .status-warning .param-status {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+    
+    .status-critical {
+      border-color: #ef4444;
+      animation: pulse 2s infinite;
+    }
+    .status-critical .param-value { color: #ef4444; }
+    .status-critical .param-status {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { border-color: #ef4444; }
+      50% { border-color: #dc2626; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎯 75-Parameter Modular Monitoring System</h1>
+    <p>Each parameter is an independent monitoring module</p>
+  </div>
+  
+  <div id="monitoring-container"></div>
+
+  <script>
+    // Modular Parameter Box Component
+    class ParamBox {
+      constructor(config) {
+        this.id = config.id;
+        this.name = config.name;
+        this.category = config.category;
+        this.path = config.path;
+        this.unit = config.unit || '';
+        this.thresholds = config.thresholds || {};
+      }
+
+      getStatus(value) {
+        if (typeof value !== 'number') return 'ok';
+        if (this.thresholds.criticalHigh && value >= this.thresholds.criticalHigh) return 'critical';
+        if (this.thresholds.criticalLow && value <= this.thresholds.criticalLow) return 'critical';
+        if (this.thresholds.warningHigh && value >= this.thresholds.warningHigh) return 'warning';
+        if (this.thresholds.warningLow && value <= this.thresholds.warningLow) return 'warning';
+        return 'ok';
+      }
+
+      render(value) {
+        const status = this.getStatus(value);
+        const displayValue = typeof value === 'number' ? value.toFixed(2) : value;
+        
+        return `
+          <div class="param-box status-${status}" data-param-id="${this.id}">
+            <div class="param-category">${this.category}</div>
+            <div class="param-name">${this.name}</div>
+            <div class="param-value">${displayValue}</div>
+            <div class="param-unit">${this.unit}</div>
+            <div class="param-status">${status.toUpperCase()}</div>
+          </div>
+        `;
+      }
+
+      update(value) {
+        const element = document.querySelector(`[data-param-id="${this.id}"]`);
+        if (!element) return;
+        
+        const status = this.getStatus(value);
+        const displayValue = typeof value === 'number' ? value.toFixed(2) : value;
+        
+        element.className = `param-box status-${status}`;
+        element.querySelector('.param-value').textContent = displayValue;
+        element.querySelector('.param-status').textContent = status.toUpperCase();
+      }
+    }
+
+    // Parameter Registry - each parameter is a separate module
+    const parameterModules = [];
+
+    // Register all 75 parameter modules
+    function registerParameters() {
+      // Buffer (7)
+      parameterModules.push(new ParamBox({ id: 'buffer.total', name: 'Buffer Total', category: 'buffer', path: 'buffer.total', unit: '%', thresholds: { warningHigh: 80, criticalHigh: 95 } }));
+      parameterModules.push(new ParamBox({ id: 'buffer.underruns', name: 'Underruns', category: 'buffer', path: 'buffer.underruns', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'buffer.overruns', name: 'Overruns', category: 'buffer', path: 'buffer.overruns', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'buffer.size', name: 'Size', category: 'buffer', path: 'buffer.size', unit: 'KB' }));
+      parameterModules.push(new ParamBox({ id: 'buffer.reads', name: 'Reads', category: 'buffer', path: 'buffer.reads', unit: 'ops/s' }));
+      parameterModules.push(new ParamBox({ id: 'buffer.writes', name: 'Writes', category: 'buffer', path: 'buffer.writes', unit: 'ops/s' }));
+      parameterModules.push(new ParamBox({ id: 'buffer.lastRead', name: 'Last Read', category: 'buffer', path: 'buffer.lastRead', unit: 'ms' }));
+
+      // Latency (4)
+      parameterModules.push(new ParamBox({ id: 'latency.avg', name: 'Avg Latency', category: 'latency', path: 'latency.avg', unit: 'ms', thresholds: { warningHigh: 100, criticalHigh: 200 } }));
+      parameterModules.push(new ParamBox({ id: 'latency.min', name: 'Min Latency', category: 'latency', path: 'latency.min', unit: 'ms' }));
+      parameterModules.push(new ParamBox({ id: 'latency.max', name: 'Max Latency', category: 'latency', path: 'latency.max', unit: 'ms' }));
+      parameterModules.push(new ParamBox({ id: 'latency.lastMeasured', name: 'Last Measured', category: 'latency', path: 'latency.lastMeasured', unit: 'ms' }));
+
+      // Packet (7)
+      parameterModules.push(new ParamBox({ id: 'packet.rx', name: 'Packets RX', category: 'packet', path: 'packet.rx', unit: 'pkt/s' }));
+      parameterModules.push(new ParamBox({ id: 'packet.tx', name: 'Packets TX', category: 'packet', path: 'packet.tx', unit: 'pkt/s' }));
+      parameterModules.push(new ParamBox({ id: 'packet.dropped', name: 'Dropped', category: 'packet', path: 'packet.dropped', unit: 'count', thresholds: { warningHigh: 10, criticalHigh: 50 } }));
+      parameterModules.push(new ParamBox({ id: 'packet.lossRate', name: 'Loss Rate', category: 'packet', path: 'packet.lossRate', unit: '%', thresholds: { warningHigh: 1, criticalHigh: 5 } }));
+      parameterModules.push(new ParamBox({ id: 'packet.bytesRx', name: 'Bytes RX', category: 'packet', path: 'packet.bytesRx', unit: 'KB/s' }));
+      parameterModules.push(new ParamBox({ id: 'packet.bytesTx', name: 'Bytes TX', category: 'packet', path: 'packet.bytesTx', unit: 'KB/s' }));
+      parameterModules.push(new ParamBox({ id: 'packet.timestamp', name: 'Timestamp', category: 'packet', path: 'packet.timestamp', unit: 'ms' }));
+
+      // Audio Quality (8)
+      parameterModules.push(new ParamBox({ id: 'audioQuality.snr', name: 'SNR', category: 'audioQuality', path: 'audioQuality.snr', unit: 'dB', thresholds: { warningLow: 20, criticalLow: 10 } }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.audioLevel', name: 'Audio Level', category: 'audioQuality', path: 'audioQuality.audioLevel', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.clipping', name: 'Clipping', category: 'audioQuality', path: 'audioQuality.clipping', unit: '%', thresholds: { warningHigh: 1, criticalHigh: 5 } }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.dynamicRange', name: 'Dynamic Range', category: 'audioQuality', path: 'audioQuality.dynamicRange', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.peakLevel', name: 'Peak Level', category: 'audioQuality', path: 'audioQuality.peakLevel', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.silenceDetected', name: 'Silence Detected', category: 'audioQuality', path: 'audioQuality.silenceDetected', unit: 'bool' }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.spectralBalance', name: 'Spectral Balance', category: 'audioQuality', path: 'audioQuality.spectralBalance', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'audioQuality.harmonicDistortion', name: 'Harmonic Distortion', category: 'audioQuality', path: 'audioQuality.harmonicDistortion', unit: '%' }));
+
+      // Performance (5)
+      parameterModules.push(new ParamBox({ id: 'performance.cpu', name: 'CPU Usage', category: 'performance', path: 'performance.cpu', unit: '%', thresholds: { warningHigh: 70, criticalHigh: 90 } }));
+      parameterModules.push(new ParamBox({ id: 'performance.memory', name: 'Memory', category: 'performance', path: 'performance.memory', unit: 'MB', thresholds: { warningHigh: 800, criticalHigh: 1000 } }));
+      parameterModules.push(new ParamBox({ id: 'performance.threads', name: 'Threads', category: 'performance', path: 'performance.threads', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'performance.processingDelay', name: 'Processing Delay', category: 'performance', path: 'performance.processingDelay', unit: 'ms' }));
+      parameterModules.push(new ParamBox({ id: 'performance.uptimeMs', name: 'Uptime', category: 'performance', path: 'performance.uptimeMs', unit: 'ms' }));
+
+      // Custom (7)
+      parameterModules.push(new ParamBox({ id: 'custom.state', name: 'State', category: 'custom', path: 'custom.state', unit: '' }));
+      parameterModules.push(new ParamBox({ id: 'custom.lastActivity', name: 'Last Activity', category: 'custom', path: 'custom.lastActivity', unit: 'ms' }));
+      parameterModules.push(new ParamBox({ id: 'custom.totalProcessed', name: 'Total Processed', category: 'custom', path: 'custom.totalProcessed', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'custom.processingSpeed', name: 'Processing Speed', category: 'custom', path: 'custom.processingSpeed', unit: 'ops/s' }));
+      parameterModules.push(new ParamBox({ id: 'custom.successRate', name: 'Success Rate', category: 'custom', path: 'custom.successRate', unit: '%', thresholds: { warningLow: 95, criticalLow: 90 } }));
+      parameterModules.push(new ParamBox({ id: 'custom.warningCount', name: 'Warnings', category: 'custom', path: 'custom.warningCount', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'custom.criticalCount', name: 'Criticals', category: 'custom', path: 'custom.criticalCount', unit: 'count', thresholds: { warningHigh: 1, criticalHigh: 3 } }));
+
+      // DSP (20 parameters across 12 subcategories)
+      parameterModules.push(new ParamBox({ id: 'dsp.hpf.lowFreqRumble', name: 'Low Freq Rumble', category: 'dsp', path: 'dsp.hpf.lowFreqRumble', unit: 'dB', thresholds: { warningHigh: -35, criticalHigh: -30 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.lpf.hfHarshness', name: 'HF Harshness', category: 'dsp', path: 'dsp.lpf.hfHarshness', unit: 'dB', thresholds: { warningHigh: -15, criticalHigh: -10 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.nr.residualNoise', name: 'Residual Noise', category: 'dsp', path: 'dsp.nr.residualNoise', unit: 'dB', thresholds: { warningHigh: -40, criticalHigh: -35 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.nr.speechIntegrityLoss', name: 'Speech Integrity Loss', category: 'dsp', path: 'dsp.nr.speechIntegrityLoss', unit: '%', thresholds: { warningHigh: 5, criticalHigh: 8 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.agc.gainAdjustmentSpeed', name: 'Gain Adjust Speed', category: 'dsp', path: 'dsp.agc.gainAdjustmentSpeed', unit: 'dB/s' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.agc.overAmplificationEvents', name: 'Over-Amplification', category: 'dsp', path: 'dsp.agc.overAmplificationEvents', unit: 'count', thresholds: { warningHigh: 10, criticalHigh: 15 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.agc.rmsDeviation', name: 'RMS Deviation', category: 'dsp', path: 'dsp.agc.rmsDeviation', unit: 'dB', thresholds: { warningHigh: 3, criticalHigh: 4 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.comp.dynRangeReduction', name: 'Dyn Range Reduction', category: 'dsp', path: 'dsp.comp.dynRangeReduction', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.comp.compressionEvents', name: 'Compression Events', category: 'dsp', path: 'dsp.comp.compressionEvents', unit: 'count' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.limiter.clipPreventionRate', name: 'Clip Prevention Rate', category: 'dsp', path: 'dsp.limiter.clipPreventionRate', unit: '%', thresholds: { warningLow: 95, criticalLow: 92 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.limiter.peakMargin', name: 'Peak Margin', category: 'dsp', path: 'dsp.limiter.peakMargin', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.eq.clarityBandEnergy', name: 'Clarity Band Energy', category: 'dsp', path: 'dsp.eq.clarityBandEnergy', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.eq.sibilanceEnergy', name: 'Sibilance Energy', category: 'dsp', path: 'dsp.eq.sibilanceEnergy', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.aec.erl', name: 'Echo Return Loss', category: 'dsp', path: 'dsp.aec.erl', unit: 'dB', thresholds: { warningLow: 20, criticalLow: 15 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.aec.erle', name: 'Echo Return Loss Enh', category: 'dsp', path: 'dsp.aec.erle', unit: 'dB', thresholds: { warningLow: 30, criticalLow: 25 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.aec.lateEchoResidual', name: 'Late Echo Residual', category: 'dsp', path: 'dsp.aec.lateEchoResidual', unit: 'dB', thresholds: { warningHigh: -35, criticalHigh: -30 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.deEsser.sibilanceLevel', name: 'Sibilance Level', category: 'dsp', path: 'dsp.deEsser.sibilanceLevel', unit: 'dB' }));
+      parameterModules.push(new ParamBox({ id: 'dsp.declicker.clickCount', name: 'Click Count', category: 'dsp', path: 'dsp.declicker.clickCount', unit: 'count', thresholds: { warningHigh: 5, criticalHigh: 8 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.dereverb.reverbLevel', name: 'Reverb Level', category: 'dsp', path: 'dsp.dereverb.reverbLevel', unit: '%', thresholds: { warningHigh: 25, criticalHigh: 30 } }));
+      parameterModules.push(new ParamBox({ id: 'dsp.speechEnh.intelligibilityScore', name: 'Intelligibility Score', category: 'dsp', path: 'dsp.speechEnh.intelligibilityScore', unit: '%', thresholds: { warningLow: 80, criticalLow: 75 } }));
+    }
+
+    // Render all parameter modules grouped by category
+    function renderDashboard(metrics) {
+      const container = document.getElementById('monitoring-container');
+      const categories = ['buffer', 'latency', 'packet', 'audioQuality', 'performance', 'custom', 'dsp'];
+      const categoryNames = {
+        buffer: 'Buffer Management',
+        latency: 'Latency Metrics',
+        packet: 'Packet Statistics',
+        audioQuality: 'Audio Quality',
+        performance: 'Performance',
+        custom: 'Custom Metrics',
+        dsp: 'DSP Enhancement'
+      };
+      
+      let html = '';
+      
+      categories.forEach(cat => {
+        const catModules = parameterModules.filter(p => p.category === cat);
+        if (catModules.length === 0) return;
+        
+        html += `
+          <div class="category-section">
+            <div class="category-header">
+              <span>${categoryNames[cat]}</span>
+              <span class="param-count">${catModules.length} params</span>
+            </div>
+            <div class="params-grid">
+        `;
+        
+        catModules.forEach(module => {
+          const value = getValueByPath(metrics, module.path);
+          html += module.render(value);
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      });
+      
+      container.innerHTML = html;
+    }
+
+    // Update all parameter modules
+    function updateDashboard(metrics) {
+      parameterModules.forEach(module => {
+        const value = getValueByPath(metrics, module.path);
+        module.update(value);
+      });
+    }
+
+    // Helper to get nested value by path
+    function getValueByPath(obj, path) {
+      return path.split('.').reduce((current, prop) => current?.[prop], obj);
+    }
+
+    // Initialize
+    const socket = io('http://20.170.155.53:3021');
+    let currentStation = 'station-1';
+    let isFirstRender = true;
+
+    async function loadMetrics() {
+      try {
+        const response = await fetch(`http://20.170.155.53:3021/api/stations/${currentStation}/metrics`);
+        const data = await response.json();
+        
+        if (isFirstRender) {
+          renderDashboard(data.metrics);
+          isFirstRender = false;
+        } else {
+          updateDashboard(data.metrics);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    socket.on('station-update', (station) => {
+      if (station.id === currentStation) loadMetrics();
+    });
+
+    registerParameters();
+    loadMetrics();
+    setInterval(loadMetrics, 2000);
+  </script>
+</body>
+</html>

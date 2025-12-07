@@ -1,0 +1,56 @@
+.ios-wheel-mask {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: white;
+}
+
+.ios-wheel-list {
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ios-wheel-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* Added class to disable pointer events for non-interactive pickers */
+.ios-wheel-list.pointer-events-none {
+  overflow-y: hidden !important;
+  pointer-events: none !important;
+}
+
+.ios-wheel-item {
+  font-size: 32px;
+  font-weight: 400;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out;
+  scroll-snap-align: center;
+  color: black;
+}
+
+/* Fade overlays like iOS */
+.ios-wheel-mask::before,
+.ios-wheel-mask::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30%;
+  pointer-events: none;
+}
+
+.ios-wheel-mask::before {
+  top: 0;
+  background: linear-gradient(to bottom, white 60%, transparent);
+}
+
+.ios-wheel-mask::after {
+  bottom: 0;
+  background: linear-gradient(to top, white 60%, transparent);
+}

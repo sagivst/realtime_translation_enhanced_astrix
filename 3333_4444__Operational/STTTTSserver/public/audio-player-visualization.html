@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Audio Monitoring - Live Visualization</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            background: linear-gradient(45deg, #00f5ff, #ff00ea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .station-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .station-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .station-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .station-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .port-badge {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.8em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .btn-play {
+            background: linear-gradient(45deg, #4caf50, #45a049);
+            color: white;
+        }
+
+        .btn-stop {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+
+        .btn-mute {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .visualization-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            width: 100%;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .vu-meter {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .vu-channel {
+            flex: 1;
+        }
+
+        .vu-label {
+            font-size: 0.8em;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .vu-bar {
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .vu-fill {
+            height: 100%;
+            transition: width 0.1s ease;
+            background: linear-gradient(90deg, #4caf50, #ffc107, #f44336);
+        }
+
+        .vu-value {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75em;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #4caf50;
+        }
+
+        .stat-label {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-active {
+            background: #4caf50;
+            box-shadow: 0 0 10px #4caf50;
+            animation: blink 1s infinite;
+        }
+
+        .status-inactive {
+            background: #999;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .alert-banner {
+            background: rgba(255, 152, 0, 0.2);
+            border-left: 4px solid #ff9800;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .alert-banner.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 Station Audio Monitoring</h1>
+        <div>Real-time Audio Visualization & Playback</div>
+        <div class="connection-status" id="connectionStatus">Connecting...</div>
+    </div>
+
+    <div class="station-grid" id="stationGrid">
+        <!-- Stations will be dynamically added here -->
+    </div>
+
+    <script>
+        // Configuration
+        const AUDIO_SERVER_URL = window.location.origin;
+        const STATIONS = [
+            { port: 3333, name: 'Station 3333', color: '#667eea' },
+            { port: 4444, name: 'Station 4444', color: '#764ba2' }
+        ];
+
+        // Global state
+        const audioContexts = new Map();
+        const audioPlayers = new Map();
+        let socket = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeSocket();
+            createStationCards();
+        });
+
+        /**
+         * Initialize Socket.IO connection
+         */
+        function initializeSocket() {
+            socket = io(AUDIO_SERVER_URL);
+
+            socket.on('connect', () => {
+                console.log('Connected to audio server');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from audio server');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('audio-packet', (data) => {
+                handleAudioPacket(data);
+            });
+
+            socket.on('visualization-data', (data) => {
+                updateVisualization(data);
+            });
+
+            socket.on('stream-stats', (data) => {
+                updateStats(data);
+            });
+
+            socket.on('connection-quality', (data) => {
+                updateConnectionQuality(data);
+            });
+
+            socket.on('buffer-status', (data) => {
+                updateBufferStatus(data);
+            });
+        }
+
+        /**
+         * Update connection status
+         */
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.textContent = 'Connected ✓';
+                status.style.background = '#4caf50';
+            } else {
+                status.textContent = 'Disconnected ✗';
+                status.style.background = '#f44336';
+            }
+        }
+
+        /**
+         * Create station cards
+         */
+        function createStationCards() {
+            const grid = document.getElementById('stationGrid');
+
+            STATIONS.forEach(station => {
+                const card = createStationCard(station);
+                grid.appendChild(card);
+                initializeAudioPlayer(station.port);
+            });
+        }
+
+        /**
+         * Create a station card
+         */
+        function createStationCard(station) {
+            const card = document.createElement('div');
+            card.className = 'station-card';
+            card.id = `station-${station.port}`;
+
+            card.innerHTML = `
+                <div class="station-header">
+                    <div class="station-title">
+                        <span class="status-indicator status-inactive" id="status-${station.port}"></span>
+                        ${station.name}
+                    </div>
+                    <div class="port-badge">Port ${station.port}</div>
+                </div>
+
+                <div class="alert-banner" id="alert-${station.port}">
+                    <strong>⚠️ Connection Warning</strong>
+                    <div id="alert-message-${station.port}"></div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn btn-play" id="play-${station.port}">▶️ Play</button>
+                    <button class="btn btn-stop" id="stop-${station.port}" disabled>⏹️ Stop</button>
+                    <button class="btn btn-mute" id="mute-${station.port}">🔇 Mute</button>
+                    <div class="volume-control">
+                        <span>🔊</span>
+                        <input type="range" class="volume-slider" id="volume-${station.port}"
+                               min="0" max="100" value="100">
+                        <span id="volume-value-${station.port}">100%</span>
+                    </div>
+                </div>
+
+                <div class="visualization-container">
+                    <div class="vu-meter">
+                        <div class="vu-channel">
+                            <div class="vu-label">RMS Level</div>
+                            <div class="vu-bar">
+                                <div class="vu-fill" id="vu-rms-${station.port}" style="width: 0%"></div>
+                                <div class="vu-value" id="vu-rms-value-${station.port}">-∞ dB</div>
+                            </div>
+                        </div>
+                        <div class="vu-channel">
+                            <div class="vu-label">Peak Level</div>
+                            <div class="vu-bar">
+                                <div class="vu-fill" id="vu-peak-${station.port}" style="width: 0%"></div>
+                                <div class="vu-value" id="vu-peak-value-${station.port}">-∞ dB</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <canvas id="waveform-${station.port}" width="800" height="150"></canvas>
+                    <canvas id="spectrum-${station.port}" width="800" height="150"></canvas>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="packets-${station.port}">0</div>
+                        <div class="stat-label">Packets</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="latency-${station.port}">0</div>
+                        <div class="stat-label">Latency (ms)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="quality-${station.port}">Good</div>
+                        <div class="stat-label">Quality</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="buffer-${station.port}">0</div>
+                        <div class="stat-label">Buffer</div>
+                    </div>
+                </div>
+            `;
+
+            // Attach event listeners
+            setTimeout(() => {
+                attachControlListeners(station.port);
+            }, 100);
+
+            return card;
+        }
+
+        /**
+         * Attach control listeners
+         */
+        function attachControlListeners(port) {
+            const playBtn = document.getElementById(`play-${port}`);
+            const stopBtn = document.getElementById(`stop-${port}`);
+            const muteBtn = document.getElementById(`mute-${port}`);
+            const volumeSlider = document.getElementById(`volume-${port}`);
+
+            playBtn.addEventListener('click', () => startAudio(port));
+            stopBtn.addEventListener('click', () => stopAudio(port));
+            muteBtn.addEventListener('click', () => toggleMute(port));
+            volumeSlider.addEventListener('input', (e) => updateVolume(port, e.target.value));
+        }
+
+        /**
+         * Initialize audio player for a station
+         */
+        function initializeAudioPlayer(port) {
+            const player = {
+                port,
+                isPlaying: false,
+                isMuted: false,
+                volume: 1.0,
+                audioContext: null,
+                gainNode: null,
+                analyser: null,
+                waveformData: new Float32Array(2048),
+                spectrumData: new Uint8Array(256),
+                audioBuffer: [],
+                lastPacketTime: 0
+            };
+
+            audioPlayers.set(port, player);
+        }
+
+        /**
+         * Start audio playback
+         */
+        function startAudio(port) {
+            const player = audioPlayers.get(port);
+            if (!player || player.isPlaying) return;
+
+            // Create Web Audio API context
+            if (!player.audioContext) {
+                player.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                player.gainNode = player.audioContext.createGain();
+                player.analyser = player.audioContext.createAnalyser();
+                player.analyser.fftSize = 2048;
+
+                player.gainNode.connect(player.analyser);
+                player.analyser.connect(player.audioContext.destination);
+            }
+
+            player.isPlaying = true;
+
+            // Subscribe to audio stream
+            socket.emit('subscribe-audio-stream', port);
+            socket.emit('audio-control', { action: 'start', value: true });
+
+            // Update UI
+            updatePlaybackUI(port, true);
+            updateStatusIndicator(port, true);
+
+            // Start visualization loop
+            startVisualizationLoop(port);
+
+            console.log(`Started audio playback for port ${port}`);
+        }
+
+        /**
+         * Stop audio playback
+         */
+        function stopAudio(port) {
+            const player = audioPlayers.get(port);
+            if (!player || !player.isPlaying) return;
+
+            player.isPlaying = false;
+
+            // Unsubscribe from audio stream
+            socket.emit('unsubscribe-audio-stream', port);
+            socket.emit('audio-control', { action: 'stop', value: false });
+
+            // Update UI
+            updatePlaybackUI(port, false);
+            updateStatusIndicator(port, false);
+
+            console.log(`Stopped audio playback for port ${port}`);
+        }
+
+        /**
+         * Toggle mute
+         */
+        function toggleMute(port) {
+            const player = audioPlayers.get(port);
+            if (!player) return;
+
+            player.isMuted = !player.isMuted;
+
+            if (player.gainNode) {
+                player.gainNode.gain.value = player.isMuted ? 0 : player.volume;
+            }
+
+            socket.emit('audio-control', { action: 'mute', value: player.isMuted });
+
+            // Update button
+            const muteBtn = document.getElementById(`mute-${port}`);
+            muteBtn.textContent = player.isMuted ? '🔊 Unmute' : '🔇 Mute';
+
+            console.log(`${player.isMuted ? 'Muted' : 'Unmuted'} audio for port ${port}`);
+        }
+
+        /**
+         * Update volume
+         */
+        function updateVolume(port, value) {
+            const player = audioPlayers.get(port);
+            if (!player) return;
+
+            const volume = value / 100;
+            player.volume = volume;
+
+            if (player.gainNode && !player.isMuted) {
+                player.gainNode.gain.value = volume;
+            }
+
+            socket.emit('audio-control', { action: 'volume', value: volume });
+
+            // Update display
+            document.getElementById(`volume-value-${port}`).textContent = `${value}%`;
+        }
+
+        /**
+         * Handle incoming audio packet
+         */
+        function handleAudioPacket(data) {
+            const { streamId, data: audioData, timestamp } = data;
+            const player = audioPlayers.get(streamId);
+
+            if (!player || !player.isPlaying || !player.audioContext) return;
+
+            // In a real implementation, decode and play the audio data
+            // For now, we'll just track that we received it
+            player.lastPacketTime = Date.now();
+        }
+
+        /**
+         * Update visualization
+         */
+        function updateVisualization(data) {
+            const { port, rms, peak, spectrum, level, peakDb } = data;
+
+            // Update VU meters
+            updateVUMeter(port, 'rms', rms, level);
+            updateVUMeter(port, 'peak', peak, peakDb);
+
+            // Store spectrum data
+            const player = audioPlayers.get(port);
+            if (player && spectrum) {
+                player.spectrumData = new Uint8Array(spectrum.map(v => v * 255));
+            }
+        }
+
+        /**
+         * Update VU meter
+         */
+        function updateVUMeter(port, type, value, db) {
+            const fill = document.getElementById(`vu-${type}-${port}`);
+            const valueDisplay = document.getElementById(`vu-${type}-value-${port}`);
+
+            if (!fill || !valueDisplay) return;
+
+            // Convert to percentage (0-1 range to 0-100%)
+            const percentage = Math.min(100, value * 100);
+            fill.style.width = `${percentage}%`;
+
+            // Display dB value
+            if (db !== null && db !== undefined && isFinite(db)) {
+                valueDisplay.textContent = `${db.toFixed(1)} dB`;
+            } else {
+                valueDisplay.textContent = '-∞ dB';
+            }
+        }
+
+        /**
+         * Start visualization loop
+         */
+        function startVisualizationLoop(port) {
+            const player = audioPlayers.get(port);
+            if (!player) return;
+
+            function animate() {
+                if (!player.isPlaying) return;
+
+                // Draw waveform
+                drawWaveform(port);
+
+                // Draw spectrum
+                drawSpectrum(port);
+
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        /**
+         * Draw waveform
+         */
+        function drawWaveform(port) {
+            const canvas = document.getElementById(`waveform-${port}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const player = audioPlayers.get(port);
+
+            if (!player || !player.analyser) return;
+
+            player.analyser.getFloatTimeDomainData(player.waveformData);
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const bufferLength = player.waveformData.length;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00f5ff';
+            ctx.beginPath();
+
+            const sliceWidth = width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = player.waveformData[i];
+                const y = (v + 1) / 2 * height;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            ctx.stroke();
+        }
+
+        /**
+         * Draw spectrum
+         */
+        function drawSpectrum(port) {
+            const canvas = document.getElementById(`spectrum-${port}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const player = audioPlayers.get(port);
+
+            if (!player || !player.analyser) return;
+
+            player.analyser.getByteFrequencyData(player.spectrumData);
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const bufferLength = player.spectrumData.length;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, width, height);
+
+            const barWidth = width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const barHeight = (player.spectrumData[i] / 255) * height;
+
+                const hue = (i / bufferLength) * 120;
+                ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+                ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+
+                x += barWidth;
+            }
+        }
+
+        /**
+         * Update stats
+         */
+        function updateStats(data) {
+            const { streamId, stats } = data;
+
+            if (stats.packetsSent !== undefined) {
+                const el = document.getElementById(`packets-${streamId}`);
+                if (el) el.textContent = stats.packetsSent;
+            }
+
+            if (stats.quality && stats.quality.avgLatency !== undefined) {
+                const el = document.getElementById(`latency-${streamId}`);
+                if (el) el.textContent = Math.round(stats.quality.avgLatency);
+            }
+
+            if (stats.bufferSize !== undefined) {
+                const el = document.getElementById(`buffer-${streamId}`);
+                if (el) el.textContent = stats.bufferSize;
+            }
+        }
+
+        /**
+         * Update connection quality
+         */
+        function updateConnectionQuality(data) {
+            const { streamId, quality } = data;
+            const el = document.getElementById(`quality-${streamId}`);
+            if (el) {
+                el.textContent = quality.charAt(0).toUpperCase() + quality.slice(1);
+
+                // Color code based on quality
+                const colors = {
+                    excellent: '#4caf50',
+                    good: '#8bc34a',
+                    fair: '#ffc107',
+                    degraded: '#ff9800',
+                    poor: '#f44336'
+                };
+                el.style.color = colors[quality] || '#fff';
+            }
+
+            // Show alert if quality is poor
+            if (quality === 'poor' || quality === 'degraded') {
+                showAlert(streamId, `Connection quality is ${quality}`);
+            }
+        }
+
+        /**
+         * Update buffer status
+         */
+        function updateBufferStatus(data) {
+            const { streamId, bufferSize, health } = data;
+
+            if (health === 'critical' || health === 'warning') {
+                showAlert(streamId, `Buffer health: ${health} (${bufferSize} packets)`);
+            }
+        }
+
+        /**
+         * Show alert banner
+         */
+        function showAlert(port, message) {
+            const banner = document.getElementById(`alert-${port}`);
+            const messageEl = document.getElementById(`alert-message-${port}`);
+
+            if (banner && messageEl) {
+                messageEl.textContent = message;
+                banner.classList.add('show');
+
+                setTimeout(() => {
+                    banner.classList.remove('show');
+                }, 5000);
+            }
+        }
+
+        /**
+         * Update playback UI
+         */
+        function updatePlaybackUI(port, playing) {
+            const playBtn = document.getElementById(`play-${port}`);
+            const stopBtn = document.getElementById(`stop-${port}`);
+
+            if (playBtn) playBtn.disabled = playing;
+            if (stopBtn) stopBtn.disabled = !playing;
+        }
+
+        /**
+         * Update status indicator
+         */
+        function updateStatusIndicator(port, active) {
+            const indicator = document.getElementById(`status-${port}`);
+            if (indicator) {
+                indicator.className = `status-indicator ${active ? 'status-active' : 'status-inactive'}`;
+            }
+        }
+    </script>
+</body>
+</html>

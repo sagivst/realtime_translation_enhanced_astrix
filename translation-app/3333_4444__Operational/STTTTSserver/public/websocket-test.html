@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Connection Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background: #004400;
+            color: #0f0;
+        }
+        .disconnected {
+            background: #440000;
+            color: #f00;
+        }
+        .log {
+            background: #000;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #333;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #0f0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #003300;
+            color: #0f0;
+            border: 1px solid #0f0;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005500;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Socket.IO Connection Test</h1>
+
+    <div id="status" class="status disconnected">
+        Status: <span id="statusText">Disconnected</span>
+    </div>
+
+    <div>
+        <button onclick="testConnection()">Test Socket.IO Connection</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <script>
+        let socket = null;
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            entry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            entry.style.borderColor = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#ff0';
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            addLog('Log cleared', 'info');
+        }
+
+        function updateStatus(connected) {
+            const status = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+
+            if (connected) {
+                status.className = 'status connected';
+                statusText.textContent = 'Connected';
+            } else {
+                status.className = 'status disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        function testConnection() {
+            const socketUrl = `http://${window.location.hostname}:3030`;
+            addLog(`Attempting Socket.IO connection to: ${socketUrl}`, 'info');
+
+            try {
+                // Disconnect existing connection if any
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                }
+
+                // Create Socket.IO connection
+                socket = io(socketUrl, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
+                });
+
+                socket.on('connect', () => {
+                    addLog('✓ Socket.IO connection established!', 'success');
+                    addLog(`Socket ID: ${socket.id}`, 'info');
+                    updateStatus(true);
+
+                    // Try to subscribe to extension 3333
+                    socket.emit('subscribe', {
+                        extensionId: '3333',
+                        port: 3333
+                    });
+                    addLog(`Sent subscription request for extension 3333`, 'info');
+                });
+
+                socket.on('subscribed', (data) => {
+                    addLog(`✓ Successfully subscribed to extension ${data.extensionId}`, 'success');
+                });
+
+                socket.on('unsubscribed', (data) => {
+                    addLog(`Unsubscribed from extension ${data.extensionId}`, 'info');
+                });
+
+                socket.on('streamStarted', (data) => {
+                    addLog(`Stream started for extension ${data.extensionId} on port ${data.port}`, 'success');
+                });
+
+                socket.on('streamStopped', (data) => {
+                    addLog(`Stream stopped for extension ${data.extensionId}`, 'info');
+                });
+
+                socket.on('audioData', (data) => {
+                    addLog(`Received audio data for extension ${data.extensionId}: ${data.data ? data.data.length : 0} bytes`, 'info');
+                });
+
+                socket.on('error', (error) => {
+                    addLog(`✗ Socket.IO error: ${error}`, 'error');
+                    updateStatus(false);
+                });
+
+                socket.on('disconnect', (reason) => {
+                    addLog(`Socket.IO disconnected (reason: ${reason})`, 'info');
+                    updateStatus(false);
+                });
+
+                socket.on('connect_error', (error) => {
+                    addLog(`✗ Connection error: ${error.message}`, 'error');
+                    updateStatus(false);
+                });
+
+            } catch (error) {
+                addLog(`✗ Failed to create Socket.IO connection: ${error.message}`, 'error');
+                updateStatus(false);
+            }
+        }
+
+        // Auto-test on load
+        window.onload = () => {
+            addLog('Page loaded, ready for testing', 'info');
+            addLog(`Current location: ${window.location.hostname}`, 'info');
+            addLog('Using Socket.IO protocol (not raw WebSocket)', 'info');
+            testConnection();
+        };
+    </script>
+</body>
+</html>

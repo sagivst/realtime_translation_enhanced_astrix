@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Audio Monitor</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 255, 0, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+        }
+        h1 { color: #00ff00; font-size: 2.5em; margin-bottom: 10px; }
+        .status { margin: 20px 0; padding: 15px; background: rgba(0,0,0,0.5); border-radius: 10px; }
+        .connected { border: 2px solid #00ff00; }
+        .audio-section { margin: 20px 0; padding: 20px; background: rgba(0,0,0,0.7); border-radius: 15px; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:disabled { background: #333; color: #666; }
+        .stats { margin: 10px 0; }
+        .log { background: #000; padding: 10px; height: 200px; overflow-y: auto; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Real-Time Audio Monitor</h1>
+            <div class="status" id="status">Connecting...</div>
+        </div>
+        
+        <div class="audio-section">
+            <h2>Extension 3333 (English)</h2>
+            <button onclick="subscribe('3333')">Subscribe</button>
+            <button onclick="unsubscribe('3333')">Unsubscribe</button>
+            <div class="stats" id="stats-3333">Waiting...</div>
+        </div>
+        
+        <div class="audio-section">
+            <h2>Extension 4444 (French)</h2>
+            <button onclick="subscribe('4444')">Subscribe</button>
+            <button onclick="unsubscribe('4444')">Unsubscribe</button>
+            <div class="stats" id="stats-4444">Waiting...</div>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+    
+    <script>
+        const socket = io();
+        const stats = { '3333': 0, '4444': 0 };
+        
+        function log(msg) {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML = '[' + time + '] ' + msg + '<br>' + logEl.innerHTML;
+        }
+        
+        socket.on('connect', () => {
+            document.getElementById('status').textContent = 'Connected - Socket ID: ' + socket.id;
+            document.getElementById('status').classList.add('connected');
+            log('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('status').textContent = 'Disconnected';
+            document.getElementById('status').classList.remove('connected');
+            log('Disconnected from server');
+        });
+        
+        socket.on('audio-subscribed', (data) => {
+            log('Subscribed to extension ' + data.extensionId);
+        });
+        
+        socket.on('audio-data', (data) => {
+            stats[data.extensionId]++;
+            document.getElementById('stats-' + data.extensionId).textContent = 
+                'Packets received: ' + stats[data.extensionId];
+            
+            // Play audio - convert base64 PCM to WAV
+            if (data.data) {
+                playPCM(data.data, data.extensionId);
+            }
+        });
+        
+        function subscribe(extensionId) {
+            socket.emit('subscribe-audio', { extensionId });
+            log('Subscribing to extension ' + extensionId);
+        }
+        
+        function unsubscribe(extensionId) {
+            socket.emit('unsubscribe-audio', { extensionId });
+            log('Unsubscribing from extension ' + extensionId);
+        }
+        
+        function playPCM(base64Data, extensionId) {
+            try {
+                const pcmData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                const wavData = pcmToWav(pcmData, 16000);
+                const blob = new Blob([wavData], { type: 'audio/wav' });
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audio.volume = 0.5;
+                audio.play().catch(e => log('Play error: ' + e.message));
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                log('Audio error: ' + e.message);
+            }
+        }
+        
+        function pcmToWav(pcmData, sampleRate) {
+            const length = pcmData.length;
+            const arrayBuffer = new ArrayBuffer(44 + length);
+            const view = new DataView(arrayBuffer);
+            
+            // WAV header
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+            
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + length, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(36, 'data');
+            view.setUint32(40, length, true);
+            
+            const pcmView = new Uint8Array(arrayBuffer, 44);
+            pcmView.set(pcmData);
+            
+            return arrayBuffer;
+        }
+    </script>
+</body>
+</html>

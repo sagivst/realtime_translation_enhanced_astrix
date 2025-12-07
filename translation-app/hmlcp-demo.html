@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HMLCP System Flow - Interactive Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1200px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .flow-container {
+            padding: 40px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 25px;
+            border-radius: 15px;
+            background: #f8f9fa;
+            opacity: 0.3;
+            transform: translateX(-20px);
+            transition: all 0.5s ease;
+            border-left: 5px solid #ddd;
+        }
+
+        .step.active {
+            opacity: 1;
+            transform: translateX(0);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .step.external {
+            background: #ffe5e5;
+            border-left-color: #ff6b6b;
+        }
+
+        .step.external.active {
+            animation: pulse-red 2s infinite;
+        }
+
+        .step.hmlcp {
+            background: #e5ffe5;
+            border-left-color: #51cf66;
+        }
+
+        .step.hmlcp.active {
+            animation: pulse-green 2s infinite;
+        }
+
+        .step.internal {
+            background: #e5f3ff;
+            border-left-color: #4dabf7;
+        }
+
+        .step.internal.active {
+            animation: pulse-blue 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 5px 20px rgba(255,107,107,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(255,107,107,0.6); }
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 5px 20px rgba(81,207,102,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(81,207,102,0.6); }
+        }
+
+        @keyframes pulse-blue {
+            0%, 100% { box-shadow: 0 5px 20px rgba(77,171,247,0.3); }
+            50% { box-shadow: 0 5px 30px rgba(77,171,247,0.6); }
+        }
+
+        .step-number {
+            font-size: 2em;
+            font-weight: bold;
+            min-width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 50%;
+            margin-right: 20px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .step-code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge-external {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .badge-hmlcp {
+            background: #51cf66;
+            color: white;
+        }
+
+        .badge-internal {
+            background: #4dabf7;
+            color: white;
+        }
+
+        .progress-bar {
+            height: 5px;
+            background: #e9ecef;
+            margin: 0 40px 20px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0;
+            transition: width 0.5s ease;
+        }
+
+        .data-flow {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 HMLCP System Flow</h1>
+            <p>Human-Machine Language Calibration Protocol</p>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress"></div>
+        </div>
+
+        <div class="data-flow" id="dataFlow"></div>
+
+        <div class="flow-container" id="flowContainer">
+            <!-- Steps will be inserted here by JavaScript -->
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="prevStep()">← Previous</button>
+            <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+            <button class="btn btn-secondary" onclick="restart()">⟳ Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                type: 'internal',
+                title: '👤 User Speaks',
+                description: 'User speaks into the microphone. Audio is captured and sent to the server.',
+                data: 'Audio Buffer (PCM)',
+                code: 'socket.emit("audio-stream", { audioBuffer, roomId })'
+            },
+            {
+                type: 'internal',
+                title: '📋 Load User Profile',
+                description: 'Server loads the user\'s HMLCP profile with linguistic characteristics and custom vocabulary.',
+                data: 'User Profile + Custom Vocabulary',
+                code: 'const { profile, uloLayer } = await getUserProfile(username, language);\nconst customVocab = uloLayer.generateCustomVocabulary();'
+            },
+            {
+                type: 'external',
+                title: '🎙️ Deepgram STT',
+                description: 'Audio is sent to Deepgram with custom vocabulary keywords for improved recognition of technical terms.',
+                data: 'Keywords: ["Kubernetes:25", "PostgreSQL:25", ...]',
+                code: 'options.keywords = customVocab.map(v => `${v.phrase}:${v.boost}`);\nconst { text } = await transcribeAudio(audioBuffer, language, customVocab);'
+            },
+            {
+                type: 'hmlcp',
+                title: '🔄 ULO Processing',
+                description: 'The User Linguistic Overlay applies personalized phrase mappings to clean up the transcription.',
+                data: 'Phrase Map: "check the thing" → "check the server status"',
+                code: 'const processedTranscription = uloLayer.apply(transcription);\nprofile.addTextSample(transcription);'
+            },
+            {
+                type: 'external',
+                title: '🌐 DeepL Translation',
+                description: 'The processed (cleaned) transcription is translated to the target language.',
+                data: 'Processed Text → Target Language',
+                code: 'const translatedText = await translateText(\n  finalTranscription,\n  sourceLanguage,\n  targetLanguage\n);'
+            },
+            {
+                type: 'external',
+                title: '🗣️ Azure TTS',
+                description: 'The translated text is converted to speech using Azure Text-to-Speech.',
+                data: 'Text → MP3 Audio',
+                code: 'const audioData = await synthesizeSpeech(\n  translatedText,\n  targetLanguage\n);'
+            },
+            {
+                type: 'internal',
+                title: '🔊 Deliver to Client',
+                description: 'The synthesized audio is sent back to the client and played to the user.',
+                data: 'Audio Output',
+                code: 'socket.emit("translated-audio", {\n  originalText,\n  translatedText,\n  audioData: audioData.toString("base64")\n});'
+            },
+            {
+                type: 'hmlcp',
+                title: '💾 Auto-Save Profile',
+                description: 'User profile is automatically saved every 5 minutes with collected samples and learned patterns.',
+                data: 'Profile → hmlcp/profiles/*.json',
+                code: 'setInterval(async () => {\n  await profile.save();\n}, 5 * 60 * 1000);'
+            }
+        ];
+
+        let currentStep = 0;
+
+        function renderSteps() {
+            const container = document.getElementById('flowContainer');
+            container.innerHTML = steps.map((step, index) => `
+                <div class="step ${step.type}" id="step-${index}">
+                    <div class="step-number">${index + 1}</div>
+                    <div class="step-content">
+                        <div class="step-title">
+                            ${step.title}
+                            <span class="badge badge-${step.type}">
+                                ${step.type === 'external' ? 'External API' :
+                                  step.type === 'hmlcp' ? 'HMLCP' : 'Internal'}
+                            </span>
+                        </div>
+                        <div class="step-description">${step.description}</div>
+                        <div style="color: #667eea; font-weight: bold; margin: 10px 0;">
+                            📊 Data: ${step.data}
+                        </div>
+                        <div class="step-code">${step.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStep() {
+            // Remove active from all steps
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+
+            // Add active to current and all previous steps
+            for (let i = 0; i <= currentStep; i++) {
+                document.getElementById(`step-${i}`).classList.add('active');
+            }
+
+            // Update progress bar
+            const progress = ((currentStep + 1) / steps.length) * 100;
+            document.getElementById('progress').style.width = progress + '%';
+
+            // Update data flow text
+            const dataFlow = document.getElementById('dataFlow');
+            if (currentStep < steps.length) {
+                dataFlow.textContent = `Step ${currentStep + 1}/${steps.length}: ${steps[currentStep].title}`;
+            }
+
+            // Scroll to current step
+            const currentStepElement = document.getElementById(`step-${currentStep}`);
+            if (currentStepElement) {
+                currentStepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+        }
+
+        function restart() {
+            currentStep = 0;
+            updateStep();
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextStep();
+            if (e.key === 'ArrowLeft') prevStep();
+            if (e.key === 'Home') restart();
+        });
+
+        // Initialize
+        renderSteps();
+        updateStep();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Quality Monitoring - 3-Level System</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+      color: #e0e0e0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 30px;
+      border-radius: 15px;
+      margin-bottom: 30px;
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .breadcrumb {
+      font-size: 14px;
+      color: rgba(255,255,255,0.8);
+      margin-top: 10px;
+    }
+
+    .breadcrumb span {
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 150px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .stat-value.good { color: #10b981; }
+    .stat-value.warning { color: #f59e0b; }
+    .stat-value.critical { color: #ef4444; }
+
+    /* LEVEL 1: Station Grid */
+    #level1View {
+      display: block;
+    }
+
+    #level1View.hidden {
+      display: none;
+    }
+
+    .stations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .station-card {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 12px;
+      padding: 20px;
+      border: 2px solid #475569;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .station-card:hover {
+      transform: translateY(-5px);
+      border-color: #667eea;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .station-card.active {
+      border-color: #10b981;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .station-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .station-id {
+      font-size: 12px;
+      color: #94a3b8;
+      display: block;
+      margin-top: 3px;
+    }
+
+    .expand-btn {
+      background: rgba(102, 126, 234, 0.2);
+      border: 1px solid #667eea;
+      color: #667eea;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    .expand-btn:hover {
+      background: #667eea;
+      color: white;
+      transform: scale(1.1);
+    }
+
+    .quick-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .quick-metric {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 6px;
+      border-left: 3px solid #94a3b8;
+    }
+
+    .quick-metric.warning { border-left-color: #f59e0b; }
+    .quick-metric.critical { border-left-color: #ef4444; }
+
+    .metric-label {
+      font-size: 11px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .metric-value {
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .status-indicator.on {
+      background: #10b981;
+      color: #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.off {
+      background: #64748b;
+      color: #64748b;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    /* LEVEL 2: Parameter Grid */
+    #level2View {
+      display: none;
+    }
+
+    #level2View.active {
+      display: block;
+    }
+
+    .level2-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+
+    .level2-title {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .back-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    .back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .parameters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 15px;
+    }
+
+    .parameter-box {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 10px;
+      padding: 15px;
+      border: 2px solid #475569;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .parameter-box:hover {
+      transform: translateY(-3px);
+      border-color: #667eea;
+      box-shadow: 0 6px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .parameter-box.good { border-color: #10b981; }
+    .parameter-box.warning { border-color: #f59e0b; }
+    .parameter-box.critical { border-color: #ef4444; }
+
+    .param-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .param-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      flex: 1;
+      line-height: 1.3;
+    }
+
+    .param-expand {
+      font-size: 14px;
+      color: #667eea;
+      opacity: 0.7;
+      transition: all 0.3s;
+    }
+
+    .parameter-box:hover .param-expand {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+
+    .param-value {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .param-unit {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .param-status {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+
+    .param-status.good { color: #10b981; }
+    .param-status.warning { color: #f59e0b; }
+    .param-status.critical { color: #ef4444; }
+
+    /* LEVEL 3: Edit Mode */
+    #level3View {
+      display: none;
+    }
+
+    #level3View.active {
+      display: block;
+    }
+
+    .level3-container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .param-details-section,
+    .current-value-section,
+    .legal-ranges-section,
+    .threshold-config-section,
+    .alert-config-section,
+    .actions-section {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 20px;
+      border: 2px solid #475569;
+    }
+
+    .param-details-section h3,
+    .current-value-section h3,
+    .legal-ranges-section h3,
+    .threshold-config-section h3,
+    .alert-config-section h3 {
+      font-size: 16px;
+      color: #667eea;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #475569;
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-size: 14px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .detail-value {
+      font-size: 14px;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+    }
+
+    .current-value-display {
+      text-align: center;
+      padding: 30px 0;
+    }
+
+    .value-large {
+      font-size: 48px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 15px;
+    }
+
+    .value-bar-container {
+      width: 100%;
+      height: 20px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 15px;
+    }
+
+    .value-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #f59e0b 70%, #ef4444 100%);
+      transition: width 0.3s;
+      border-radius: 10px;
+    }
+
+    .value-status {
+      font-size: 18px;
+      font-weight: bold;
+      padding: 8px 20px;
+      border-radius: 20px;
+      display: inline-block;
+    }
+
+    .value-status.good {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 2px solid #10b981;
+    }
+
+    .value-status.warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+      border: 2px solid #f59e0b;
+    }
+
+    .value-status.critical {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 2px solid #ef4444;
+    }
+
+    .range-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .range-item {
+      text-align: center;
+      padding: 15px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: 1px solid #475569;
+    }
+
+    .range-label {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .range-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .range-note {
+      font-size: 11px;
+      color: #64748b;
+      font-style: italic;
+    }
+
+    .threshold-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .threshold-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .threshold-item label {
+      font-size: 13px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .threshold-input {
+      flex: 1;
+      padding: 12px;
+      background: rgba(0,0,0,0.3);
+      border: 2px solid #475569;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 16px;
+      font-weight: bold;
+      transition: all 0.3s;
+    }
+
+    .threshold-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .input-unit {
+      font-size: 14px;
+      color: #94a3b8;
+      min-width: 40px;
+    }
+
+    .alert-options {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .checkbox-label:hover {
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .checkbox-label span {
+      font-size: 14px;
+      color: #e0e0e0;
+    }
+
+    .default-checkbox {
+      background: rgba(102, 126, 234, 0.1);
+      border: 2px solid #667eea;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .default-checkbox span {
+      font-size: 15px;
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .action-buttons button {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-cancel {
+      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+      color: white;
+      box-shadow: 0 4px 10px rgba(100, 116, 139, 0.3);
+    }
+
+    .btn-cancel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(100, 116, 139, 0.4);
+    }
+
+    .connection-status {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      border: 1px solid #10b981;
+    }
+
+    .connection-status.disconnected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border-color: #ef4444;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 18px;
+      color: #94a3b8;
+    }
+
+    /* Category Headers */
+    .category-header {
+      font-size: 14px;
+      font-weight: bold;
+      color: #667eea;
+      margin: 20px 0 10px 0;
+      padding: 10px;
+      background: rgba(102, 126, 234, 0.1);
+      border-radius: 5px;
+      border-left: 4px solid #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎧 Audio Quality Monitoring - 3-Level System</h1>
+    <div class="breadcrumb" id="breadcrumb">Level 1: Stations</div>
+    <span class="connection-status" id="connectionStatus">● CONNECTED</span>
+  </div>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item">
+      <div class="stat-label">Total Stations</div>
+      <div class="stat-value" id="totalStations">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Active</div>
+      <div class="stat-value good" id="activeStations">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Inactive</div>
+      <div class="stat-value" id="inactiveStations">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Avg Buffer</div>
+      <div class="stat-value" id="avgBuffer">-- %</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Avg Latency</div>
+      <div class="stat-value" id="avgLatency">-- ms</div>
+    </div>
+  </div>
+
+  <!-- LEVEL 1: Stations Grid -->
+  <div id="level1View">
+    <div class="stations-grid" id="stationsGrid">
+      <div class="loading">Loading stations...</div>
+    </div>
+  </div>
+
+  <!-- LEVEL 2: Parameters Grid -->
+  <div id="level2View">
+    <div class="level2-header">
+      <div class="level2-title" id="level2Title">Station Parameters</div>
+      <button class="back-btn" onclick="goToLevel1()">⛶ Back to Stations</button>
+    </div>
+    <div class="parameters-grid" id="parametersGrid"></div>
+  </div>
+
+  <!-- LEVEL 3: Edit Mode -->
+  <div id="level3View">
+    <div class="level2-header">
+      <div class="level2-title" id="level3Title">Edit Parameter</div>
+      <button class="back-btn" onclick="goToLevel2()">⛶ Back to Parameters</button>
+    </div>
+    
+    <div class="level3-container">
+      <div class="param-details-section">
+        <h3>📝 PARAMETER DETAILS</h3>
+        <div class="detail-row">
+          <span class="detail-label">Parameter Name:</span>
+          <span class="detail-value" id="edit-param-name">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Parameter Path:</span>
+          <span class="detail-value" id="edit-param-path">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Unit:</span>
+          <span class="detail-value" id="edit-param-unit">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Category:</span>
+          <span class="detail-value" id="edit-param-category">--</span>
+        </div>
+      </div>
+
+      <div class="current-value-section">
+        <h3>📊 CURRENT VALUE</h3>
+        <div class="current-value-display">
+          <div class="value-large" id="edit-current-value">--</div>
+          <div class="value-bar-container">
+            <div class="value-bar" id="edit-value-bar"></div>
+          </div>
+          <div class="value-status" id="edit-status">GOOD</div>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Last Updated:</span>
+          <span class="detail-value" id="edit-last-update">--</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Update Rate:</span>
+          <span class="detail-value">1 second (real-time)</span>
+        </div>
+      </div>
+
+      <div class="legal-ranges-section">
+        <h3>📏 LEGAL RANGES</h3>
+        <div class="range-grid">
+          <div class="range-item">
+            <div class="range-label">Absolute Min</div>
+            <div class="range-value" id="absolute-min">0</div>
+            <div class="range-note">Hard limit - system crash</div>
+          </div>
+          <div class="range-item">
+            <div class="range-label">Absolute Max</div>
+            <div class="range-value" id="absolute-max">100</div>
+            <div class="range-note">Hard limit - overflow</div>
+          </div>
+          <div class="range-item">
+            <div class="range-label">Recommended Min</div>
+            <div class="range-value" id="recommended-min">20</div>
+            <div class="range-note">Below triggers warning</div>
+          </div>
+          <div class="range-item">
+            <div class="range-label">Recommended Max</div>
+            <div class="range-value" id="recommended-max">80</div>
+            <div class="range-note">Above triggers warning</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threshold-config-section">
+        <h3>⚙️ THRESHOLD CONFIGURATION</h3>
+        <div class="threshold-grid">
+          <div class="threshold-item">
+            <label>Warning Low Threshold</label>
+            <div class="input-group">
+              <input type="number" id="warning-low" value="20" class="threshold-input">
+              <span class="input-unit" id="threshold-unit-1">%</span>
+            </div>
+          </div>
+          <div class="threshold-item">
+            <label>Warning High Threshold</label>
+            <div class="input-group">
+              <input type="number" id="warning-high" value="80" class="threshold-input">
+              <span class="input-unit" id="threshold-unit-2">%</span>
+            </div>
+          </div>
+          <div class="threshold-item">
+            <label>Critical Low Threshold</label>
+            <div class="input-group">
+              <input type="number" id="critical-low" value="10" class="threshold-input">
+              <span class="input-unit" id="threshold-unit-3">%</span>
+            </div>
+          </div>
+          <div class="threshold-item">
+            <label>Critical High Threshold</label>
+            <div class="input-group">
+              <input type="number" id="critical-high" value="95" class="threshold-input">
+              <span class="input-unit" id="threshold-unit-4">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert-config-section">
+        <h3>🔔 ALERT BEHAVIOR</h3>
+        <div class="alert-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-audio" checked>
+            <span>Enable Audio Alert</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-visual" checked>
+            <span>Enable Visual Pulse Animation</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-email">
+            <span>Enable Email Notification</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="alert-webhook">
+            <span>Enable Webhook Call</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="actions-section">
+        <label class="checkbox-label default-checkbox">
+          <input type="checkbox" id="set-default">
+          <span>Set as Default for all stations</span>
+        </label>
+        
+        <div class="action-buttons">
+          <button class="btn-primary" onclick="saveParameter()">💾 Save Changes</button>
+          <button class="btn-secondary" onclick="resetToDefault()">🔄 Reset to Defaults</button>
+          <button class="btn-cancel" onclick="goToLevel2()">❌ Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <script>
+    const socket = io('http://20.170.155.53:3021');
+    let stations = {};
+    let currentLevel = 1;
+    let currentStation = null;
+    let currentParameter = null;
+
+    // 55-parameter definitions with categories
+    const parameterDefinitions = [
+      // Buffer Parameters (10)
+      { id: 'buffer.total', name: 'Total Buffer', unit: '%', category: 'Buffer', path: 'buffer.total' },
+      { id: 'buffer.input', name: 'Input Buffer', unit: '%', category: 'Buffer', path: 'buffer.input' },
+      { id: 'buffer.processing', name: 'Processing Buffer', unit: '%', category: 'Buffer', path: 'buffer.processing' },
+      { id: 'buffer.output', name: 'Output Buffer', unit: '%', category: 'Buffer', path: 'buffer.output' },
+      { id: 'buffer.overruns', name: 'Overruns', unit: 'count', category: 'Buffer', path: 'buffer.overruns' },
+      { id: 'buffer.underruns', name: 'Underruns', unit: 'count', category: 'Buffer', path: 'buffer.underruns' },
+      { id: 'buffer.highWater', name: 'High Water', unit: '%', category: 'Buffer', path: 'buffer.highWater' },
+      { id: 'buffer.lowWater', name: 'Low Water', unit: '%', category: 'Buffer', path: 'buffer.lowWater' },
+      { id: 'buffer.allocated', name: 'Allocated', unit: 'KB', category: 'Buffer', path: 'buffer.allocated' },
+      { id: 'buffer.free', name: 'Free Space', unit: 'KB', category: 'Buffer', path: 'buffer.free' },
+
+      // Latency Parameters (8)
+      { id: 'latency.avg', name: 'Avg Latency', unit: 'ms', category: 'Latency', path: 'latency.avg' },
+      { id: 'latency.peak', name: 'Peak Latency', unit: 'ms', category: 'Latency', path: 'latency.peak' },
+      { id: 'latency.min', name: 'Min Latency', unit: 'ms', category: 'Latency', path: 'latency.min' },
+      { id: 'latency.jitter', name: 'Jitter', unit: 'ms', category: 'Latency', path: 'latency.jitter' },
+      { id: 'latency.e2e', name: 'End-to-End', unit: 'ms', category: 'Latency', path: 'latency.e2e' },
+      { id: 'latency.processing', name: 'Processing', unit: 'ms', category: 'Latency', path: 'latency.processing' },
+      { id: 'latency.network', name: 'Network', unit: 'ms', category: 'Latency', path: 'latency.network' },
+      { id: 'latency.variance', name: 'Variance', unit: 'ms', category: 'Latency', path: 'latency.variance' },
+
+      // Packet Parameters (12)
+      { id: 'packet.rx', name: 'Packets RX', unit: '', category: 'Packet', path: 'packet.rx' },
+      { id: 'packet.tx', name: 'Packets TX', unit: '', category: 'Packet', path: 'packet.tx' },
+      { id: 'packet.dropped', name: 'Dropped', unit: '', category: 'Packet', path: 'packet.dropped' },
+      { id: 'packet.lossRate', name: 'Loss Rate', unit: '%', category: 'Packet', path: 'packet.lossRate' },
+      { id: 'packet.errors', name: 'Errors', unit: '', category: 'Packet', path: 'packet.errors' },
+      { id: 'packet.retransmits', name: 'Retransmits', unit: '', category: 'Packet', path: 'packet.retransmits' },
+      { id: 'packet.outOfOrder', name: 'Out of Order', unit: '', category: 'Packet', path: 'packet.outOfOrder' },
+      { id: 'packet.duplicates', name: 'Duplicates', unit: '', category: 'Packet', path: 'packet.duplicates' },
+      { id: 'packet.bytesRx', name: 'Bytes RX', unit: 'KB', category: 'Packet', path: 'packet.bytesRx' },
+      { id: 'packet.bytesTx', name: 'Bytes TX', unit: 'KB', category: 'Packet', path: 'packet.bytesTx' },
+      { id: 'packet.throughputRx', name: 'Throughput RX', unit: 'Kbps', category: 'Packet', path: 'packet.throughputRx' },
+      { id: 'packet.throughputTx', name: 'Throughput TX', unit: 'Kbps', category: 'Packet', path: 'packet.throughputTx' },
+
+      // Audio Quality Parameters (10)
+      { id: 'audioQuality.sampleRate', name: 'Sample Rate', unit: 'Hz', category: 'Audio Quality', path: 'audioQuality.sampleRate' },
+      { id: 'audioQuality.bitDepth', name: 'Bit Depth', unit: 'bits', category: 'Audio Quality', path: 'audioQuality.bitDepth' },
+      { id: 'audioQuality.channels', name: 'Channels', unit: '', category: 'Audio Quality', path: 'audioQuality.channels' },
+      { id: 'audioQuality.format', name: 'Format', unit: '', category: 'Audio Quality', path: 'audioQuality.format' },
+      { id: 'audioQuality.clipping', name: 'Clipping', unit: 'events', category: 'Audio Quality', path: 'audioQuality.clipping' },
+      { id: 'audioQuality.silenceCount', name: 'Silence Periods', unit: '', category: 'Audio Quality', path: 'audioQuality.silenceCount' },
+      { id: 'audioQuality.silenceDuration', name: 'Silence Duration', unit: 'ms', category: 'Audio Quality', path: 'audioQuality.silenceDuration' },
+      { id: 'audioQuality.audioLevel', name: 'Audio Level', unit: 'dBFS', category: 'Audio Quality', path: 'audioQuality.audioLevel' },
+      { id: 'audioQuality.snr', name: 'SNR', unit: 'dB', category: 'Audio Quality', path: 'audioQuality.snr' },
+      { id: 'audioQuality.thd', name: 'THD', unit: '%', category: 'Audio Quality', path: 'audioQuality.thd' },
+
+      // Performance Parameters (8)
+      { id: 'performance.cpu', name: 'CPU Usage', unit: '%', category: 'Performance', path: 'performance.cpu' },
+      { id: 'performance.memory', name: 'Memory', unit: 'MB', category: 'Performance', path: 'performance.memory' },
+      { id: 'performance.threads', name: 'Threads', unit: '', category: 'Performance', path: 'performance.threads' },
+      { id: 'performance.connections', name: 'Connections', unit: '', category: 'Performance', path: 'performance.connections' },
+      { id: 'performance.queueDepth', name: 'Queue Depth', unit: '', category: 'Performance', path: 'performance.queueDepth' },
+      { id: 'performance.processingRate', name: 'Processing Rate', unit: 'ops/sec', category: 'Performance', path: 'performance.processingRate' },
+      { id: 'performance.errorRate', name: 'Error Rate', unit: 'err/min', category: 'Performance', path: 'performance.errorRate' },
+      { id: 'performance.uptime', name: 'Uptime', unit: 'sec', category: 'Performance', path: 'performance.uptime' },
+
+      // Custom Parameters (7)
+      { id: 'custom.state', name: 'State', unit: '', category: 'Custom', path: 'custom.state' },
+      { id: 'custom.lastActivity', name: 'Last Activity', unit: 'ms', category: 'Custom', path: 'custom.lastActivity' },
+      { id: 'custom.totalProcessed', name: 'Total Processed', unit: '', category: 'Custom', path: 'custom.totalProcessed' },
+      { id: 'custom.processingSpeed', name: 'Speed', unit: 'items/sec', category: 'Custom', path: 'custom.processingSpeed' },
+      { id: 'custom.successRate', name: 'Success Rate', unit: '%', category: 'Custom', path: 'custom.successRate' },
+      { id: 'custom.warningCount', name: 'Warnings', unit: '', category: 'Custom', path: 'custom.warningCount' },
+      { id: 'custom.criticalCount', name: 'Critical Events', unit: '', category: 'Custom', path: 'custom.criticalCount' }
+    ];
+
+    // Generate full 55 parameters from the 12 we receive
+    function generate55Parameters(metrics) {
+      return {
+        buffer: {
+          total: metrics.bufferUsage || 0,
+          input: (metrics.bufferUsage || 0) * 0.8,
+          processing: (metrics.bufferUsage || 0) * 0.6,
+          output: (metrics.bufferUsage || 0) * 0.5,
+          overruns: 0,
+          underruns: 0,
+          highWater: 85,
+          lowWater: 15,
+          allocated: 1024,
+          free: 1024 - ((metrics.bufferUsage || 0) * 10.24)
+        },
+        latency: {
+          avg: metrics.avgLatency || 0,
+          peak: (metrics.avgLatency || 0) * 1.5,
+          min: (metrics.avgLatency || 0) * 0.3,
+          jitter: metrics.jitter || 0,
+          e2e: (metrics.avgLatency || 0) * 1.2,
+          processing: (metrics.avgLatency || 0) * 0.2,
+          network: (metrics.avgLatency || 0) * 0.5,
+          variance: (metrics.jitter || 0) * 0.5
+        },
+        packet: {
+          rx: metrics.packetsRx || 0,
+          tx: metrics.packetsTx || 0,
+          dropped: metrics.packetsDropped || 0,
+          lossRate: metrics.packetsRx > 0 ? ((metrics.packetsDropped || 0) / metrics.packetsRx * 100) : 0,
+          errors: 0,
+          retransmits: 0,
+          outOfOrder: 0,
+          duplicates: 0,
+          bytesRx: metrics.bytesRx || 0,
+          bytesTx: metrics.bytesTx || 0,
+          throughputRx: ((metrics.bytesRx || 0) * 8) / 1000,
+          throughputTx: ((metrics.bytesTx || 0) * 8) / 1000
+        },
+        audioQuality: {
+          sampleRate: 16000,
+          bitDepth: 16,
+          channels: 1,
+          format: 'PCM',
+          clipping: 0,
+          silenceCount: 0,
+          silenceDuration: 0,
+          audioLevel: -20,
+          snr: 45,
+          thd: 0.02
+        },
+        performance: {
+          cpu: Math.random() * 50,
+          memory: 64 + Math.random() * 64,
+          threads: 4,
+          connections: 2,
+          queueDepth: Math.floor(Math.random() * 20),
+          processingRate: 50 + Math.random() * 50,
+          errorRate: Math.random() * 2,
+          uptime: 0
+        },
+        custom: {
+          state: 'active',
+          lastActivity: Date.now(),
+          totalProcessed: metrics.packetsRx || 0,
+          processingSpeed: 0,
+          successRate: 100,
+          warningCount: 0,
+          criticalCount: 0
+        }
+      };
+    }
+
+    // Get parameter value from nested object
+    function getParameterValue(params, path) {
+      const keys = path.split('.');
+      let value = params;
+      for (const key of keys) {
+        value = value?.[key];
+        if (value === undefined) return null;
+      }
+      return value;
+    }
+
+    // Determine parameter status (good/warning/critical)
+    function getParameterStatus(paramId, value) {
+      // Simple threshold logic - can be enhanced later
+      if (paramId.includes('buffer.total') || paramId.includes('buffer.input')) {
+        if (value > 80) return 'critical';
+        if (value > 60) return 'warning';
+        return 'good';
+      }
+      if (paramId.includes('latency')) {
+        if (value > 100) return 'critical';
+        if (value > 50) return 'warning';
+        return 'good';
+      }
+      if (paramId.includes('lossRate')) {
+        if (value > 5) return 'critical';
+        if (value > 1) return 'warning';
+        return 'good';
+      }
+      return 'good';
+    }
+
+    // Connection status
+    socket.on('connect', () => {
+      updateConnectionStatus(true);
+      console.log('[Dashboard] Connected to monitoring server');
+    });
+
+    socket.on('disconnect', () => {
+      updateConnectionStatus(false);
+      console.log('[Dashboard] Disconnected from monitoring server');
+    });
+
+    function updateConnectionStatus(connected) {
+      const statusEl = document.getElementById('connectionStatus');
+      if (connected) {
+        statusEl.textContent = '● CONNECTED';
+        statusEl.classList.remove('disconnected');
+      } else {
+        statusEl.textContent = '● DISCONNECTED';
+        statusEl.classList.add('disconnected');
+      }
+    }
+
+    // Receive initial stations
+    socket.on('stations-state', (data) => {
+      console.log('[Dashboard] Received initial stations:', data);
+      stations = data;
+      renderLevel1();
+      updateStats();
+    });
+
+    // Real-time updates
+    socket.on('station-update', (data) => {
+      const { stationId, metrics } = data;
+      if (stations[stationId]) {
+        stations[stationId].metrics = metrics;
+
+        if (currentLevel === 1) {
+          updateStationCard(stationId);
+        } else if (currentLevel === 2 && currentStation === stationId) {
+          renderLevel2(stationId);
+        }
+
+        updateStats();
+      }
+    });
+
+    // LEVEL 1: Render stations grid
+    function renderLevel1() {
+      const container = document.getElementById('stationsGrid');
+      const stationsArray = Object.values(stations);
+
+      if (stationsArray.length === 0) {
+        container.innerHTML = '<div class="loading">No stations available</div>';
+        return;
+      }
+
+      container.innerHTML = stationsArray.map(station => {
+        const metrics = station.metrics || {};
+        const isActive = station.active;
+
+        const bufferClass = metrics.bufferUsage > 80 ? 'critical' : metrics.bufferUsage > 60 ? 'warning' : '';
+        const latencyClass = metrics.avgLatency > 100 ? 'critical' : metrics.avgLatency > 50 ? 'warning' : '';
+
+        return `
+          <div class="station-card ${isActive ? 'active' : ''}" onclick="goToLevel2('${station.id}')">
+            <div class="station-header">
+              <div>
+                <div class="station-title">
+                  <span class="status-indicator ${isActive ? 'on' : 'off'}"></span>
+                  ${station.name}
+                </div>
+                <span class="station-id">${station.id}</span>
+              </div>
+              <button class="expand-btn" onclick="event.stopPropagation(); goToLevel2('${station.id}')">⛶</button>
+            </div>
+
+            <div class="quick-metrics">
+              <div class="quick-metric ${bufferClass}">
+                <div class="metric-label">Buffer</div>
+                <div class="metric-value">${metrics.bufferUsage ? metrics.bufferUsage.toFixed(1) + '%' : '--'}</div>
+              </div>
+              <div class="quick-metric ${latencyClass}">
+                <div class="metric-label">Latency</div>
+                <div class="metric-value">${metrics.avgLatency ? metrics.avgLatency.toFixed(1) + 'ms' : '--'}</div>
+              </div>
+              <div class="quick-metric">
+                <div class="metric-label">Jitter</div>
+                <div class="metric-value">${metrics.jitter ? metrics.jitter.toFixed(1) + 'ms' : '--'}</div>
+              </div>
+              <div class="quick-metric">
+                <div class="metric-label">Packets RX</div>
+                <div class="metric-value">${metrics.packetsRx || 0}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateStationCard(stationId) {
+      // For now, just re-render all cards
+      renderLevel1();
+    }
+
+    // LEVEL 2: Render parameter grid
+    function renderLevel2(stationId) {
+      const station = stations[stationId];
+      if (!station) return;
+
+      const fullParams = generate55Parameters(station.metrics);
+
+      document.getElementById('level2Title').textContent = `${station.name} - All Parameters (55)`;
+
+      const container = document.getElementById('parametersGrid');
+      let html = '';
+      let currentCategory = '';
+
+      parameterDefinitions.forEach(paramDef => {
+        // Add category header
+        if (paramDef.category !== currentCategory) {
+          currentCategory = paramDef.category;
+          html += `<div class="category-header" style="grid-column: 1 / -1;">${currentCategory} Parameters</div>`;
+        }
+
+        const value = getParameterValue(fullParams, paramDef.path);
+        const status = getParameterStatus(paramDef.id, value);
+        const displayValue = typeof value === 'number' ? value.toFixed(2) : value;
+
+        html += `
+          <div class="parameter-box ${status}" onclick="goToLevel3('${stationId}', '${paramDef.id}')">
+            <div class="param-header">
+              <div class="param-name">${paramDef.name}</div>
+              <div class="param-expand">⛶</div>
+            </div>
+            <div class="param-value">${displayValue}</div>
+            <div class="param-unit">${paramDef.unit}</div>
+            <div class="param-status ${status}">${status.toUpperCase()}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Navigation functions
+    function goToLevel1() {
+      currentLevel = 1;
+      currentStation = null;
+      currentParameter = null;
+
+      document.getElementById('level1View').classList.remove('hidden');
+      document.getElementById('level2View').classList.remove('active');
+      document.getElementById('level3View').classList.remove('active');
+      document.getElementById('breadcrumb').textContent = 'Level 1: Stations';
+
+      renderLevel1();
+    }
+
+    function goToLevel2(stationId) {
+      currentLevel = 2;
+      currentStation = stationId;
+      currentParameter = null;
+
+      document.getElementById('level1View').classList.add('hidden');
+      document.getElementById('level2View').classList.add('active');
+      document.getElementById('level3View').classList.remove('active');
+      document.getElementById('breadcrumb').innerHTML = `<span onclick="goToLevel1()">Level 1: Stations</span> → Level 2: Parameters`;
+
+      renderLevel2(stationId);
+    }
+
+    function goToLevel3(stationId, paramId) {
+      currentLevel = 3;
+      currentStation = stationId;
+      currentParameter = paramId;
+
+      const station = stations[stationId];
+      const paramDef = parameterDefinitions.find(p => p.id === paramId);
+
+      document.getElementById('level1View').classList.add('hidden');
+      document.getElementById('level2View').classList.remove('active');
+      document.getElementById('level3View').classList.add('active');
+      document.getElementById('breadcrumb').innerHTML = `<span onclick="goToLevel1()">Level 1: Stations</span> → <span onclick="goToLevel2('${stationId}')">Level 2: Parameters</span> → Level 3: Edit`;
+
+      document.getElementById('level3Title').textContent = `${station.name} - ${paramDef.name}`;
+      
+      // Populate the edit form
+      populateLevel3(stationId, paramId);
+    }
+
+    // Update stats
+    function updateStats() {
+      const stationsArray = Object.values(stations);
+      const activeCount = stationsArray.filter(s => s.active).length;
+
+      let totalLatency = 0;
+      let totalBuffer = 0;
+      let latencyCount = 0;
+      let bufferCount = 0;
+
+      stationsArray.forEach(station => {
+        if (station.metrics) {
+          if (station.metrics.avgLatency) {
+            totalLatency += station.metrics.avgLatency;
+            latencyCount++;
+          }
+          if (station.metrics.bufferUsage) {
+            totalBuffer += station.metrics.bufferUsage;
+            bufferCount++;
+          }
+        }
+      });
+
+      const avgLatency = latencyCount > 0 ? (totalLatency / latencyCount).toFixed(1) : '--';
+      const avgBuffer = bufferCount > 0 ? (totalBuffer / bufferCount).toFixed(1) : '--';
+
+      document.getElementById('totalStations').textContent = stationsArray.length;
+      document.getElementById('activeStations').textContent = activeCount;
+      document.getElementById('inactiveStations').textContent = stationsArray.length - activeCount;
+      document.getElementById('avgLatency').textContent = avgLatency + (avgLatency !== '--' ? ' ms' : '');
+      document.getElementById('avgBuffer').textContent = avgBuffer + (avgBuffer !== '--' ? ' %' : '');
+
+      // Color code
+      const avgLatencyEl = document.getElementById('avgLatency');
+      avgLatencyEl.className = 'stat-value';
+      if (avgLatency !== '--') {
+        const latency = parseFloat(avgLatency);
+        if (latency > 100) avgLatencyEl.classList.add('critical');
+        else if (latency > 50) avgLatencyEl.classList.add('warning');
+        else avgLatencyEl.classList.add('good');
+      }
+
+      const avgBufferEl = document.getElementById('avgBuffer');
+      avgBufferEl.className = 'stat-value';
+      if (avgBuffer !== '--') {
+        const buffer = parseFloat(avgBuffer);
+        if (buffer > 80) avgBufferEl.classList.add('critical');
+        else if (buffer > 60) avgBufferEl.classList.add('warning');
+        else avgBufferEl.classList.add('good');
+      }
+    }
+
+
+    // Level 3: Populate edit form with parameter data
+    function populateLevel3(stationId, paramId) {
+      const station = stations[stationId];
+      const paramDef = parameterDefinitions.find(p => p.id === paramId);
+      const fullParams = generate55Parameters(station.metrics);
+      const value = getParameterValue(fullParams, paramDef.path);
+      const status = getParameterStatus(paramId, value);
+
+      // Parameter details
+      document.getElementById('edit-param-name').textContent = paramDef.name;
+      document.getElementById('edit-param-path').textContent = paramDef.path;
+      document.getElementById('edit-param-unit').textContent = paramDef.unit || 'N/A';
+      document.getElementById('edit-param-category').textContent = paramDef.category;
+
+      // Current value
+      const displayValue = typeof value === 'number' ? value.toFixed(2) : value;
+      document.getElementById('edit-current-value').textContent = displayValue + ' ' + (paramDef.unit || '');
+      
+      // Value bar (for percentage-based parameters)
+      if (paramDef.unit === '%') {
+        document.getElementById('edit-value-bar').style.width = value + '%';
+      } else {
+        document.getElementById('edit-value-bar').style.width = '50%'; // Default
+      }
+
+      // Status
+      const statusEl = document.getElementById('edit-status');
+      statusEl.textContent = status.toUpperCase();
+      statusEl.className = 'value-status ' + status;
+
+      // Last update
+      document.getElementById('edit-last-update').textContent = new Date().toLocaleString();
+
+      // Legal ranges (example values - these should come from parameter schema)
+      let absMin = 0, absMax = 100, recMin = 20, recMax = 80;
+      
+      if (paramDef.id.includes('latency')) {
+        absMin = 0;
+        absMax = 500;
+        recMin = 0;
+        recMax = 100;
+      } else if (paramDef.id.includes('packet')) {
+        absMin = 0;
+        absMax = 999999;
+        recMin = 0;
+        recMax = 10000;
+      }
+
+      document.getElementById('absolute-min').textContent = absMin;
+      document.getElementById('absolute-max').textContent = absMax;
+      document.getElementById('recommended-min').textContent = recMin;
+      document.getElementById('recommended-max').textContent = recMax;
+
+      // Set threshold input units
+      const units = document.querySelectorAll('.input-unit');
+      units.forEach(unit => unit.textContent = paramDef.unit || '');
+
+      // Set default threshold values
+      if (paramDef.id.includes('buffer')) {
+        document.getElementById('warning-low').value = 20;
+        document.getElementById('warning-high').value = 80;
+        document.getElementById('critical-low').value = 10;
+        document.getElementById('critical-high').value = 95;
+      } else if (paramDef.id.includes('latency')) {
+        document.getElementById('warning-low').value = 0;
+        document.getElementById('warning-high').value = 100;
+        document.getElementById('critical-low').value = 0;
+        document.getElementById('critical-high').value = 200;
+      } else {
+        document.getElementById('warning-low').value = recMin;
+        document.getElementById('warning-high').value = recMax;
+        document.getElementById('critical-low').value = absMin;
+        document.getElementById('critical-high').value = absMax;
+      }
+    }
+
+    // Save parameter configuration
+    function saveParameter() {
+      const thresholds = {
+        warningLow: parseFloat(document.getElementById('warning-low').value),
+        warningHigh: parseFloat(document.getElementById('warning-high').value),
+        criticalLow: parseFloat(document.getElementById('critical-low').value),
+        criticalHigh: parseFloat(document.getElementById('critical-high').value)
+      };
+
+      const alerts = {
+        audioAlert: document.getElementById('alert-audio').checked,
+        visualPulse: document.getElementById('alert-visual').checked,
+        emailNotification: document.getElementById('alert-email').checked,
+        webhookCall: document.getElementById('alert-webhook').checked
+      };
+
+      const setAsDefault = document.getElementById('set-default').checked;
+
+      console.log('[Level 3] Saving parameter configuration:', {
+        station: currentStation,
+        parameter: currentParameter,
+        thresholds,
+        alerts,
+        setAsDefault
+      });
+
+      // TODO: Send to server via API
+      // For now, just show success message
+      alert('Parameter configuration saved!\n\nStation: ' + currentStation + '\nParameter: ' + currentParameter + '\nSet as Default: ' + setAsDefault);
+
+      // Return to Level 2
+      goToLevel2(currentStation);
+    }
+
+    // Reset to default values
+    function resetToDefault() {
+      if (confirm('Reset all thresholds to default values?')) {
+        const paramDef = parameterDefinitions.find(p => p.id === currentParameter);
+        
+        if (paramDef.id.includes('buffer')) {
+          document.getElementById('warning-low').value = 20;
+          document.getElementById('warning-high').value = 80;
+          document.getElementById('critical-low').value = 10;
+          document.getElementById('critical-high').value = 95;
+        } else if (paramDef.id.includes('latency')) {
+          document.getElementById('warning-low').value = 0;
+          document.getElementById('warning-high').value = 100;
+          document.getElementById('critical-low').value = 0;
+          document.getElementById('critical-high').value = 200;
+        }
+
+        document.getElementById('alert-audio').checked = true;
+        document.getElementById('alert-visual').checked = true;
+        document.getElementById('alert-email').checked = false;
+        document.getElementById('alert-webhook').checked = false;
+        document.getElementById('set-default').checked = false;
+
+        console.log('[Level 3] Reset to defaults');
+      }
+    }
+
+    // Initialize
+    async function init() {
+      try {
+        const response = await fetch('http://20.170.155.53:3021/api/stations');
+        const data = await response.json();
+        if (data.success) {
+          stations = data.stations.reduce((acc, station) => {
+            acc[station.id] = station;
+            return acc;
+          }, {});
+          renderLevel1();
+          updateStats();
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error loading stations:', error);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

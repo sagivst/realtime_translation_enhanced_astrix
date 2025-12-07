@@ -1,0 +1,227 @@
+STATION AUDIO STREAMING SYSTEM - FILE TREE
+==========================================
+
+Project Root: /Users/sagivstavinsky/realtime-translation-enhanced_astrix/
+│
+├── AUDIO_SYSTEM_COMPLETE.md .............. Overall system summary
+│
+└── 3333_4444__Operational/
+    └── STTTTSserver/
+        │
+        ├── public/
+        │   └── audio-player-visualization.html ... Frontend audio player
+        │                                           - Waveform visualization
+        │                                           - Spectrum analyzer
+        │                                           - VU meters
+        │                                           - Play/pause/volume controls
+        │
+        └── audio/ .............................. Audio system root
+            │
+            ├── CORE COMPONENTS (4 files)
+            │   ├── rtp-pcm-converter.js ......... RTP → PCM conversion
+            │   │                                   - UDP packet reception
+            │   │                                   - Multi-codec support
+            │   │                                   - Jitter buffer
+            │   │
+            │   ├── audio-streaming-server.js .... Main streaming server
+            │   │                                   - Express HTTP server
+            │   │                                   - Socket.IO WebSocket
+            │   │                                   - REST API
+            │   │
+            │   ├── websocket-audio-transport.js . WebSocket transport
+            │   │                                   - Low-latency streaming
+            │   │                                   - Buffer management
+            │   │                                   - Quality monitoring
+            │   │
+            │   └── integrated-audio-server.js ... Complete solution
+            │                                       - Combines all components
+            │                                       - Production ready
+            │
+            ├── DOCUMENTATION (5 files)
+            │   ├── README.md .................... Complete documentation
+            │   │                                   - Architecture
+            │   │                                   - API reference
+            │   │                                   - Configuration
+            │   │                                   - Troubleshooting
+            │   │
+            │   ├── INTEGRATION_GUIDE.md ......... Integration instructions
+            │   │                                   - 3 integration methods
+            │   │                                   - Production deployment
+            │   │                                   - Best practices
+            │   │
+            │   ├── QUICK_START.md ............... Quick reference
+            │   │                                   - 3-minute setup
+            │   │                                   - Common tasks
+            │   │                                   - Quick fixes
+            │   │
+            │   ├── INDEX.md ..................... File index (navigation)
+            │   │                                   - All files listed
+            │   │                                   - Dependencies
+            │   │                                   - Quick access
+            │   │
+            │   └── SYSTEM_TREE.txt .............. This file
+            │
+            ├── SCRIPTS (3 files)
+            │   ├── start-audio-server.sh ........ Startup script
+            │   │                                   - Dependency checking
+            │   │                                   - Port verification
+            │   │                                   - Process management
+            │   │
+            │   ├── stop-audio-server.sh ......... Shutdown script
+            │   │                                   - Graceful shutdown
+            │   │                                   - Cleanup
+            │   │
+            │   └── example-usage.js ............. Usage examples
+            │                                       - 6 comprehensive examples
+            │                                       - Basic to advanced
+            │
+            ├── CONFIGURATION (1 file)
+            │   └── package.json ................. NPM configuration
+            │                                       - Dependencies
+            │                                       - Scripts
+            │
+            └── logs/ ............................ Log directory (created at runtime)
+                └── audio-server-YYYYMMDD-HHMMSS.log
+
+
+SYSTEM ARCHITECTURE
+===================
+
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                   │
+│  RTP Audio Stream (UDP)                                          │
+│  Port 3333, 4444                                                 │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────┐                                            │
+│  │ RTP to PCM       │  • Parse RTP packets                       │
+│  │ Converter        │  • Decode audio (OPUS, G.711)              │
+│  └────────┬─────────┘  • Manage jitter buffer                    │
+│           │                                                       │
+│           ▼                                                       │
+│  ┌──────────────────┐                                            │
+│  │ Audio Streaming  │  • HTTP/WebSocket server                   │
+│  │ Server           │  • Audio analysis (RMS, spectrum)          │
+│  └────────┬─────────┘  • REST API endpoints                      │
+│           │                                                       │
+│           ▼                                                       │
+│  ┌──────────────────┐                                            │
+│  │ WebSocket Audio  │  • Client transport management             │
+│  │ Transport        │  • Buffer optimization                     │
+│  └────────┬─────────┘  • Quality monitoring                      │
+│           │                                                       │
+│           ▼                                                       │
+│  ┌──────────────────┐                                            │
+│  │ Web Browser      │                                            │
+│  │ ┌──────────────┐ │                                            │
+│  │ │ Web Audio API│ │  • Audio playback                          │
+│  │ └──────────────┘ │                                            │
+│  │ ┌──────────────┐ │                                            │
+│  │ │ Canvas 2D    │ │  • Waveform visualization                  │
+│  │ │ Rendering    │ │  • Spectrum analyzer                       │
+│  │ └──────────────┘ │  • VU meters                               │
+│  └──────────────────┘                                            │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+
+
+QUICK START
+===========
+
+1. Install:
+   cd /path/to/audio
+   npm install
+
+2. Start:
+   ./start-audio-server.sh
+
+3. Access:
+   http://localhost:3030/audio-player-visualization.html
+
+4. Test:
+   ffmpeg -re -f lavfi -i "sine=frequency=440:duration=60" \
+     -ar 48000 -ac 1 -acodec pcm_s16le -f rtp rtp://localhost:3333
+
+
+FILE SIZES
+==========
+
+Core Components ........... ~60 KB
+Frontend .................. ~27 KB
+Documentation ............. ~40 KB
+Scripts ................... ~15 KB
+Configuration ............. ~1 KB
+Total ..................... ~143 KB
+
+
+FEATURES
+========
+
+✅ RTP to PCM conversion
+✅ Multi-codec support (OPUS, G.711 μ-law/A-law, PCM)
+✅ WebSocket streaming
+✅ Real-time waveform visualization
+✅ Spectrum analyzer (8 bands)
+✅ VU meters (RMS and Peak)
+✅ Play/pause/stop/volume/mute controls
+✅ Quality monitoring
+✅ Packet loss detection
+✅ Buffer management
+✅ Statistics tracking
+✅ REST API
+✅ Multiple concurrent streams
+✅ Production ready
+
+
+PORTS USED
+==========
+
+3030 .... HTTP/WebSocket server
+3333 .... RTP audio stream 1
+4444 .... RTP audio stream 2
+
+
+API ENDPOINTS
+=============
+
+GET  /health ................. Server health check
+GET  /api/streams ............ List all streams
+GET  /api/streams/:port ...... Stream details
+POST /api/streams/:port/start  Start stream
+POST /api/streams/:port/stop . Stop stream
+
+
+DEPENDENCIES
+============
+
+express ........ HTTP server framework
+socket.io ...... WebSocket server
+(Auto-installed via npm install)
+
+
+VERSION
+=======
+
+System Version: 1.0.0
+Release Date: 2025-12-04
+Status: Production Ready ✅
+
+
+DOCUMENTATION LINKS
+===================
+
+Complete Docs .... README.md
+Integration ...... INTEGRATION_GUIDE.md
+Quick Start ...... QUICK_START.md
+File Index ....... INDEX.md
+System Summary ... /AUDIO_SYSTEM_COMPLETE.md
+This File ........ SYSTEM_TREE.txt
+
+
+SUPPORT
+=======
+
+Health Check: curl http://localhost:3030/health
+View Logs: tail -f logs/audio-server-*.log
+Stop Server: ./stop-audio-server.sh
+

@@ -198,7 +198,7 @@ io.on('connection', (socket) => {
     };
 
     // Process as unified metrics
-    socket.emit('unified-metrics', unifiedData);
+    console.log('[Monitoring Server] EMITTING unified-metrics to all clients'); io.emit('unified-metrics', unifiedData);
   });
 
   // Handle knob update requests from dashboard

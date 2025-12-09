@@ -118,3 +118,71 @@ console.log('\n🔄 Bridge ready - forwarding unified metrics to database...');
 console.log('   From: Monitoring Server (port 3001)');
 console.log('   To: Database Server (port 8083)');
 console.log('   Dashboard: http://20.170.155.53:8080/database-records.html\n');
+// ALSO listen for legacy 'metrics' events (from older STTTTSserver)
+monitoringSocket.on('metrics', async (data) => {
+    messageCount++;
+    
+    // Transform legacy metrics data for database storage
+    const snapshot = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        station_id: data.station_id || 'STATION_9',
+        extension: data.extension || 'unknown',
+        timestamp: data.timestamp || new Date().toISOString(),
+        call_id: data.call_id || 'no-call',
+        channel: data.extension || 'default',
+        
+        // Store metrics directly
+        metrics: data,
+        knobs: {},
+        
+        // Additional fields
+        knobs_effective: [],
+        constraints: {},
+        targets: {},
+        segment: {
+            metric_count: Object.keys(data).length,
+            knob_count: 0
+        },
+        audio: {},
+        totals: {
+            metrics_received: Object.keys(data).length,
+            knobs_received: 0,
+            alerts: 0
+        }
+    };
+    
+    // Send to database server
+    const postData = JSON.stringify(snapshot);
+    
+    const options = {
+        hostname: 'localhost',
+        port: 8083,
+        path: '/api/monitoring-data',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+        }
+    };
+    
+    const req = http.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+            if (res.statusCode === 200) {
+                const now = new Date().toLocaleTimeString();
+                console.log(`[${now}] ✅ Stored LEGACY ${data.station_id || 'STATION_9'}-${data.extension}: ${Object.keys(data).length} fields`);
+                lastUpdate = now;
+            }
+        });
+    });
+    
+    req.on('error', (error) => {
+        console.error(`❌ Database connection error: ${error.message}`);
+    });
+    
+    req.write(postData);
+    req.end();
+});
+
+console.log('📡 Also listening for legacy metrics events...');

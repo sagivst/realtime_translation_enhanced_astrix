@@ -76,7 +76,7 @@ class StationAgent {
     console.log(`[${stationId}-${extension}] Agent initialized with ${this.allowedParameters.length}/${this.universalCollector.getCollectorCount()} parameters`);
 
     // Register with monitoring server if STATION_3
-    if (stationId === 'STATION_3') {
+    if (stationId) {
       this.registerWithMonitoring();
     }
   }
@@ -257,7 +257,7 @@ class StationAgent {
       }
 
       // Send metrics to monitoring server for STATION_3
-      if (this.stationId === 'STATION_3') {
+      if (this.stationId) {
         this.sendToMonitoring(filteredMetrics, filteredAlerts);
       }
 

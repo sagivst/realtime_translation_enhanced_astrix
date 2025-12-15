@@ -107,6 +107,7 @@ class Station3Handler {
   // EXPANDED from 4 to 14 parameters
   async onTranscript(data) {
     if (!this.stationAgent) return;
+    console.log("[STATION-3-DEBUG] onTranscript called for extension", this.extensionId, "with data:", data.transcript || "no transcript");
 
     try {
       const transcript = data.channel?.alternatives?.[0]?.transcript || '';
@@ -153,6 +154,7 @@ class Station3Handler {
         (activeConfig.noiseReduction.level || 'moderate') : 'off';
 
       // Collect ALL 14 parameters
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: now,
         extension: this.extensionId,
@@ -180,6 +182,7 @@ class Station3Handler {
         agcGain: agcGain,                          // 13 - AGC target level
         noiseReductionLevel: noiseReductionLevel   // 14 - Noise reduction setting
       });
+      console.log("[STATION-3-DEBUG] collect() called successfully");
 
       // Log enhanced collection (only for final transcripts to reduce noise)
       if (isFinal && transcript.length > 0) {
@@ -206,6 +209,7 @@ class Station3Handler {
     if (!this.stationAgent) return;
 
     try {
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
@@ -213,6 +217,7 @@ class Station3Handler {
         error: error.message || error,
         errorType: error.type || 'unknown'
       });
+      console.log("[STATION-3-DEBUG] collect() called successfully");
       console.log(`[STATION-3-${this.extensionId}] Error collected: ${error.type || 'unknown'}`);
     } catch (err) {
       console.error(`[STATION-3-${this.extensionId}] Error collection error:`, err.message);
@@ -224,12 +229,14 @@ class Station3Handler {
     if (!this.stationAgent) return;
 
     try {
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
         callId: `deepgram-metadata-${this.extensionId}-${Date.now()}`,
         metadata: data
       });
+      console.log("[STATION-3-DEBUG] collect() called successfully");
     } catch (error) {
       console.error(`[STATION-3-${this.extensionId}] Metadata collection error:`, error.message);
     }

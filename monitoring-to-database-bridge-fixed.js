@@ -1,129 +1,119 @@
+#!/usr/bin/env node
+
 /**
- * Fixed Monitoring to Database Bridge
- * Connects to monitoring server, receives metrics, and stores in database
- * FIXED: Uses ::1 (IPv6 loopback) instead of 127.0.0.1 (IPv4) for database connection
+ * Bridge to connect monitoring server (port 3001) to database server (port 8083)
+ * Receives BOTH 'unified-metrics' AND 'metrics' events and forwards them to the database
  */
 
 const io = require('socket.io-client');
-const axios = require('axios');
+const http = require('http');
 
-// Configuration - FIX: Use IPv6 loopback for database connection
-const MONITORING_URL = 'http://localhost:3001';
-const DATABASE_URL = 'http://[::1]:8083';  // IPv6 format for localhost
+// Connect to monitoring server
+const monitoringSocket = io('http://localhost:3001');
 
-class MonitoringToDatabaseBridge {
-  constructor() {
-    this.socket = null;
-    this.recordCount = 0;
-    this.errorCount = 0;
-    this.lastError = null;
-  }
+console.log('🌉 Monitoring-to-Database Bridge Starting (FIXED - listens to metrics + unified-metrics)...');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  start() {
-    console.log('🌉 Monitoring to Database Bridge Starting...');
-    console.log(`📡 Monitoring Server: ${MONITORING_URL}`);
-    console.log(`💾 Database Server: ${DATABASE_URL} (IPv6)`);
+let messageCount = 0;
+let lastUpdate = null;
 
-    this.connectToMonitoring();
-  }
-
-  connectToMonitoring() {
-    this.socket = io(MONITORING_URL);
-
-    this.socket.on('connect', () => {
-      console.log('✅ Connected to monitoring server');
-      console.log('📊 Waiting for unified-metrics events...');
-    });
-
-    this.socket.on('unified-metrics', async (data) => {
-      console.log(`📦 Received metrics from ${data.station_id}-${data.extension}`);
-      console.log(`   Metrics: ${data.metric_count}, Knobs: ${data.knob_count}`);
-
-      await this.saveToDatabase(data);
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('❌ Disconnected from monitoring server');
-    });
-
-    this.socket.on('error', (error) => {
-      console.error('❌ Socket error:', error.message);
-    });
-  }
-
-  async saveToDatabase(data) {
-    try {
-      // Transform data to match database schema
-      const record = {
-        station_id: data.station_id,
-        extension: data.extension,
-        timestamp: data.timestamp || new Date().toISOString(),
-        metric_count: data.metric_count || Object.keys(data.metrics || {}).length,
-        knob_count: data.knob_count || Object.keys(data.knobs || {}).length,
-        metrics: data.metrics || {},
-        knobs: data.knobs || {}
-      };
-
-      // Send to database
-      const response = await axios.post(`${DATABASE_URL}/api/metrics`, record, {
-        timeout: 5000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.status === 200 || response.status === 201) {
-        this.recordCount++;
-        console.log(`✅ Saved record #${this.recordCount} to database`);
-
-        // Log sample data every 10 records
-        if (this.recordCount % 10 === 0) {
-          console.log(`📊 Progress: ${this.recordCount} records saved, ${this.errorCount} errors`);
-        }
-      }
-    } catch (error) {
-      this.errorCount++;
-      this.lastError = error.message;
-
-      if (error.code === 'ECONNREFUSED') {
-        console.error(`❌ Database connection refused at ${DATABASE_URL}`);
-        console.error('   Make sure database server is running on port 8083');
-      } else if (error.code === 'EADDRNOTAVAIL') {
-        console.error(`❌ Address not available: ${DATABASE_URL}`);
-        console.error('   Database may be listening on different interface');
-      } else {
-        console.error(`❌ Database error: ${error.message}`);
-      }
-    }
-  }
-
-  getStatus() {
-    return {
-      connected: this.socket?.connected || false,
-      recordsSaved: this.recordCount,
-      errors: this.errorCount,
-      lastError: this.lastError
-    };
-  }
-}
-
-// Start the bridge
-const bridge = new MonitoringToDatabaseBridge();
-bridge.start();
-
-// Status reporting
-setInterval(() => {
-  const status = bridge.getStatus();
-  console.log('📊 Bridge Status:', status);
-}, 30000);
-
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n👋 Shutting down bridge...');
-  if (bridge.socket) {
-    bridge.socket.disconnect();
-  }
-  process.exit(0);
+monitoringSocket.on('connect', () => {
+    console.log('✅ Connected to monitoring server on port 3001');
 });
 
-console.log('🌉 Bridge is running - Press Ctrl+C to stop');
+// Forward function - handles both event types
+async function forwardToDatabase(data, eventType) {
+    messageCount++;
+
+    // Transform data for database storage
+    const snapshot = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        station_id: data.station_id || data.stationId || 'STATION_9',
+        extension: data.extension || 'unknown',
+        timestamp: data.timestamp || new Date().toISOString(),
+        call_id: data.call_id || data.callId || 'no-call',
+        channel: data.extension || 'default',
+
+        // Store ALL metrics and knobs
+        metrics: data.metrics || data,
+        knobs: data.knobs || {},
+
+        // Additional fields for compatibility
+        knobs_effective: [],
+        constraints: {},
+        targets: {},
+        segment: {
+            metric_count: data.metric_count || Object.keys(data.metrics || data).length,
+            knob_count: data.knob_count || Object.keys(data.knobs || {}).length
+        },
+        audio: {},
+        totals: {
+            metrics_received: Object.keys(data.metrics || data).length,
+            knobs_received: Object.keys(data.knobs || {}).length,
+            alerts: (data.alerts || []).length
+        }
+    };
+
+    // Send to database server
+    const postData = JSON.stringify(snapshot);
+
+    const options = {
+        hostname: 'localhost',
+        port: 8083,
+        path: '/api/monitoring-data',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+        }
+    };
+
+    const req = http.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+            const now = new Date().toLocaleTimeString();
+            if (res.statusCode === 200) {
+                console.log(`[${now}] ✅ Stored ${eventType}: ${snapshot.station_id}-${snapshot.extension}`);
+                lastUpdate = now;
+            } else {
+                console.error(`❌ Failed to store snapshot: ${res.statusCode}`);
+            }
+        });
+    });
+
+    req.on('error', (error) => {
+        console.error(`❌ Database connection error: ${error.message}`);
+    });
+
+    req.write(postData);
+    req.end();
+}
+
+// Listen for unified metrics (new format)
+monitoringSocket.on('unified-metrics', async (data) => {
+    await forwardToDatabase(data, 'unified-metrics');
+});
+
+// Listen for legacy metrics (old format from STATION_9)
+monitoringSocket.on('metrics', async (data) => {
+    await forwardToDatabase(data, 'metrics');
+});
+
+// Listen for snapshot events
+monitoringSocket.on('snapshot', async (data) => {
+    await forwardToDatabase(data, 'snapshot');
+});
+
+monitoringSocket.on('disconnect', () => {
+    console.log('⚠️ Disconnected from monitoring server');
+});
+
+monitoringSocket.on('error', (error) => {
+    console.error('❌ Monitoring connection error:', error.message);
+});
+
+// Status report every 10 seconds
+setInterval(() => {
+    console.log(`📊 Bridge Status: Messages forwarded: ${messageCount}, Last update: ${lastUpdate || 'Never'}`);
+}, 10000);

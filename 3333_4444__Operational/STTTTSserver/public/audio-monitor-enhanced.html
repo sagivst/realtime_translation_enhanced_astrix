@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-Time Audio Monitor</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0e1a;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            margin-bottom: 30px;
+        }
+        .status-bar {
+            background: #1a1f2e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 0 20px rgba(0,255,0,0.1);
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .connected { background: #00ff00; }
+        .disconnected { background: #ff0000; }
+        .connecting { background: #ffff00; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
+            100% { box-shadow: 0 0 5px currentColor; }
+        }
+
+        .stations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .station-card {
+            background: #1a1f2e;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0,255,0,0.2);
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #00ff00;
+        }
+
+        .station-title {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: #00ff00;
+            color: #0a0e1a;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #00cc00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        button:disabled {
+            background: #666;
+            color: #333;
+            cursor: not-allowed;
+        }
+
+        .audio-visualizer {
+            height: 100px;
+            background: #0a0e1a;
+            border-radius: 4px;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: #0a0e1a;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: #00ff00;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .log-container {
+            background: #0a0e1a;
+            border: 1px solid #00ff00;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        .log-entry.error { color: #ff0000; }
+        .log-entry.success { color: #00ff00; }
+        .log-entry.info { color: #00aaff; }
+
+        audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 Real-Time Audio Monitor</h1>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div id="statusLight" class="status-light disconnected"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <div>
+                <span id="serverUrl">-</span>
+            </div>
+        </div>
+
+        <div class="stations-grid">
+            <!-- Extension 3333 -->
+            <div class="station-card">
+                <div class="station-header">
+                    <div class="station-title">Extension 3333 (English)</div>
+                    <div class="audio-controls">
+                        <button onclick="toggleSubscription('3333')" id="subBtn3333">Subscribe</button>
+                        <button onclick="togglePlayback('3333')" id="playBtn3333" disabled>Play</button>
+                    </div>
+                </div>
+
+                <div class="audio-visualizer">
+                    <canvas id="canvas3333"></canvas>
+                </div>
+
+                <audio id="audio3333" controls></audio>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Packets</div>
+                        <div class="stat-value" id="packets3333">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Data Rate</div>
+                        <div class="stat-value" id="rate3333">0 KB/s</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Buffer</div>
+                        <div class="stat-value" id="buffer3333">0 KB</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Extension 4444 -->
+            <div class="station-card">
+                <div class="station-header">
+                    <div class="station-title">Extension 4444 (French)</div>
+                    <div class="audio-controls">
+                        <button onclick="toggleSubscription('4444')" id="subBtn4444">Subscribe</button>
+                        <button onclick="togglePlayback('4444')" id="playBtn4444" disabled>Play</button>
+                    </div>
+                </div>
+
+                <div class="audio-visualizer">
+                    <canvas id="canvas4444"></canvas>
+                </div>
+
+                <audio id="audio4444" controls></audio>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Packets</div>
+                        <div class="stat-value" id="packets4444">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Data Rate</div>
+                        <div class="stat-value" id="rate4444">0 KB/s</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Buffer</div>
+                        <div class="stat-value" id="buffer4444">0 KB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-container" id="logContainer">
+            <div class="log-entry info">System initialized. Ready to connect...</div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        const serverUrl = `http://${window.location.hostname}:3020`;
+        const subscriptions = new Map();
+        const audioContexts = new Map();
+        const stats = new Map();
+        const audioBuffers = new Map();
+
+        // Initialize stats for both extensions
+        ['3333', '4444'].forEach(ext => {
+            stats.set(ext, {
+                packets: 0,
+                bytes: 0,
+                rate: 0,
+                lastUpdate: Date.now()
+            });
+            audioBuffers.set(ext, []);
+        });
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+
+            // Keep only last 100 entries
+            while (log.children.length > 100) {
+                log.removeChild(log.firstChild);
+            }
+        }
+
+        function updateStatus(status) {
+            const light = document.getElementById('statusLight');
+            const text = document.getElementById('statusText');
+
+            light.className = `status-light ${status}`;
+            text.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+
+            document.getElementById('serverUrl').textContent =
+                status === 'connected' ? serverUrl : '-';
+        }
+
+        function connectToServer() {
+            addLog(`Connecting to ${serverUrl}...`, 'info');
+            updateStatus('connecting');
+
+            socket = io(serverUrl, {
+                transports: ['websocket', 'polling'],
+                reconnection: true
+            });
+
+            socket.on('connect', () => {
+                addLog(`Connected! Socket ID: ${socket.id}`, 'success');
+                updateStatus('connected');
+            });
+
+            socket.on('disconnect', (reason) => {
+                addLog(`Disconnected: ${reason}`, 'error');
+                updateStatus('disconnected');
+
+                // Disable all buttons
+                ['3333', '4444'].forEach(ext => {
+                    document.getElementById(`subBtn${ext}`).textContent = 'Subscribe';
+                    document.getElementById(`playBtn${ext}`).disabled = true;
+                    subscriptions.set(ext, false);
+                });
+            });
+
+            // Handle subscription confirmations
+            socket.on('audio-subscribed', (data) => {
+                addLog(`Subscribed to extension ${data.extensionId}`, 'success');
+                subscriptions.set(data.extensionId, true);
+                document.getElementById(`subBtn${data.extensionId}`).textContent = 'Unsubscribe';
+                document.getElementById(`playBtn${data.extensionId}`).disabled = false;
+            });
+
+            socket.on('audio-unsubscribed', (data) => {
+                addLog(`Unsubscribed from extension ${data.extensionId}`, 'info');
+                subscriptions.set(data.extensionId, false);
+                document.getElementById(`subBtn${data.extensionId}`).textContent = 'Subscribe';
+                document.getElementById(`playBtn${data.extensionId}`).disabled = true;
+            });
+
+            // Handle audio data
+            socket.on('audio-data', (data) => {
+                handleAudioData(data);
+            });
+
+            // Alternative event names (for compatibility)
+            socket.on('audioData', (data) => {
+                handleAudioData(data);
+            });
+
+            socket.on('error', (error) => {
+                addLog(`Error: ${error.message || error}`, 'error');
+            });
+        }
+
+        function handleAudioData(data) {
+            const { extensionId, data: audioBase64, sampleRate, format } = data;
+
+            // Update stats
+            const stat = stats.get(extensionId);
+            if (stat) {
+                stat.packets++;
+                const audioData = atob(audioBase64);
+                stat.bytes += audioData.length;
+
+                // Calculate rate
+                const now = Date.now();
+                const elapsed = (now - stat.lastUpdate) / 1000;
+                if (elapsed > 1) {
+                    stat.rate = (stat.bytes / elapsed) / 1024;
+                    stat.lastUpdate = now;
+                    stat.bytes = 0;
+                }
+
+                // Update UI
+                document.getElementById(`packets${extensionId}`).textContent = stat.packets;
+                document.getElementById(`rate${extensionId}`).textContent = `${stat.rate.toFixed(1)} KB/s`;
+
+                // Store audio data
+                const buffer = audioBuffers.get(extensionId);
+                if (buffer) {
+                    buffer.push(audioData);
+                    if (buffer.length > 100) {
+                        buffer.shift();
+                    }
+                    document.getElementById(`buffer${extensionId}`).textContent =
+                        `${(buffer.length * audioData.length / 1024).toFixed(1)} KB`;
+                }
+
+                // Visualize
+                visualizeAudio(extensionId, audioData);
+            }
+
+            // Log periodically
+            if (stat && stat.packets % 50 === 0) {
+                addLog(`Extension ${extensionId}: ${stat.packets} packets received`, 'info');
+            }
+        }
+
+        function visualizeAudio(extensionId, audioData) {
+            const canvas = document.getElementById(`canvas${extensionId}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width = canvas.offsetWidth;
+            const height = canvas.height = canvas.offsetHeight;
+
+            ctx.fillStyle = '#0a0e1a';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const samples = Math.min(audioData.length, width);
+            for (let i = 0; i < samples; i++) {
+                const x = (i / samples) * width;
+                const byte = audioData.charCodeAt(i % audioData.length);
+                const y = (byte / 255) * height;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+
+            ctx.stroke();
+        }
+
+        function toggleSubscription(extensionId) {
+            if (!socket || !socket.connected) {
+                addLog('Not connected to server', 'error');
+                return;
+            }
+
+            const isSubscribed = subscriptions.get(extensionId);
+
+            if (isSubscribed) {
+                socket.emit('unsubscribe-audio', { extensionId });
+            } else {
+                socket.emit('subscribe-audio', { extensionId });
+            }
+        }
+
+        function togglePlayback(extensionId) {
+            const audio = document.getElementById(`audio${extensionId}`);
+            const btn = document.getElementById(`playBtn${extensionId}`);
+
+            if (audio.paused) {
+                // Create audio blob from buffered data
+                const buffer = audioBuffers.get(extensionId);
+                if (buffer && buffer.length > 0) {
+                    const concatenated = buffer.join('');
+                    const byteArray = new Uint8Array(concatenated.length);
+                    for (let i = 0; i < concatenated.length; i++) {
+                        byteArray[i] = concatenated.charCodeAt(i);
+                    }
+
+                    const blob = new Blob([byteArray], { type: 'audio/pcm' });
+                    const url = URL.createObjectURL(blob);
+                    audio.src = url;
+                    audio.play();
+                    btn.textContent = 'Pause';
+                    addLog(`Playing audio for extension ${extensionId}`, 'info');
+                }
+            } else {
+                audio.pause();
+                btn.textContent = 'Play';
+            }
+        }
+
+        // Auto-connect on load
+        window.onload = () => {
+            addLog('Page loaded. Initializing connection...', 'info');
+            connectToServer();
+
+            // Update stats every second
+            setInterval(() => {
+                stats.forEach((stat, ext) => {
+                    const now = Date.now();
+                    const elapsed = (now - stat.lastUpdate) / 1000;
+                    if (elapsed > 1) {
+                        stat.rate = (stat.bytes / elapsed) / 1024;
+                        document.getElementById(`rate${ext}`).textContent = `${stat.rate.toFixed(1)} KB/s`;
+                        if (stat.bytes > 0) {
+                            stat.lastUpdate = now;
+                            stat.bytes = 0;
+                        }
+                    }
+                });
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

@@ -37,6 +37,47 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="audioTransport">Audio Connection</label>
+                        <select id="audioTransport">
+                            <option value="webrtc">🌐 WebRTC (Browser Microphone)</option>
+                            <option value="sip">📞 SIP/Asterisk (Telephony)</option>
+                        </select>
+                        <small style="display: block; margin-top: 4px; color: #666; font-size: 0.85em;">
+                            WebRTC: Direct browser microphone (current) | SIP: Connect via Asterisk PBX
+                        </small>
+                    </div>
+
+                    <!-- SIP Configuration (shown when SIP selected) -->
+                    <div id="sipConfigSection" style="display: none; margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                        <h4 style="margin-top: 0; font-size: 0.95em; color: #333;">SIP Configuration</h4>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label for="sipServer" style="font-size: 0.9em;">SIP Server</label>
+                            <input type="text" id="sipServer" value="ws://localhost:8088/ws" style="font-size: 0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label for="sipUsername" style="font-size: 0.9em;">SIP Username</label>
+                            <input type="text" id="sipUsername" value="caller1" style="font-size: 0.9em;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="sipPassword" style="font-size: 0.9em;">SIP Password</label>
+                            <input type="password" id="sipPassword" value="secret123" style="font-size: 0.9em;">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customVoice">Voice (optional - choose a custom voice)</label>
+                        <select id="customVoice">
+                            <option value="">Default (language-based)</option>
+                        </select>
+                        <div class="voice-preview-container" style="margin-top: 8px; display: none;">
+                            <button type="button" id="previewVoiceBtn" class="btn btn-small btn-secondary" style="font-size: 0.9em; padding: 6px 12px;">
+                                🔊 Preview Voice
+                            </button>
+                            <span id="previewStatus" style="margin-left: 10px; font-size: 0.85em; color: #666;"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
                         <label for="roomId">Room ID (leave empty to create new)</label>
                         <input type="text" id="roomId" placeholder="Enter room ID or leave blank">
                     </div>
@@ -53,6 +94,74 @@
                             <li>Maximum latency: 2000ms</li>
                         </ul>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calibration Options Screen (shown after join but before conference) -->
+        <div id="calibrationOptionsScreen" class="screen">
+            <div class="join-container">
+                <div class="logo">🎤</div>
+                <h1>Voice Calibration Options</h1>
+                <p class="subtitle">Choose how to proceed with <strong id="calibrationLanguageName">your language</strong></p>
+
+                <!-- Option 1: Continue with existing profile -->
+                <div id="existingProfileOption" class="option-section" style="display: none;">
+                    <div class="option-card option-primary">
+                        <div class="option-icon">✅</div>
+                        <h3>Continue with Your Profile</h3>
+                        <p>Use your existing voice calibration for <strong id="profileLangDisplay">this language</strong></p>
+                        <div class="profile-info">
+                            <span class="profile-label">Username:</span>
+                            <span class="profile-value" id="usernameDisplay">Loading...</span>
+                        </div>
+                        <div class="profile-info">
+                            <span class="profile-label">Profile ID:</span>
+                            <span class="profile-value" id="profileIdDisplay">Loading...</span>
+                        </div>
+                        <button id="useExistingProfileBtn" class="btn btn-option btn-primary">
+                            Continue with Profile
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Option 2: Perform calibration -->
+                <div class="option-section">
+                    <div class="option-card option-highlighted">
+                        <div class="option-badge">RECOMMENDED</div>
+                        <div class="option-icon">🎯</div>
+                        <h3>Perform Voice Calibration</h3>
+                        <p>Get personalized speech recognition (2-3 minutes)</p>
+                        <div class="benefits-list">
+                            <span class="benefit">✨ +10-15% accuracy</span>
+                            <span class="benefit">🎯 Learns your accent</span>
+                            <span class="benefit">🔒 Private & secure</span>
+                        </div>
+                        <button id="startCalibrationFromJoinBtn" class="btn btn-option btn-success">
+                            Start Calibration
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Option 3: Skip calibration -->
+                <div class="option-section">
+                    <div class="option-card option-simple">
+                        <div class="option-icon">⚡</div>
+                        <h3>Skip Calibration</h3>
+                        <p>Use default settings for <strong id="defaultLangDisplay">this language</strong></p>
+                        <div class="skip-note">
+                            <small>⚠️ You can calibrate later from settings</small>
+                        </div>
+                        <button id="skipCalibrationFromJoinBtn" class="btn btn-option btn-secondary">
+                            Continue Without Calibration
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info Box -->
+                <div class="info-box-small">
+                    <strong>What is calibration?</strong>
+                    <p>We analyze your voice to improve recognition of your unique accent, pronunciation, and speech patterns.</p>
                 </div>
             </div>
         </div>
@@ -151,7 +260,20 @@
 
     <!-- Socket.io client -->
     <script src="/socket.io/socket.io.js"></script>
-    <!-- Conference app script -->
-    <script src="/js/conference.js"></script>
+
+    <!-- SIP.js library (for SIP transport option) -->
+    <!-- Using local npm package served as ES6 module -->
+    <script type="module">
+        // Import SimpleUser and expose it globally
+        import { SimpleUser } from '/node_modules/sip.js/lib/platform/web/simple-user/simple-user.js';
+        window.SimpleUser = SimpleUser;
+        console.log('[SIP.js] Library loaded successfully, SimpleUser exposed globally');
+    </script>
+
+    <!-- Audio transport abstraction layer -->
+    <script src="/js/audio-transport.js?v=1760564600000"></script>
+
+    <!-- Conference app script with built-in silence detection -->
+    <script src="/js/conference-silence-detection.js?v=1760564600000"></script>
 </body>
 </html>

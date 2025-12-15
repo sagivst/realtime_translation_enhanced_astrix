@@ -107,6 +107,7 @@ class Station9Handler {
 
       // Keep only last 10 buffers
       if (this.audioBufferQueue.length > 10) {
+    console.log("[STATION-9-DEBUG] onTranscript called for extension", this.extensionId, "with data:", data.transcript || "no transcript");
         this.audioBufferQueue.shift();
       }
 
@@ -147,6 +148,7 @@ class Station9Handler {
         activeConfig.limiter.threshold : 0;
 
       // Collect ALL 15 parameters
+      console.log("[STATION-9-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: now,
         extension: this.extensionId,
@@ -178,6 +180,7 @@ class Station9Handler {
         // Additional metadata
         totalBytesSent: this.totalBytesSent
       });
+      console.log("[STATION-9-DEBUG] collect() called successfully");
 
       // Log enhanced collection (throttled to avoid noise)
       if (bufferSize > 0 && Math.random() < 0.1) { // Log ~10% of outputs
@@ -202,6 +205,7 @@ class Station9Handler {
     if (!this.stationAgent) return;
 
     try {
+      console.log("[STATION-9-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
@@ -209,6 +213,7 @@ class Station9Handler {
         error: error.message || error,
         errorType: error.type || 'unknown'
       });
+      console.log("[STATION-9-DEBUG] collect() called successfully");
       console.log(`[STATION-9-${this.extensionId}] Error collected: ${error.type || 'unknown'}`);
     } catch (err) {
       console.error(`[STATION-9-${this.extensionId}] Error collection error:`, err.message);
@@ -220,12 +225,14 @@ class Station9Handler {
     if (!this.stationAgent) return;
 
     try {
+      console.log("[STATION-9-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
         callId: `tts-metadata-${this.extensionId}-${Date.now()}`,
         metadata: data
       });
+      console.log("[STATION-9-DEBUG] collect() called successfully");
     } catch (error) {
       console.error(`[STATION-9-${this.extensionId}] Metadata collection error:`, error.message);
     }

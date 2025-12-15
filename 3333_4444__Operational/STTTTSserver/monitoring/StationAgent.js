@@ -1,338 +1,265 @@
-/**
- * StationAgent - Enhanced with Socket.IO monitoring integration
- *
- * Filters universal metrics per station AND sends to monitoring server
- * Takes ALL 75 parameters from UniversalCollector
- * Returns only parameters relevant to this station
- * Sends metrics to monitoring server on port 3001
- */
 
-const UniversalCollector = require('./UniversalCollector');
-const stationParameterMap = require('./config/station-parameter-map');
-
-// Socket.IO client for monitoring server integration
-let ioClient = null;
-let monitoringClient = null;
-
-// Lazy load socket.io-client to avoid issues if not installed
-function getMonitoringClient() {
-  if (!monitoringClient) {
-    try {
-      ioClient = require('socket.io-client');
-      monitoringClient = ioClient('http://localhost:3001', {
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5
-      });
-
-      monitoringClient.on('connect', () => {
-        console.log('[StationAgent] ✅ Connected to monitoring server on port 3001');
-      });
-
-      monitoringClient.on('disconnect', () => {
-        console.log('[StationAgent] ⚠️ Disconnected from monitoring server');
-      });
-
-      monitoringClient.on('error', (error) => {
-        console.log('[StationAgent] ❌ Monitoring connection error:', error.message);
-      });
-    } catch (e) {
-      console.log('[StationAgent] Socket.IO client not available, monitoring disabled');
-    }
-  }
-  return monitoringClient;
-}
+// StationAgent - Emits station monitoring data with Matrix/knob values
+const fs = require('fs');
+const path = require('path');
+const io = require('socket.io-client');
 
 class StationAgent {
-  constructor(stationId, extension) {
+  constructor(stationId, extensionOrPort) {
     this.stationId = stationId;
-    this.extension = extension;
+    // Handle both formats: extensionOrPort can be extension (3333) or port
+    this.extension = typeof extensionOrPort === 'string' ? parseInt(extensionOrPort) : extensionOrPort;
+    this.port = this.extension; // For backward compatibility
 
-    // Single universal collector (collects all 75)
-    this.universalCollector = new UniversalCollector();
+    // Enable monitoring
+    this.enabled = true;
 
-    // Get parameter list for this station
-    this.allowedParameters = stationParameterMap[stationId] || [];
+    // Control fake traffic generation
+    this.generateFakeTraffic = false; // Can be toggled via control endpoint
 
-    // Tracking counters for custom metrics
-    this.totalProcessed = 0;
-    this.successCount = 0;
-    this.errorCount = 0;
-    this.warningCount = 0;
-    this.criticalCount = 0;
-    this.state = 'idle';
-    this.startTime = Date.now();
-    this.lastProcessingTime = 0;
-    this.lastActivityTime = Date.now();
+    // Initialize with the ±75 & ±150 knob format external systems expect
+    this.knobs = {
+      // Matrix knobs (±75 range)
+      matrix_1_knob: 0,
+      matrix_2_knob: 0,
+      matrix_3_knob: 0,
+      matrix_4_knob: 0,
+      matrix_5_knob: 0,
+      matrix_6_knob: 0,
+      matrix_7_knob: 0,
+      matrix_8_knob: 0,
 
-    // Bandwidth tracking
-    this.bytesProcessed = 0;
-    this.lastBandwidthCheck = Date.now();
-
-    // Call tracking
-    this.currentCallId = null;
-    this.callStartTime = null;
-
-    console.log(`[${stationId}-${extension}] Agent initialized with ${this.allowedParameters.length}/${this.universalCollector.getCollectorCount()} parameters`);
-
-    // Register with monitoring server if STATION_3
-    if (stationId) {
-      this.registerWithMonitoring();
-    }
-  }
-
-  /**
-   * Register this station with the monitoring server
-   */
-  registerWithMonitoring() {
-    const client = getMonitoringClient();
-    if (!client) return;
-
-    const capabilities = {
-      station_id: this.stationId,
-      capabilities: {
-        name: 'Voice Monitor/Enhancer (STTTTSserver)',
-        type: 'voice',
-        parameters: this.allowedParameters.length,
-        extensions: ['3333', '4444'],
-        critical: true,
-        description: 'CRITICAL - Monitors and improves voice quality for Deepgram'
-      }
+      // Main control knobs (±150 range)
+      main_volume: 0,
+      balance: 0,
+      treble: 0,
+      bass: 0,
+      gain: 0,
+      compression: 0,
+      noise_gate: 0,
+      reverb: 0
     };
 
-    // Register immediately if connected, or on next connection
-    if (client.connected) {
-      client.emit('register-station', capabilities);
-      console.log(`[${this.stationId}] 📡 Registered with monitoring server`);
-    } else {
-      client.once('connect', () => {
-        client.emit('register-station', capabilities);
-        console.log(`[${this.stationId}] 📡 Registered with monitoring server`);
+    // Initialize metrics
+    this.metrics = {
+      calls: 0,
+      errors: 0,
+      latency: [],
+      avgLatency: 0,
+      status: 'active',
+      lastActivity: new Date().toISOString()
+    };
+
+    this.socket = null;
+    this.monitoringSocket = null;
+    this.lastSnapshot = null;
+  }
+
+  initStationAgent() {
+    console.log(`[StationAgent] Initializing monitoring for ${this.stationId} extension ${this.extension}`);
+
+    // Connect to monitoring server
+    this.monitoringSocket = io('http://localhost:3001', {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10
+    });
+
+    this.monitoringSocket.on('connect', () => {
+      console.log(`[StationAgent] Connected to monitoring server for ${this.stationId}`);
+
+      // Send initial snapshot
+      this.emitSnapshot();
+    });
+
+    this.monitoringSocket.on('disconnect', () => {
+      console.log(`[StationAgent] Disconnected from monitoring server for ${this.stationId}`);
+    });
+
+    // Start periodic snapshot emission (every 5 seconds)
+    setInterval(() => {
+      if (this.enabled) {
+        this.emitSnapshot();
+      }
+    }, 5000);
+
+    // If fake traffic generation is enabled, start it
+    if (this.generateFakeTraffic) {
+      this.startFakeTrafficGeneration();
+    }
+  }
+
+  startFakeTrafficGeneration() {
+    console.log(`[StationAgent] Starting fake traffic generation for ${this.stationId}`);
+
+    setInterval(() => {
+      if (!this.generateFakeTraffic || !this.enabled) return;
+
+      // Generate realistic-looking random knob movements
+      // Matrix knobs move within ±75 range
+      for (let i = 1; i <= 8; i++) {
+        const key = `matrix_${i}_knob`;
+        const currentValue = this.knobs[key];
+        const change = (Math.random() - 0.5) * 10; // Small incremental changes
+        this.knobs[key] = Math.max(-75, Math.min(75, currentValue + change));
+      }
+
+      // Main control knobs move within ±150 range
+      const mainKnobs = ['main_volume', 'balance', 'treble', 'bass', 'gain', 'compression', 'noise_gate', 'reverb'];
+      mainKnobs.forEach(knob => {
+        const currentValue = this.knobs[knob];
+        const change = (Math.random() - 0.5) * 15; // Slightly larger changes for main controls
+        this.knobs[knob] = Math.max(-150, Math.min(150, currentValue + change));
       });
-    }
+
+      // Update metrics
+      this.metrics.calls++;
+      this.metrics.lastActivity = new Date().toISOString();
+
+      // Emit the updated snapshot
+      this.emitSnapshot();
+    }, 2000); // Every 2 seconds when generating fake traffic
   }
 
-  /**
-   * Set current call ID for tracking
-   */
-  setCallId(callId) {
-    if (callId !== this.currentCallId) {
-      this.currentCallId = callId;
-      this.callStartTime = Date.now();
-      console.log(`[${this.stationId}-${this.extension}] New call: ${callId}`);
+  // Record a metric from actual station activity
+  recordMetric(type, value) {
+    if (!this.enabled) return;
+
+    if (type === 'call') {
+      this.metrics.calls++;
+    } else if (type === 'error') {
+      this.metrics.errors++;
+    } else if (type === 'latency') {
+      this.metrics.latency.push(value);
+      if (this.metrics.latency.length > 100) {
+        this.metrics.latency.shift();
+      }
+      // Calculate average latency
+      this.metrics.avgLatency = this.metrics.latency.length > 0
+        ? this.metrics.latency.reduce((a, b) => a + b, 0) / this.metrics.latency.length
+        : 0;
+    } else if (type === 'knob') {
+      // Handle knob updates from real station activity
+      if (value && value.name && value.value !== undefined) {
+        this.knobs[value.name] = value.value;
+      }
     }
+
+    this.metrics.lastActivity = new Date().toISOString();
   }
 
-  /**
-   * Send metrics to monitoring server
-   */
-  sendToMonitoring(metrics, alerts) {
-    const client = getMonitoringClient();
-    if (!client || !client.connected) return;
+  // Update knobs from station handler
+  updateKnobs(knobData) {
+    if (!this.enabled) return;
 
-    // Prepare metrics snapshot
+    // Merge provided knob data with current knobs
+    Object.assign(this.knobs, knobData);
+
+    // Emit updated snapshot
+    this.emitSnapshot();
+  }
+
+  // Emit the full station snapshot in the format external systems expect
+  emitSnapshot() {
+    console.log("[StationAgent-DEBUG] emitSnapshot() called, socket connected:", !!(this.monitoringSocket && this.monitoringSocket.connected));
+    if (!this.monitoringSocket || !this.monitoringSocket.connected) return;
+
     const snapshot = {
+      timestamp: new Date().toISOString(),
       station_id: this.stationId,
-      call_id: this.currentCallId || `${this.stationId}-${Date.now()}`,
-      channel: this.extension === '3333' ? 'caller' : 'callee',
       extension: this.extension,
+
+      // The knobs data that external systems expect (±75 & ±150 values)
+      knobs: { ...this.knobs },
+
+      // Include metrics for completeness
       metrics: {
-        // Add standard audio metrics
-        snr_db: metrics.snr_db || 25,
-        noise_floor_db: metrics.noise_floor_db || -65,
-        audio_level_dbfs: metrics.audio_level_dbfs || -18,
-        voice_activity_ratio: metrics.voice_activity_ratio || 0.7,
-        clipping_detected: metrics.clipping_detected || 0,
-
-        // Add buffer and performance metrics
-        buffer_usage_pct: metrics.buffer_usage_pct || 45,
-        buffer_underruns: metrics.buffer_underruns || 0,
-        jitter_buffer_size_ms: metrics.jitter_buffer_size_ms || 60,
-        processing_latency_ms: this.lastProcessingTime || 35,
-        jitter_ms: metrics.jitter_ms || 12,
-        packet_loss_pct: metrics.packet_loss_pct || 0.2,
-
-        // System metrics
-        cpu_usage_pct: process.cpuUsage().system / 1000000,
-        memory_usage_mb: process.memoryUsage().heapUsed / 1048576,
-
-        // Custom tracking
-        total_processed: this.totalProcessed,
-        success_rate: this.totalProcessed > 0 ? (this.successCount / this.totalProcessed) * 100 : 100,
-        error_count: this.errorCount,
-        warning_count: this.warningCount,
-
-        // Include all station-specific metrics
-        ...metrics
+        calls: this.metrics.calls,
+        errors: this.metrics.errors,
+        avgLatency: this.metrics.avgLatency.toFixed(2),
+        status: this.metrics.status,
+        lastActivity: this.metrics.lastActivity
       },
-      alerts: alerts,
-      timestamp: new Date().toISOString()
+
+      // Matrix state representation (derived from matrix knobs)
+      matrixState: [
+        this.knobs.matrix_1_knob,
+        this.knobs.matrix_2_knob,
+        this.knobs.matrix_3_knob,
+        this.knobs.matrix_4_knob,
+        this.knobs.matrix_5_knob,
+        this.knobs.matrix_6_knob,
+        this.knobs.matrix_7_knob,
+        this.knobs.matrix_8_knob
+      ]
     };
 
-    // Send to monitoring server
-    client.emit('metrics', snapshot);
-    console.log(`[${this.stationId}-${this.extension}] 📊 Sent metrics to monitoring (call: ${snapshot.call_id})`);
+    // Store last snapshot
+    this.lastSnapshot = snapshot;
+
+    // Emit to monitoring server on the station channel
+    this.monitoringSocket.emit(this.stationId, snapshot);
+
+    // Also emit on a generic 'unified-metrics' channel for the bridge
+    this.monitoringSocket.emit('unified-metrics', snapshot);
+    console.log("[StationAgent-DEBUG] Emitted unified-metrics event for", this.stationId, "-", this.extension);
+
+    console.log(`[StationAgent] Emitted snapshot for ${this.stationId}-${this.extension} with ${Object.keys(this.knobs).length} knobs`);
   }
-
-  /**
-   * Collect metrics for this station
-   * Automatically filters to only relevant parameters
-   */
-  async collect(context) {
-    const collectionStart = Date.now();
-    this.state = 'processing';
-    this.totalProcessed++;
-    this.lastActivityTime = Date.now();
-
-    // Extract call ID from context if available
-    if (context.callId) {
-      this.setCallId(context.callId);
-    }
-
-    // Track bandwidth
-    if (context.pcmBuffer) {
-      this.bytesProcessed += context.pcmBuffer.length;
-    }
-
-    // Build enhanced context with our tracking data
-    const enhancedContext = {
-      ...context,
-
-      // Add processing time from last collection
-      processingTime: this.lastProcessingTime,
-
-      // Add custom tracking data
-      custom: {
-        state: this.state,
-        totalProcessed: this.totalProcessed,
-        successCount: this.successCount,
-        errorCount: this.errorCount,
-        warningCount: this.warningCount,
-        criticalCount: this.criticalCount,
-        processingSpeed: this.calculateProcessingSpeed(),
-        lastActivityTime: this.lastActivityTime
-      },
-
-      // Add bandwidth calculation
-      bandwidth: {
-        bytesProcessed: this.bytesProcessed,
-        timeSinceLastCheck: Date.now() - this.lastBandwidthCheck
-      }
-    };
-
-    try {
-      // Collect ALL 75 parameters
-      const { metrics: allMetrics, alerts: allAlerts } =
-        await this.universalCollector.collectAll(enhancedContext);
-
-      // Filter to only this station's parameters
-      const filteredMetrics = {};
-      for (const param of this.allowedParameters) {
-        if (param in allMetrics && allMetrics[param] !== null) {
-          filteredMetrics[param] = allMetrics[param];
-        }
-      }
-
-      // Filter alerts to only this station's parameters
-      const filteredAlerts = allAlerts.filter(alert =>
-        this.allowedParameters.includes(alert.metric)
-      );
-
-      // Update counters based on alerts
-      filteredAlerts.forEach(alert => {
-        if (alert.level === 'warning') this.warningCount++;
-        if (alert.level === 'critical') this.criticalCount++;
+  // Added collect() method to handle station handler calls
+  collect(data) {
+    console.log("[StationAgent-DEBUG] collect() called for", this.stationId, "-", this.extension);
+    // Update metrics and knobs from incoming data
+    if (data.metrics) {
+      Object.entries(data.metrics).forEach(([key, value]) => {
+        this.recordMetric(key, value);
       });
-
-      // Calculate processing time
-      const collectionEnd = Date.now();
-      this.lastProcessingTime = collectionEnd - collectionStart;
-      this.state = 'active';
-      this.successCount++;
-
-      // Reset bandwidth counter periodically
-      if (Date.now() - this.lastBandwidthCheck > 1000) {
-        this.bytesProcessed = 0;
-        this.lastBandwidthCheck = Date.now();
-      }
-
-      // Send metrics to monitoring server for STATION_3
-      if (this.stationId) {
-        this.sendToMonitoring(filteredMetrics, filteredAlerts);
-      }
-
-      return {
-        metrics: filteredMetrics,
-        alerts: filteredAlerts
-      };
-
-    } catch (error) {
-      this.errorCount++;
-      this.state = 'error';
-      console.error(`[${this.stationId}-${this.extension}] Collection error:`, error.message);
-
-      return {
-        metrics: {},
-        alerts: [{
-          metric: 'system',
-          level: 'critical',
-          message: `Collection failed: ${error.message}`
-        }]
-      };
     }
+    
+    if (data.knobs) {
+      this.updateKnobs(data.knobs);
+    }
+    
+    // Store additional data
+    if (data.callId) this.callId = data.callId;
+    if (data.timestamp) this.lastActivity = new Date(data.timestamp).getTime();
+    
+    // Emit the snapshot with all collected data
+    this.emitSnapshot();
   }
 
-  /**
-   * Calculate processing speed (items/second)
-   */
-  calculateProcessingSpeed() {
-    const uptime = (Date.now() - this.startTime) / 1000;
-    if (uptime === 0) return 0;
-    return this.totalProcessed / uptime;
-  }
 
-  /**
-   * Get parameter count for this station
-   */
-  getParameterCount() {
-    return this.allowedParameters.length;
-  }
-
-  /**
-   * Get statistics
-   */
-  getStats() {
+  // Get current metrics
+  getMetrics() {
     return {
-      stationId: this.stationId,
-      extension: this.extension,
-      totalProcessed: this.totalProcessed,
-      successCount: this.successCount,
-      errorCount: this.errorCount,
-      warningCount: this.warningCount,
-      criticalCount: this.criticalCount,
-      successRate: this.totalProcessed > 0 ? (this.successCount / this.totalProcessed) * 100 : 100,
-      state: this.state,
-      uptime: Date.now() - this.startTime,
-      parametersMonitored: this.allowedParameters.length,
-      currentCallId: this.currentCallId,
-      monitoringConnected: monitoringClient ? monitoringClient.connected : false
+      ...this.metrics,
+      knobs: { ...this.knobs }
     };
   }
 
-  /**
-   * Reset counters
-   */
-  reset() {
-    this.totalProcessed = 0;
-    this.successCount = 0;
-    this.errorCount = 0;
-    this.warningCount = 0;
-    this.criticalCount = 0;
-    this.state = 'idle';
-    this.startTime = Date.now();
-    this.currentCallId = null;
-    this.callStartTime = null;
-    console.log(`[${this.stationId}-${this.extension}] Counters reset`);
+  // Record an error
+  recordError(error) {
+    this.metrics.errors++;
+    this.metrics.lastActivity = new Date().toISOString();
+    console.error(`[${this.stationId}] Error:`, error);
+  }
+
+  // Generic emit method for backward compatibility
+  emit(eventType, data) {
+    if (!this.enabled) return;
+
+    if (this.monitoringSocket && this.monitoringSocket.connected) {
+      this.monitoringSocket.emit(eventType, data);
+    }
+  }
+
+  // Cleanup
+  destroy() {
+    if (this.monitoringSocket) {
+      this.monitoringSocket.disconnect();
+      this.monitoringSocket = null;
+    }
+    this.enabled = false;
   }
 }
 

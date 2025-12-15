@@ -1,13 +1,3 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-
-const PORT = 8080;
-const API_PORT = 8083;
-
-const server = http.createServer((req, res) => {
-  console.log(`Request: ${req.method} ${req.url}`);
-
   // Proxy API requests to port 8083
   if (req.url.startsWith('/api/')) {
     const options = {
@@ -31,6 +21,23 @@ const server = http.createServer((req, res) => {
 
     req.pipe(proxy);
     return;
+
+  // Serve telemetry dashboard at /telemetry
+  if (req.url === '/telemetry') {
+    const telemetryPath = '/home/azureuser/translation-app/telemetry-dashboard.html';
+    
+    fs.readFile(telemetryPath, (err, data) => {
+      if (err) {
+        console.error('Error reading telemetry dashboard:', err);
+        res.writeHead(404);
+        res.end('Telemetry dashboard not found');
+        return;
+      }
+      
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.end(data);
+    });
+    return;
   }
 
   // Serve database-records-enhanced.html for multiple URLs
@@ -50,14 +57,3 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-
-  // Default 404
-  res.writeHead(404);
-  res.end('Not found');
-});
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Proxy server running on port ${PORT}`);
-  console.log(`Proxying /api/* → http://localhost:${API_PORT}/api/*`);
-  console.log(`Serving database-records-enhanced.html`);
-});

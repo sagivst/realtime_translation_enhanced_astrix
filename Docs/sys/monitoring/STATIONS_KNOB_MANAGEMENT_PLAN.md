@@ -1,4 +1,4 @@
-# Station-3 Knob Management & Default Values Plan
+# Monitoring Stations Knob Management & Default Values Plan
 ## Complete Configuration Management with Safety Defaults
 
 **Created:** December 3, 2024

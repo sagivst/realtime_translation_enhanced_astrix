@@ -14,6 +14,7 @@ const deepl = require('deepl-node');
 const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 const HumeStreamingClient = require('./hume-streaming-client');
 const Station3Handler = require('./station3-handler');
+const Station9Handler = require('./station9-handler');
 
 // Import HMLCP modules
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
@@ -63,6 +64,9 @@ const io = socketIo(server, {
 
 // Make Socket.IO available globally for audiosocket-integration
 global.io = io;
+
+// Load audio streaming extension for monitoring pages
+require("./audio-streaming-direct");
 
 // ========================================================================
 // OLD TIMING CLIENT - DISABLED 2025-11-12
@@ -1534,7 +1538,23 @@ try {
   station3_4444.initStationAgent(StationAgent);
   console.log("[STATION-3] Monitoring agents initialized");
 } catch (e) {
-  console.log("[STATION-3] StationAgent not available, metrics disabled");
+  console.log("[STATION-3] StationAgent error:", e.message);
+  console.log("[STATION-3] Stack trace:", e.stack);
+  console.log("[STATION-3] Metrics disabled");
+}
+
+// Station-9 monitoring handlers
+const station9_3333 = new Station9Handler("3333");
+const station9_4444 = new Station9Handler("4444");
+
+// Initialize StationAgent for Station-9
+try {
+  const StationAgent = require("./monitoring/StationAgent");
+  station9_3333.initStationAgent(StationAgent);
+  station9_4444.initStationAgent(StationAgent);
+  console.log("[STATION-9] Monitoring agents initialized");
+} catch (e) {
+  console.log("[STATION-9] StationAgent not available, metrics disabled");
 }
 
 // Track audio start times for latency calculation
@@ -3683,6 +3703,15 @@ const socket3333Out = dgram.createSocket('udp4');
 const socket4444In = dgram.createSocket('udp4');
 const socket4444Out = dgram.createSocket('udp4');
 
+// Expose UDP sockets globally for audio streaming extension
+global.udpSockets = {
+    socket3333In: socket3333In,
+    socket3333Out: socket3333Out,
+    socket4444In: socket4444In,
+    socket4444Out: socket4444Out
+};
+console.log("[STTTTSserver] UDP sockets exposed globally as global.udpSockets");
+
 // Statistics
 let udpPcmStats = {
   from3333Packets: 0,
@@ -4039,6 +4068,12 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
   const frameSize = UDP_PCM_CONFIG.frameSizeBytes;
   const totalFrames = Math.floor(pcmBuffer.length / frameSize);
 
+
+  // STATION-9 MONITORING: TTS output to Gateway
+  const station9Handler = targetExtension === '3333' ? station9_3333 : station9_4444;
+  if (station9Handler) {
+    station9Handler.onTTSOutput(pcmBuffer);
+  }
   console.log(`[UDP-${targetExtension}] Sending ${pcmBuffer.length} bytes (${totalFrames} frames)`);
 
   for (let i = 0; i < totalFrames; i++) {

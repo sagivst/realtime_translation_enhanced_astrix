@@ -1,17 +1,17 @@
 /**
- * Continuous monitoring data sender - WITH REAL STATION-3 DATA
- * Sends fake data for other stations, real data for Station-3
- * Fetches Station-3 data from monitoring-api-bridge on port 3009
+ * Continuous monitoring data sender - WITH REAL STATION-3 AND STATION-9 DATA
+ * Sends fake data for other stations, real data for Station-3 and Station-9
+ * Fetches Station-3 and Station-9 data from monitoring-api-bridge on port 3009
  */
 
 const io = require('socket.io-client');
 const axios = require('axios');
 const socket = io('http://20.170.155.53:3001');
 
-// Station-3 bridge URL
+// Stations bridge (3 and 9) URL
 const STATION3_BRIDGE_URL = 'http://localhost:3009/api/station3';
 
-// Cache for Station-3 data
+// Cache for real stations data
 let station3Cache = null;
 let station3LastFetch = 0;
 const STATION3_CACHE_TTL = 1500; // 1.5 seconds cache
@@ -39,7 +39,7 @@ async function fetchStation3Data() {
   } catch (error) {
     // Silent fail, return cached data or null
     if (station3Cache) {
-      console.log('[Station-3] Using cached data due to fetch error');
+      console.log('[real stations] Using cached data due to fetch error');
       return station3Cache;
     }
     console.log('[Station-3] No real data available, will use generated data');
@@ -303,11 +303,36 @@ function convertStation3Data(station3Data, extension) {
   };
 }
 
+// Convert Station-9 data format to monitoring format (uses same bridge as Station-3)
+function convertStation9Data(station3Data, extension) {
+  const key = `STATION_3_${extension}`;  // Station-9 shares the bridge data
+  const data = station3Data[key];
+
+  if (!data) return null;
+
+  return {
+    metrics: data.metrics || generateAllMetrics(),
+    knobs: data.knobs || generateAllKnobs(),
+    status: data.status || 'active',
+    timestamp: data.timestamp || new Date().toISOString()
+  };
+}
+
 // Main monitoring function
 async function sendMonitoringData() {
   const stations = [
-    { id: 'STATION_3', extensions: ['3333', '4444'] },  // Real data
-    { id: 'STATION_4', extensions: ['3333', '4444'] }   // Fake data for now
+    { id: 'STATION_1', extensions: ['3333', '4444'] },  // Asterisk → Gateway
+    { id: 'STATION_2', extensions: ['3333', '4444'] },  // Gateway → STTTTSserver
+    { id: 'STATION_3', extensions: ['3333', '4444'] },  // STTTTSserver → Deepgram (Real data)
+    { id: 'STATION_4', extensions: ['3333', '4444'] },  // Deepgram Response
+    { id: 'STATION_5', extensions: ['3333', '4444'] },  // Translation Engine
+    { id: 'STATION_6', extensions: ['3333', '4444'] },  // ElevenLabs TTS
+    { id: 'STATION_7', extensions: ['3333', '4444'] },  // Audio Enhancement
+    { id: 'STATION_8', extensions: ['3333', '4444'] },  // Recording/Archive
+    { id: 'STATION_9', extensions: ['3333', '4444'] },  // STTTTSserver → Gateway (TTS Output - Real data)
+    { id: 'STATION_10', extensions: ['3333', '4444'] }, // Gateway → Asterisk
+    { id: 'STATION_11', extensions: ['3333', '4444'] }, // STTTTSserver → Hume Branch
+    { id: 'STATION_12', extensions: ['3333', '4444'] }  // Hume Response
   ];
 
   let messageCount = 0;
@@ -322,19 +347,19 @@ async function sendMonitoringData() {
         let metrics, knobs, status;
 
         // Use real data for Station-3 if available
-        if (station.id === 'STATION_3' && station3Data) {
+        if ((station.id === 'STATION_3' || station.id === 'STATION_9') && station3Data) {
           const realData = convertStation3Data(station3Data, extension);
           if (realData) {
             metrics = realData.metrics;
             knobs = realData.knobs;
             status = realData.status;
-            console.log(`[${new Date().toLocaleTimeString()}] Using REAL data for Station-3-${extension}`);
+            console.log(`[${new Date().toLocaleTimeString()}] Using REAL data for ${station.id}-${extension}`);
           } else {
             // Fallback to generated data if conversion fails
             metrics = generateAllMetrics();
             knobs = generateAllKnobs();
             status = 'active';
-            console.log(`[${new Date().toLocaleTimeString()}] No real data for Station-3-${extension}, using generated`);
+            console.log(`[${new Date().toLocaleTimeString()}] No real data for ${extension}, using generated`);
           }
         } else {
           // Generate fake data for other stations
@@ -356,7 +381,7 @@ async function sendMonitoringData() {
           metric_count: Object.keys(metrics).length,
           knob_count: Object.keys(knobs).length,
           metadata: {
-            source: station.id === 'STATION_3' && station3Data ? 'real-station3' : 'generated',
+            source: (station.id === 'STATION_3' || station.id === 'STATION_9') && station3Data ? 'real-data' : 'generated',
             status: status
           }
         };

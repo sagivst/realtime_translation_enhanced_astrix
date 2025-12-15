@@ -7,7 +7,7 @@
 const DatabaseIntegration = require('./database-integration-module');
 
 // Initialize database integration
-const dbIntegration = new DatabaseIntegration();
+const dbIntegration = DatabaseIntegration;
 
 // Define all 75 metrics with their categories
 const METRICS_DEFINITION = {

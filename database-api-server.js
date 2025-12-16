@@ -1,223 +1,353 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 const os = require('os');
-const { exec, spawn } = require('child_process');
-const net = require('net');
+
+// Import new checker modules
+let checkers;
+let metricsCollector;
+try {
+  checkers = require('/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/monitoring/component-checkers');
+  console.log('[Database API] Component checkers loaded');
+} catch (e) {
+  console.log('[Database API] Component checkers not found, using basic checks only');
+}
+
+try {
+  metricsCollector = require('/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/monitoring/metrics-collector');
+  metricsCollector.start();
+  console.log('[Database API] Metrics collector started');
+} catch (e) {
+  console.log('[Database API] Metrics collector not found, live metrics disabled');
+}
 
 const app = express();
-const PORT = 8083;
-
-// Enable CORS for all origins
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage for snapshots
-let snapshots = [];
-let stations = {};
+// Store monitoring snapshots in memory
+const monitoringSnapshots = [];
+const maxSnapshots = 1000;
 
-// ============================================
-// COMPONENT CONFIGURATION (From Plan Section 5.3)
-// ============================================
-const componentConfig = {
-  'sttttserver': {
-    name: 'STTTTSserver',
-    startCmd: 'pm2 start STTTTSserver',
-    stopCmd: 'pm2 stop STTTTSserver',
-    checkPort: 8080,
-    checkProcess: 'STTTTSserver.js',
-    layer: 'core',
-    critical: true
+// Enhanced monitored components list
+const monitoredComponents = [
+  // === EXISTING COMPONENTS ===
+  {
+    id: "monitoring-server",
+    name: "monitoring-server.js",
+    pm2Name: "monitoring-server",
+    port: 8090,
+    layer: "monitoring",
+    critical: true,
+    message: "monitoring-server.js - The optimization engine"
   },
-  'ari-gstreamer': {
-    name: 'ari-gstreamer-operational',
-    startCmd: 'pm2 start ari-gstreamer',
-    stopCmd: 'pm2 stop ari-gstreamer',
-    checkProcess: 'ari-gstreamer-operational.js',
-    layer: 'core',
-    critical: true
+  {
+    id: "database-api-server",
+    name: "database-api-server.js",
+    pm2Name: "database-api-server",
+    port: 8083,
+    layer: "monitoring",
+    critical: true,
+    message: "database-api-server.js - The API for the Dashboard"
   },
-  'monitoring-server': {
-    name: 'monitoring-server',
-    startCmd: 'pm2 start monitoring-server',
-    stopCmd: 'pm2 stop monitoring-server',
-    checkPort: 3001,
-    checkProcess: 'monitoring-server.js',
-    layer: 'monitoring',
-    critical: true
+  {
+    id: "monitoring-bridge",
+    name: "monitoring-to-database-bridge.js",
+    pm2Name: "monitoring-bridge",
+    layer: "monitoring",
+    critical: false,
+    message: "monitoring-to-database-bridge.js - Connects the DB, MS & API"
   },
-  'database-api-server': {
-    name: 'database-api-server',
-    startCmd: 'cd /home/azureuser/translation-app && nohup node database-api-server.js > /tmp/database-api.log 2>&1 &',
-    stopCmd: 'pkill -f "node.*database-api-server.js"',
-    checkPort: 8083,
-    checkProcess: 'database-api-server.js',
-    layer: 'monitoring',
-    critical: true
+  {
+    id: "continuous-full-monitoring",
+    name: "continuous-full-monitoring-with-station3.js",
+    checkType: "pgrep",
+    pm2Name: "continuous-monitoring",
+    layer: "monitoring",
+    critical: false,
+    message: "continuous-full-monitoring-with-station3.js - Generates test traffic"
   },
-  'monitoring-bridge': {
-    name: 'monitoring-to-database-bridge',
-    startCmd: 'pm2 start monitoring-bridge',
-    stopCmd: 'pm2 stop monitoring-bridge',
-    checkProcess: 'monitoring-to-database-bridge.js',
-    layer: 'monitoring',
+  {
+    id: "sttttserver",
+    name: "STTTTSserver.js",
+    pm2Name: "STTTTSserver",
+    port: 8080,
+    layer: "core",
+    critical: true,
+    message: "STTTTSserver.js - Manages the translation flow"
+  },
+  {
+    id: "ari-gstreamer",
+    name: "ari-gstreamer.js",
+    pm2Name: "ari-gstreamer",
+    layer: "core",
+    critical: true,
+    message: "ari-gstreamer-operational.js - Connects Asterisk to the gateways"
+  },
+  {
+    id: "station3-handler",
+    name: "STTTTSserver",
+    checkType: "pgrep",
+    layer: "monitoring",
     critical: false
   },
-  'continuous-full-monitoring': {
-    name: 'continuous-full-monitoring',
-    startCmd: 'cd /home/azureuser/translation-app && nohup node continuous-full-monitoring-with-station3.js > /tmp/continuous-monitoring.log 2>&1 &',
-    stopCmd: 'pkill -f "node.*continuous-full-monitoring"',
-    checkProcess: 'continuous-full-monitoring-with-station3.js',
-    layer: 'monitoring',
+  {
+    id: "station9-handler",
+    name: "STTTTSserver",
+    checkType: "pgrep",
+    layer: "monitoring",
     critical: false
   },
-  'cloudflared': {
-    name: 'cloudflared',
-    startCmd: 'cd /home/azureuser && nohup ./cloudflared-linux-amd64 tunnel --url http://localhost:8083 > /tmp/cloudflared.log 2>&1 &',
-    stopCmd: 'pkill -f cloudflared',
-    checkProcess: 'cloudflared',
-    layer: 'monitoring',
+  {
+    id: "cloudflared",
+    name: "cloudflared",
+    checkType: "pgrep",
+    layer: "monitoring",
     critical: false
   },
-  'gateway-3333': {
-    name: 'gateway-3333',
-    startCmd: 'pm2 start gateway-3333',
-    stopCmd: 'pm2 stop gateway-3333',
-    checkPort: 7777,
-    checkProcess: 'gateway-3333.js',
-    layer: 'gateways',
+  {
+    id: "gateway-3333",
+    name: "gateway-3333",
+    pm2Name: "gateway-3333",
+    port: 7777,
+    layer: "gateways",
+    critical: true,
+    message: "gateway.js (3333) - Connects Asterisk & STTTTSserver",
+    message: "cloudflared - Cloudflare tunnel active",
+    message: "station9-handler.js - Called by STTTTSserver",
+    message: "station3-handler.js - Called by STTTTSserver"
+  },
+  {
+    id: "gateway-4444",
+    name: "gateway-4444",
+    pm2Name: "gateway-4444",
+    port: 8888,
+    layer: "gateways",
+    critical: true,
+    message: "gateway.js (4444) - Connects Asterisk & STTTTSserver"
+  },
+  // === NEW COMPONENTS ===
+  {
+    id: "asterisk-core",
+    name: "asterisk",
+    checkType: "asterisk",
+    port: 5060,
+    layer: "telephony",
+    critical: true,
+    message: "/usr/sbin/asterisk - The actual system core"
+  },
+  {
+    id: "asterisk-ari",
+    name: "ARI Interface",
+    checkType: "asterisk-ari",
+    port: 8088,
+    layer: "telephony",
+    critical: true,
+    message: "Asterisk ARI - Manages all Asterisk connection routes"
+  },
+  {
+    id: "asterisk-ami",
+    name: "AMI Interface",
+    checkType: "asterisk-ami",
+    port: 5038,
+    layer: "telephony",
+    critical: false,
+    message: "Asterisk AMI - Asterisk monitoring module"
+  },
+  {
+    id: "udp-socket-6120",
+    name: "UDP In 3333",
+    checkType: "udp",
+    port: 6120,
+    layer: "transport",
+    critical: true,
+    direction: "inbound",
+    extension: "3333",
+    message: "UDP Socket - Audio input from extension 3333"
+  },
+  {
+    id: "udp-socket-6121",
+    name: "UDP Out 3333",
+    checkType: "udp",
+    port: 6121,
+    layer: "transport",
+    critical: true,
+    direction: "outbound",
+    extension: "3333",
+    message: "UDP Socket - Audio output to extension 3333"
+  },
+  {
+    id: "udp-socket-6122",
+    id: "udp-socket-6123",
+    name: "UDP Socket 6123 (Ext 4444 Output)",
+    port: 6122,
+    description: "Audio output to gateway extension 4444",
+    layer: "transport",
+    critical: true,
+    direction: "inbound",
+    extension: "4444",
+    message: "UDP Socket - Audio output to extension 4444",
+    message: "UDP Socket - Audio input from extension 4444"
+  },
+  {
+    id: "udp-socket-6123",
+    name: "UDP Out 4444",
+    checkType: "udp",
+    port: 6123,
+    layer: "transport",
+    critical: true,
+    direction: "outbound",
+    extension: "4444",
+    message: "UDP Socket - Audio output to extension 4444"
+  },
+  {
+    id: "postgresql",
+    name: "PostgreSQL",
+    checkType: "postgresql",
+    port: 5432,
+    layer: "database",
+    critical: false
+  },
+  {
+    id: "deepgram-api",
+    name: "Deepgram API",
+    checkType: "external-api",
+    apiName: "deepgram",
+    layer: "external",
     critical: true
   },
-  'gateway-4444': {
-    name: 'gateway-4444',
-    startCmd: 'pm2 start gateway-4444',
-    stopCmd: 'pm2 stop gateway-4444',
-    checkPort: 8888,
-    checkProcess: 'gateway-4444.js',
-    layer: 'gateways',
+  {
+    id: "deepl-api",
+    name: "DeepL API",
+    checkType: "external-api",
+    apiName: "deepl",
+    layer: "external",
     critical: true
-  }
-};
+  },
+  {
+    id: "elevenlabs-api",
+    name: "ElevenLabs API",
+    checkType: "external-api",
+    apiName: "elevenlabs",
+    layer: "external",
+    critical: true
+  },
+  {
+    id: "hume-api",
+    name: "Hume API",
+    checkType: "external-api",
+    apiName: "hume",
+    layer: "external",
+    critical: false,
+    message: "api.hume.ai - Emotion Detection & Pass to ElevenLabs",
+    message: "api.elevenlabs.io - Text To Voice AI",
+    message: "api-free.deepl.com - Translator",
+    message: "api.deepgram.com - Voice To Text AI"
+  },
+];
 
-// Component status cache
-const componentStatusCache = {};
-
-// PM2 status cache to reduce exec calls
-let pm2Cache = { data: null, timestamp: 0 };
-const PM2_CACHE_TTL = 5000; // 5 seconds
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-// Check if a port is in use
-function checkPort(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once('error', () => resolve(true)); // Port in use
-    server.once('listening', () => {
-      server.close();
-      resolve(false); // Port available
-    });
-    server.listen(port, '127.0.0.1');
-  });
-}
-
-
-// Get cached PM2 list
-async function getCachedPM2List() {
-  const now = Date.now();
-  if (pm2Cache.data && (now - pm2Cache.timestamp) < PM2_CACHE_TTL) {
-    return pm2Cache.data;
-  }
-  
-  return new Promise((resolve) => {
-    exec('pm2 jlist', (error, stdout) => {
-      if (!error) {
-        try {
-          pm2Cache.data = JSON.parse(stdout);
-          pm2Cache.timestamp = now;
-          resolve(pm2Cache.data);
-        } catch (e) {
-          console.error('[PM2-Check] Failed to parse PM2 list:', e);
-          resolve(null);
-        }
-      } else {
-        console.error('[PM2-Check] Failed to get PM2 list:', error);
-        resolve(null);
-      }
-    });
-  });
-}
-
-// Get PM2 status for a specific component
-async function getPM2Status(componentId) {
-  const processes = await getCachedPM2List();
-  if (!processes) return null;
-  
-  // Map component IDs to PM2 names
-  const pm2NameMap = {
-    'STTTTSserver': 'STTTTSserver',
-    'ari-gstreamer': 'ari-gstreamer',
-    'gateway-3333': 'gateway-3333',
-    'gateway-4444': 'gateway-4444',
-    'monitoring-server': 'monitoring-server',
-    'monitoring-bridge': 'monitoring-bridge',
-    'database-api-server': 'database-api-server'
-  };
-  
-  const pm2Name = pm2NameMap[componentId];
-  if (!pm2Name) return null;
-  
-  const process = processes.find(p => p.name === pm2Name);
-  if (process) {
-    return {
-      status: process.pm2_env.status,
-      pid: process.pid || 0,  // Return 0 when stopped
-      restarts: process.pm2_env.restart_time,
-      memory: process.monit?.memory,
-      cpu: process.monit?.cpu,
-      isOnline: process.pm2_env.status === 'online' && process.pid > 0  // Add clear online flag
-    };
-  }
-  return null;
-}
-
-// Check if a process is running (REPLACED: now uses PM2 instead of pgrep)
-function checkProcess(processName) {
-  return new Promise(async (resolve) => {
-    // First try PM2
-    const processes = await getCachedPM2List();
-    if (processes) {
-      const process = processes.find(p => 
-        p.pm2_env.pm_exec_path && 
-        p.pm2_env.pm_exec_path.includes(processName)
-      );
+// Helper function to check process health
+async function checkProcessHealth(component) {
+  try {
+    if (component.checkCommand) {
+      const { stdout } = await execAsync(component.checkCommand);
+      const pids = stdout.trim().split('\n').filter(Boolean);
       
-      if (process && process.pm2_env.status === 'online') {
-        resolve({ running: true, pid: process.pid });
-        return;
+      if (pids.length > 0) {
+        return {
+          status: 'LIVE',
+          pid: pids[0],
+          message: component.id === 'station3-handler' || component.id === 'station9-handler' 
+            ? 'Module loaded by STTTTSserver.js' 
+            : undefined
+        };
       }
     }
-    
-    // If not found in PM2 or PM2 failed, fall back to pgrep (for non-PM2 processes)
-    exec(`pgrep -f "${processName}"`, (error, stdout) => {
-      if (error || !stdout.trim()) {
-        resolve({ running: false, pid: null });
-      } else {
-        const pids = stdout.trim().split('\n');
-        resolve({ running: true, pid: pids[0], pids: pids });
-      }
-    });
-  });
+    return { status: 'DEAD' };
+  } catch (error) {
+    return { status: 'DEAD' };
+  }
 }
 
-// Get component status with real detection
-// Enhanced getComponentStatus with per-component metrics
-async function getComponentStatus(componentId) {
-  // Skip self-check to prevent database-api-server from killing itself
-  if (componentId === "database-api-server") {
+// Helper function to check PM2 process health using CLI
+async function checkPM2Health(component) {
+  try {
+    const { stdout } = await execAsync('pm2 jlist');
+    const processes = JSON.parse(stdout);
+    const proc = processes.find(p => p.name === (component.pm2Name || component.id));
+    
+    if (!proc) {
+      return { status: 'DEAD' };
+    }
+
+    const status = proc.pm2_env?.status === 'online' ? 'LIVE' : 'DEAD';
+    
+    return {
+      status,
+      pid: proc.pid,
+      uptime: proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
+      restarts: proc.pm2_env?.restart_time || 0,
+      memory: proc.monit?.memory || 0,
+      cpu: proc.monit?.cpu || 0,
+      metrics: {
+        memory_mb: Math.round((proc.monit?.memory || 0) / (1024 * 1024)),
+        cpu_percent: proc.monit?.cpu || 0,
+        uptime_seconds: (Date.now() - (proc.pm2_env?.pm_uptime || Date.now())) / 1000
+      }
+    };
+  } catch (error) {
+    return { status: 'DEAD', error: error.message };
+  }
+}
+
+// Enhanced component health check
+async function getComponentHealth(component) {
+  // Special quick fixes for known running components
+  if (component.id === 'cloudflared') {
+  // Special handling for station handlers - they are part of STTTSserver
+  if (component.id === "station3-handler" || component.id === "station9-handler") {
+    try {
+      const { stdout } = await execAsync("pm2 jlist");
+      const procs = JSON.parse(stdout);
+      const stt = procs.find(p => p.name === "STTTSserver");
+      if (stt && stt.pm2_env?.status === "online") {
+        return {
+          status: "LIVE",
+          pid: stt.pid || "Part of STTTSserver",
+          cpu: 0,
+          memory: 0,
+          metrics: {
+            message: "Handler embedded in STTTSserver",
+            parent_pid: stt.pid,
+            parent_status: "online"
+          }
+        };
+      }
+    } catch (e) {
+      console.log("Error checking station handler:", e);
+    }
+    return { status: "DEAD", metrics: { message: "STTTSserver not running" } };
+  }
+    try {
+      const { stdout } = await execAsync('pgrep -f cloudflared | head -1');
+      if (stdout.trim()) {
+        return { status: 'LIVE', pid: stdout.trim(), metrics: { message: 'Cloudflare tunnel active' } };
+      }
+    } catch {}
+    return { status: 'DEAD' };
+  }
+  if (component.id === 'continuous-full-monitoring') {
+    try {
+      const { stdout } = await execAsync('pgrep -f continuous-full | head -1');
+      if (stdout.trim()) {
+        return { status: 'LIVE', pid: stdout.trim(), metrics: { message: 'Continuous monitoring active' } };
+      }
+    } catch {}
+    return { status: 'DEAD' };
+  }
+  if (component.id === "database-api-server") {
     return {
       status: "LIVE",
       message: "Self-check skipped",
@@ -225,971 +355,365 @@ async function getComponentStatus(componentId) {
       port: 8083,
       layer: "monitoring",
       critical: true,
-      lastCheck: new Date().toISOString(),
       metrics: {
-        memory_mb: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
+        memory_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
         cpu_percent: 0,
         uptime_seconds: process.uptime()
       }
     };
   }
 
-  const config = componentConfig[componentId];
-  if (!config) {
-    return { status: 'unknown', message: 'Component not configured' };
-  }
+  let result = {};
 
-  // Try PM2 status first (much faster, no new process spawning)
-  const pm2Status = await getPM2Status(componentId);
-  
-  if (pm2Status) {
-    // Got status from PM2 with enhanced metrics
-    componentStatusCache[componentId] = {
-      status: (pm2Status.status === "online" && pm2Status.pid > 0) ? "LIVE" : "DOWN",
-      pid: pm2Status.pid || 0,
-      port: config.checkPort || null,
-      layer: config.layer,
-      critical: config.critical,
-      lastCheck: new Date().toISOString(),
-      restarts: pm2Status.restarts,
-      memory: pm2Status.memory,
-      cpu: pm2Status.cpu,
-      metrics: {
-        memory_mb: pm2Status.memory ? Math.round(pm2Status.memory / (1024 * 1024)) : 0,
-        cpu_percent: pm2Status.cpu || 0,
-        uptime_seconds: 0 // Would need PM2 uptime data
-      }
-    };
+  // Use enhanced checkers if available
+  if (checkers && component.checkType) {
+    switch (component.checkType) {
+      case 'asterisk':
+        result = await checkers.checkAsteriskCore();
+        break;
+      case 'asterisk-ari':
+        result = await checkers.checkPortListener(8088);
+        break;
+      case 'asterisk-ami':
+        result = await checkers.checkPortListener(5038);
+        break;
+      case 'udp':
+        result = await checkers.checkUDPSocket(component.port, component.name);
+        if (metricsCollector) {
+          const udpMetrics = metricsCollector.getMetrics(`udp-${component.port}`);
+          if (udpMetrics.recv_queue !== undefined) {
+            result.metrics = { ...result.metrics, ...udpMetrics };
+          }
+        }
+        break;
+      case 'external-media':
+        result = await checkers.checkExternalMedia(component.port);
+        break;
+      case 'postgresql':
+        result = await checkers.checkPostgreSQL();
+        break;
+      case 'external-api':
+        switch (component.apiName) {
+          case 'deepgram':
+            result = await checkers.checkDeepgramAPI();
+            break;
+          case 'deepl':
+            result = await checkers.checkDeepLAPI();
+            break;
+          case 'elevenlabs':
+            result = await checkers.checkElevenLabsAPI();
+            break;
+          case 'hume':
+            result = await checkers.checkHumeAPI();
+            break;
+        }
+        break;
+      case 'hmlcp':
+        result = await checkers.checkHMLCPSystem();
+        break;
+      default:
+        // Fall back to basic check
+        if (component.pm2Name) {
+          result = await checkPM2Health(component);
+        } else {
+          result = await checkProcessHealth(component);
+        }
+    }
   } else {
-    // Fallback to process check if not in PM2
-    const processCheck = await checkProcess(config.checkProcess);
-    let portCheck = false;
-    
-    if (config.checkPort) {
-      portCheck = await checkPort(config.checkPort);
+    // Use basic checks if enhanced checkers not available
+    if (component.pm2Name) {
+      result = await checkPM2Health(component);
+    } else {
+      result = await checkProcessHealth(component);
     }
-    
-    const isLive = processCheck.running || portCheck;
-    
-    componentStatusCache[componentId] = {
-      status: isLive ? 'LIVE' : 'DOWN',
-      pid: processCheck.pid,
-      port: config.checkPort || null,
-      layer: config.layer,
-      critical: config.critical,
-      lastCheck: new Date().toISOString(),
-      metrics: {
-        memory_mb: 0,
-        cpu_percent: 0,
-        uptime_seconds: 0
-      }
-    };
   }
 
-  return componentStatusCache[componentId];
+  return result;
 }
 
-// Execute command with promise
-function execCommand(cmd) {
-  return new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
-      if (error) {
-        reject({ error: error.message, stderr });
-      } else {
-        resolve({ stdout, stderr });
-      }
-    });
-  });
+// Get system metrics
+async function getSystemMetrics() {
+  try {
+    const loadAvg = os.loadavg();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+
+    return {
+      cpu: {
+        loadAvg1min: loadAvg[0],
+        loadAvg5min: loadAvg[1],
+        loadAvg15min: loadAvg[2],
+        cores: os.cpus().length
+      },
+      memory: {
+        total_mb: Math.round(totalMem / (1024 * 1024)),
+        used_mb: Math.round(usedMem / (1024 * 1024)),
+        free_mb: Math.round(freeMem / (1024 * 1024)),
+        usage_percent: Math.round((usedMem / totalMem) * 100)
+      },
+      uptime: {
+        system_seconds: os.uptime(),
+        process_seconds: process.uptime()
+      },
+      platform: os.platform(),
+      hostname: os.hostname()
+    };
+  } catch (error) {
+    console.error('[Database API] System metrics error:', error);
+    return {};
+  }
 }
 
-// ============================================
-// EXISTING DATA ENDPOINTS
-// ============================================
-
-app.get('/api/snapshots', (req, res) => {
-  console.log('GET /api/snapshots request received');
-  const recentSnapshots = snapshots.slice(-100);
-  res.json(recentSnapshots);
-});
-
-app.get('/api/stations', (req, res) => {
-  console.log('GET /api/stations request received');
-  res.json(stations);
-});
-
-app.post('/api/monitoring-data', (req, res) => {
-  const data = req.body;
-  if (!data.timestamp) {
-    data.timestamp = new Date().toISOString();
-  }
-  snapshots.push(data);
-  if (snapshots.length > 1000) {
-    snapshots = snapshots.slice(-1000);
-  }
-  if (data.station_id) {
-    stations[data.station_id] = {
-      ...stations[data.station_id],
-      ...data,
-      lastUpdate: data.timestamp
-    };
-  }
-  console.log('Stored monitoring data:', data.station_id || 'unknown');
-  res.json({ success: true, message: 'Data received' });
-});
-
-// ============================================
-// HEALTH MONITORING ENDPOINTS (From Plan Section 2.1)
-// ============================================
-
-// Basic health check
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    uptime: process.uptime(),
-    snapshotCount: snapshots.length,
-    stationCount: Object.keys(stations).length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Overall system health (all components)
+// Enhanced health endpoint
 app.get('/api/health/system', async (req, res) => {
-  const cpuUsage = os.loadavg();
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
+  const startTime = Date.now();
 
-  // Check all components
-  const components = {};
-  let liveCount = 0;
-  let totalCount = 0;
-
-  for (const componentId of Object.keys(componentConfig)) {
-    const status = await getComponentStatus(componentId);
-    components[componentId] = status;
-    totalCount++;
-    if (status.status === 'LIVE') liveCount++;
-  }
-
-  const overallStatus = liveCount === totalCount ? 'HEALTHY' : 
-                        liveCount > totalCount / 2 ? 'DEGRADED' : 'CRITICAL';
-
-  res.json({
-    status: overallStatus,
-    components_live: liveCount,
-    components_total: totalCount,
-    components: components,
-    cpu: {
-      loadAvg1min: cpuUsage[0],
-      loadAvg5min: cpuUsage[1],
-      loadAvg15min: cpuUsage[2],
-      cores: os.cpus().length
-    },
-    memory: {
-      total_mb: Math.round(totalMem / 1024 / 1024),
-      used_mb: Math.round(usedMem / 1024 / 1024),
-      free_mb: Math.round(freeMem / 1024 / 1024),
-      usage_percent: Math.round((usedMem / totalMem) * 100)
-    },
-    uptime: {
-      system_seconds: os.uptime(),
-      process_seconds: process.uptime()
-    },
-    platform: os.platform(),
-    hostname: os.hostname(),
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Core services health (STTTTSserver, ari-gstreamer)
-app.get('/api/health/core', async (req, res) => {
-  const coreComponents = ['sttttserver', 'ari-gstreamer'];
-  const statuses = {};
-  let liveCount = 0;
-
-  for (const componentId of coreComponents) {
-    statuses[componentId] = await getComponentStatus(componentId);
-    if (statuses[componentId].status === 'LIVE') liveCount++;
-  }
-
-  res.json({
-    status: liveCount === coreComponents.length ? 'HEALTHY' : 'DEGRADED',
-    layer: 'core',
-    components_live: liveCount,
-    components_total: coreComponents.length,
-    components: statuses,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Monitoring layer health
-app.get('/api/health/monitoring', async (req, res) => {
-  const monitoringComponents = ['monitoring-server', 'database-api-server', 'monitoring-bridge', 'continuous-full-monitoring', 'cloudflared'];
-  const statuses = {};
-  let liveCount = 0;
-
-  for (const componentId of monitoringComponents) {
-    statuses[componentId] = await getComponentStatus(componentId);
-    if (statuses[componentId].status === 'LIVE') liveCount++;
-  }
-
-  res.json({
-    status: liveCount === monitoringComponents.length ? 'HEALTHY' : 'DEGRADED',
-    layer: 'monitoring',
-    components_live: liveCount,
-    components_total: monitoringComponents.length,
-    components: statuses,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Gateway layer health
-app.get('/api/health/gateways', async (req, res) => {
-  const gatewayComponents = ['gateway-3333', 'gateway-4444'];
-  const statuses = {};
-  let liveCount = 0;
-
-  for (const componentId of gatewayComponents) {
-    statuses[componentId] = await getComponentStatus(componentId);
-    if (statuses[componentId].status === 'LIVE') liveCount++;
-  }
-
-  res.json({
-    status: liveCount === gatewayComponents.length ? 'HEALTHY' : 'DEGRADED',
-    layer: 'gateways',
-    components_live: liveCount,
-    components_total: gatewayComponents.length,
-    components: statuses,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Individual component health (From Plan Section 2.1.1)
-app.get('/api/health/component/:name', async (req, res) => {
-  const componentName = req.params.name.toLowerCase();
-  const config = componentConfig[componentName];
-
-  if (!config) {
-    return res.status(404).json({
-      success: false,
-      error: 'Component not found',
-      available_components: Object.keys(componentConfig)
-    });
-  }
-
-  const status = await getComponentStatus(componentName);
-  const processInfo = await checkProcess(config.checkProcess);
-
-  res.json({
-    component: componentName,
-    display_name: config.name,
-    status: status.status,
-    uptime: status.status === 'LIVE' ? 'unknown' : 0,
-    lastCheck: new Date().toISOString(),
-    port: config.checkPort || null,
-    pid: processInfo.pid,
-    layer: config.layer,
-    critical: config.critical,
-    memory: status.status === 'LIVE' ? {
-      heapUsed: 'checking',
-      heapTotal: 'checking'
-    } : null,
-    details: {
-      startCommand: config.startCmd.split('&&').pop().trim(),
-      processPattern: config.checkProcess
-    }
-  });
-});
-
-// Get all station health
-app.get('/api/health/stations', (req, res) => {
-  const stationHealth = {};
-  for (const [stationId, stationData] of Object.entries(stations)) {
-    const lastUpdate = stationData.lastUpdate ? new Date(stationData.lastUpdate) : null;
-    const now = new Date();
-    const ageMs = lastUpdate ? now - lastUpdate : Infinity;
-    stationHealth[stationId] = {
-      status: ageMs < 30000 ? 'healthy' : ageMs < 60000 ? 'warning' : 'stale',
-      last_update: stationData.lastUpdate,
-      age_seconds: Math.round(ageMs / 1000),
-      extension: stationData.extension,
-      metrics_count: stationData.metric_count || 0
-    };
-  }
-  res.json({
-    status: Object.keys(stationHealth).length > 0 ? 'healthy' : 'no_stations',
-    stations: stationHealth,
-    total_stations: Object.keys(stationHealth).length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Get health for specific station
-app.get('/api/health/stations/:stationId', (req, res) => {
-  const stationId = req.params.stationId.toUpperCase();
-  const stationData = stations[stationId];
-  if (!stationData) {
-    return res.status(404).json({
-      status: 'not_found',
-      message: 'Station ' + stationId + ' not found',
-      available_stations: Object.keys(stations)
-    });
-  }
-  const lastUpdate = stationData.lastUpdate ? new Date(stationData.lastUpdate) : null;
-  const ageMs = lastUpdate ? Date.now() - lastUpdate : Infinity;
-  res.json({
-    status: ageMs < 30000 ? 'healthy' : ageMs < 60000 ? 'warning' : 'stale',
-    station_id: stationId,
-    last_update: stationData.lastUpdate,
-    age_seconds: Math.round(ageMs / 1000),
-    extension: stationData.extension,
-    metrics: stationData.metrics || {},
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Get latest metrics
-app.get('/api/health/metrics', (req, res) => {
-  const latestByStation = {};
-  for (let i = snapshots.length - 1; i >= 0 && Object.keys(latestByStation).length < 10; i--) {
-    const snapshot = snapshots[i];
-    const key = snapshot.station_id + '-' + snapshot.extension;
-    if (!latestByStation[key]) {
-      latestByStation[key] = snapshot;
-    }
-  }
-  res.json({
-    status: 'healthy',
-    latest_metrics: Object.values(latestByStation),
-    total_snapshots: snapshots.length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Get metrics for specific station
-app.get('/api/health/metrics/:stationId', (req, res) => {
-  const stationId = req.params.stationId.toUpperCase();
-  const stationSnapshots = snapshots.filter(s => s.station_id === stationId);
-  if (stationSnapshots.length === 0) {
-    return res.status(404).json({
-      status: 'not_found',
-      message: 'No metrics found for station ' + stationId
-    });
-  }
-  const recentSnapshots = stationSnapshots.slice(-20);
-  res.json({
-    status: 'healthy',
-    station_id: stationId,
-    metrics: recentSnapshots,
-    total_count: stationSnapshots.length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Alerts endpoint
-app.get('/api/health/alerts', (req, res) => {
-  const alerts = [];
-  for (const [stationId, stationData] of Object.entries(stations)) {
-    if (stationData.lastUpdate) {
-      const ageMs = Date.now() - new Date(stationData.lastUpdate);
-      if (ageMs > 60000) {
-        alerts.push({
-          level: 'warning',
-          type: 'stale_station',
-          station_id: stationId,
-          message: 'Station ' + stationId + ' has not reported in ' + Math.round(ageMs/1000) + ' seconds'
-        });
-      }
-    }
-  }
-  const recentSnapshots = snapshots.slice(-50);
-  for (const snapshot of recentSnapshots) {
-    if (snapshot.alerts && Array.isArray(snapshot.alerts)) {
-      for (const alert of snapshot.alerts) {
-        alerts.push({
-          ...alert,
-          station_id: snapshot.station_id,
-          timestamp: snapshot.timestamp
-        });
-      }
-    }
-  }
-  res.json({
-    status: alerts.length > 0 ? 'alerts_present' : 'healthy',
-    alerts: alerts.slice(-50),
-    alert_count: alerts.length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Component status endpoint
-app.get('/api/health/components', async (req, res) => {
-  const statuses = {};
-  for (const componentId of Object.keys(componentConfig)) {
-    statuses[componentId] = await getComponentStatus(componentId);
-  }
-  res.json({
-    status: 'healthy',
-    components: statuses,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Full health summary
-app.get('/api/health/summary', async (req, res) => {
-  const stationCount = Object.keys(stations).length;
-  const activeStations = Object.values(stations).filter(s => {
-    if (!s.lastUpdate) return false;
-    return Date.now() - new Date(s.lastUpdate) < 30000;
-  }).length;
-
-  // Check all components
-  let liveComponents = 0;
-  let totalComponents = Object.keys(componentConfig).length;
-  for (const componentId of Object.keys(componentConfig)) {
-    const status = await getComponentStatus(componentId);
-    if (status.status === 'LIVE') liveComponents++;
-  }
-
-  const cpuUsage = os.loadavg();
-  const memUsage = Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100);
-
-  res.json({
-    overall_status: liveComponents >= totalComponents - 1 ? 'HEALTHY' : 'DEGRADED',
+  const health = {
+    status: 'operational',
+    timestamp: new Date().toISOString(),
+    components_live: 0,
+    components_total: monitoredComponents.length,
+    components: {},
+    layers: {},
+    asterisk_health: {},
+    external_apis: {},
+    pipeline_health: {},
     summary: {
-      active_stations: activeStations,
-      total_stations: stationCount,
-      live_components: liveComponents,
-      total_components: totalComponents,
-      snapshots_stored: snapshots.length,
-      uptime_seconds: Math.round(process.uptime()),
-      cpu_load: cpuUsage[0],
-      memory_usage_percent: memUsage
+      total_components: monitoredComponents.length,
+      components_live: 0,
+      components_dead: 0,
+      critical_failures: [],
+      warnings: []
     },
-    stations: Object.keys(stations),
-    timestamp: new Date().toISOString()
+    system: await getSystemMetrics()
+  };
+
+  // Check all components
+  for (const component of monitoredComponents) {
+    const componentHealth = await getComponentHealth(component);
+    
+    health.components[component.id] = {
+      ...componentHealth,
+      name: component.name,
+      port: component.port,
+      layer: component.layer,
+      critical: component.critical,
+      lastCheck: new Date().toISOString(),
+      message: component.message
+    };
+
+    // Update counters
+    if (['LIVE', 'HEALTHY', 'ACTIVE'].includes(componentHealth.status)) {
+      health.components_live++;
+      health.summary.components_live++;
+    } else if (componentHealth.status !== 'DISABLED') {
+      health.summary.components_dead++;
+      if (component.critical) {
+        health.summary.critical_failures.push(component.id);
+      }
+    }
+
+    // Group by layer
+    if (!health.layers[component.layer]) {
+      health.layers[component.layer] = {
+        status: 'HEALTHY',
+        components: 0,
+        failed: 0
+      };
+    }
+    health.layers[component.layer].components++;
+    if (!['LIVE', 'HEALTHY', 'ACTIVE'].includes(componentHealth.status)) {
+      health.layers[component.layer].failed++;
+      if (health.layers[component.layer].failed > 0) {
+        health.layers[component.layer].status = 'DEGRADED';
+      }
+    }
+  }
+
+  // Add Asterisk health summary
+  if (health.components['asterisk-core']?.metrics) {
+    health.asterisk_health = health.components['asterisk-core'].metrics;
+  }
+
+  // Add external API summary
+  ['deepgram-api', 'deepl-api', 'elevenlabs-api', 'hume-api'].forEach(apiId => {
+    if (health.components[apiId]) {
+      health.external_apis[apiId] = {
+        status: health.components[apiId].status,
+        error_rate: health.components[apiId].metrics?.error_rate || 0,
+        latency_ms: health.components[apiId].metrics?.response_time_ms || 0
+      };
+    }
+  });
+
+  // Determine overall status
+  if (health.summary.critical_failures.length > 0) {
+    health.status = 'critical';
+  } else if (health.summary.components_dead > 0) {
+    health.status = 'degraded';
+  }
+
+  // Add response time
+  health.response_time_ms = Date.now() - startTime;
+
+  res.json(health);
+});
+
+// Individual component endpoint
+app.get('/api/health/component/:id', async (req, res) => {
+  const { id } = req.params;
+  const component = monitoredComponents.find(c => c.id === id);
+
+  if (!component) {
+    return res.status(404).json({ error: 'Component not found' });
+  }
+
+  const health = await getComponentHealth(component);
+  res.json({
+    id,
+    ...health,
+    component
   });
 });
 
-// ============================================
-// PROCESS CONTROL ENDPOINTS (From Plan Section 2.2)
-// ============================================
+// Metrics endpoint
+// Fixed route - Express doesn't support optional params with ?
+app.get('/api/metrics', (req, res) => {
+    res.json(metricsCollector ? metricsCollector.getAllMetrics() : {});
+});
 
-// Start a component
-app.post('/api/control/start/:component', async (req, res) => {
-  const componentName = req.params.component.toLowerCase();
-  const config = componentConfig[componentName];
-
-  if (!config) {
-    return res.status(404).json({
-      success: false,
-      action: 'start',
-      component: componentName,
-      error: 'Component not found',
-      available_components: Object.keys(componentConfig)
-    });
+app.get('/api/metrics/:component', (req, res) => {
+  const { component } = req.params;
+  
+  if (!metricsCollector) {
+    return res.json({ message: 'Metrics collector not available' });
   }
 
-  // Check if already running
-  const currentStatus = await getComponentStatus(componentName);
-  if (currentStatus.status === 'LIVE') {
-    return res.json({
-      success: true,
-      action: 'start',
-      component: componentName,
-      message: 'Component already running',
-      pid: currentStatus.pid,
-      timestamp: new Date().toISOString()
-    });
+  if (component) {
+    const metrics = metricsCollector.getMetrics(component);
+    res.json(metrics);
+  } else {
+    const allMetrics = metricsCollector.getAllMetrics();
+    res.json(allMetrics);
+  }
+});
+
+// Existing snapshots endpoint
+app.get('/api/snapshots', (req, res) => {
+  res.json(monitoringSnapshots);
+});
+
+app.post('/api/snapshots', (req, res) => {
+  const snapshot = {
+    ...req.body,
+    receivedAt: new Date().toISOString()
+  };
+
+  monitoringSnapshots.push(snapshot);
+
+  if (monitoringSnapshots.length > maxSnapshots) {
+    monitoringSnapshots.shift();
+  }
+
+  res.json({ 
+    success: true, 
+    count: monitoringSnapshots.length 
+  });
+});
+
+// Clear snapshots
+app.post('/api/clear', (req, res) => {
+  monitoringSnapshots.length = 0;
+  res.json({ success: true, message: 'All snapshots cleared' });
+});
+
+// Component control endpoints
+app.post('/api/components/:componentId/restart', async (req, res) => {
+  const { componentId } = req.params;
+  const component = monitoredComponents.find(c => c.id === componentId);
+
+  if (!component || !component.pm2Name) {
+    return res.status(404).json({ error: 'Component not found or not manageable' });
   }
 
   try {
-    await execCommand(config.startCmd);
-    // Wait for process to start
-    await new Promise(resolve => setTimeout(resolve, 4000));
-    const newStatus = await getComponentStatus(componentName);
-
-    res.json({
-      success: newStatus.status === 'LIVE',
-      action: 'start',
-      component: componentName,
-      message: newStatus.status === 'LIVE' ? 'Component started successfully' : 'Component may not have started',
-      newPid: newStatus.pid,
-      timestamp: new Date().toISOString()
-    });
+    await execAsync(`pm2 restart ${component.pm2Name}`);
+    res.json({ success: true, message: `${componentId} restarted` });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      action: 'start',
-      component: componentName,
-      error: error.error || 'Failed to start component',
-      details: error.stderr,
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Stop a component
-app.post('/api/control/stop/:component', async (req, res) => {
-  const componentName = req.params.component.toLowerCase();
-  const config = componentConfig[componentName];
+// Stop component endpoint
+app.post("/api/components/:componentId/stop", async (req, res) => {
+  const { componentId } = req.params;
+  const component = monitoredComponents.find(c => c.id === componentId);
 
-  if (!config) {
-    return res.status(404).json({
-      success: false,
-      action: 'stop',
-      component: componentName,
-      error: 'Component not found',
-      available_components: Object.keys(componentConfig)
-    });
+  if (!component || !component.pm2Name) {
+    return res.status(404).json({ error: "Component not found or not manageable" });
   }
 
-  // Prevent stopping database-api-server (self)
-  if (componentName === 'database-api-server') {
-    return res.status(400).json({
-      success: false,
-      action: 'stop',
-      component: componentName,
-      error: 'Cannot stop self (database-api-server). Use system restart instead.',
-      timestamp: new Date().toISOString()
-    });
+  // Prevent stopping critical monitoring components
+  if (componentId === "database-api-server" || componentId === "monitoring-server") {
+    return res.status(403).json({ error: "Critical monitoring components can only be restarted, not stopped" });
   }
 
   try {
-    await execCommand(config.stopCmd);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const newStatus = await getComponentStatus(componentName);
-
-    res.json({
-      success: newStatus.status === 'DOWN',
-      action: 'stop',
-      component: componentName,
-      message: newStatus.status === 'DOWN' ? 'Component stopped successfully' : 'Component may still be running',
-      timestamp: new Date().toISOString()
-    });
+    await execAsync(`pm2 stop ${component.pm2Name}`);
+    res.json({ success: true, message: `${componentId} stopped` });
   } catch (error) {
-    res.json({
-      success: true,
-      action: 'stop',
-      component: componentName,
-      message: 'Stop command executed (process may have already been stopped)',
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Restart a component
-app.post('/api/control/restart/:component', async (req, res) => {
-  const componentName = req.params.component.toLowerCase();
-  const config = componentConfig[componentName];
+// Start component endpoint
+app.post("/api/components/:componentId/start", async (req, res) => {
+  const { componentId } = req.params;
+  const component = monitoredComponents.find(c => c.id === componentId);
 
-  if (!config) {
-    return res.status(404).json({
-      success: false,
-      action: 'restart',
-      component: componentName,
-      error: 'Component not found',
-      available_components: Object.keys(componentConfig)
-    });
+  // Prevent starting critical monitoring components (they should never be stopped)
+  if (componentId === "database-api-server" || componentId === "monitoring-server") {
+    return res.status(403).json({ error: "Critical monitoring components can only be restarted, not stopped/started" });
   }
 
-  // Prevent restarting database-api-server (self)
-  if (componentName === 'database-api-server') {
-    return res.status(400).json({
-      success: false,
-      action: 'restart',
-      component: componentName,
-      error: 'Cannot restart self (database-api-server). Use system restart instead.',
-      timestamp: new Date().toISOString()
-    });
+  if (!component || !component.pm2Name) {
+
+    return res.status(404).json({ error: "Component not found or not manageable" });
   }
 
   try {
-    // Stop
-    try {
-      await execCommand(config.stopCmd);
-    } catch (e) {
-      // Ignore stop errors
-    }
-    await new Promise(resolve => setTimeout(resolve, 4000));
-
-    // Start
-    await execCommand(config.startCmd);
-    await new Promise(resolve => setTimeout(resolve, 4000));
-
-    const newStatus = await getComponentStatus(componentName);
-
-    res.json({
-      success: newStatus.status === 'LIVE',
-      action: 'restart',
-      component: componentName,
-      message: newStatus.status === 'LIVE' ? 'Component restarted successfully' : 'Component may not have restarted',
-      newPid: newStatus.pid,
-      timestamp: new Date().toISOString()
-    });
+    await execAsync(`pm2 start ${component.pm2Name}`);
+    res.json({ success: true, message: `${componentId} started` });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      action: 'restart',
-      component: componentName,
-      error: error.error || 'Failed to restart component',
-      details: error.stderr,
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ============================================
-// LAYER CONTROL ENDPOINTS (From Plan Section 2.2.3)
-// ============================================
+// Start server
+const PORT = process.env.PORT || 8083;
+const HOST = '0.0.0.0';
 
-// Restart core layer
-app.post('/api/control/restart/layer/core', async (req, res) => {
-  const coreComponents = ['sttttserver', 'ari-gstreamer'];
-  const results = {};
-
-  for (const componentId of coreComponents) {
-    const config = componentConfig[componentId];
-    try {
-      try { await execCommand(config.stopCmd); } catch (e) {}
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await execCommand(config.startCmd);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      const status = await getComponentStatus(componentId);
-      results[componentId] = { success: status.status === 'LIVE', status: status.status };
-    } catch (error) {
-      results[componentId] = { success: false, error: error.message };
-    }
+app.listen(PORT, HOST, () => {
+  console.log(`[Database API] Server running on ${HOST}:${PORT}`);
+  console.log(`[Database API] Health endpoint: http://localhost:${PORT}/api/health/system`);
+  console.log(`[Database API] Enhanced monitoring active with ${monitoredComponents.length} components`);
+  
+  if (checkers) {
+    console.log('[Database API] Advanced component checks enabled');
   }
-
-  res.json({
-    success: Object.values(results).every(r => r.success),
-    action: 'restart',
-    layer: 'core',
-    components: results,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Restart monitoring layer
-app.post('/api/control/restart/layer/monitoring', async (req, res) => {
-  const monitoringComponents = ['monitoring-server', 'monitoring-bridge', 'continuous-full-monitoring', 'cloudflared'];
-  // Exclude database-api-server (self)
-  const results = {};
-
-  for (const componentId of monitoringComponents) {
-    const config = componentConfig[componentId];
-    try {
-      try { await execCommand(config.stopCmd); } catch (e) {}
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await execCommand(config.startCmd);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      const status = await getComponentStatus(componentId);
-      results[componentId] = { success: status.status === 'LIVE', status: status.status };
-    } catch (error) {
-      results[componentId] = { success: false, error: error.message };
-    }
+  if (metricsCollector) {
+    console.log('[Database API] Live metrics collection enabled');
   }
-
-  results['database-api-server'] = { success: true, status: 'LIVE', note: 'Skipped (self)' };
-
-  res.json({
-    success: true,
-    action: 'restart',
-    layer: 'monitoring',
-    components: results,
-    timestamp: new Date().toISOString()
-  });
 });
 
-// Restart gateways layer
-app.post('/api/control/restart/layer/gateways', async (req, res) => {
-  const gatewayComponents = ['gateway-3333', 'gateway-4444'];
-  const results = {};
-
-  for (const componentId of gatewayComponents) {
-    const config = componentConfig[componentId];
-    try {
-      try { await execCommand(config.stopCmd); } catch (e) {}
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await execCommand(config.startCmd);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      const status = await getComponentStatus(componentId);
-      results[componentId] = { success: status.status === 'LIVE', status: status.status };
-    } catch (error) {
-      results[componentId] = { success: false, error: error.message };
-    }
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('[Database API] Shutting down gracefully...');
+  if (metricsCollector && metricsCollector.stop) {
+    metricsCollector.stop();
   }
-
-  res.json({
-    success: Object.values(results).every(r => r.success),
-    action: 'restart',
-    layer: 'gateways',
-    components: results,
-    timestamp: new Date().toISOString()
-  });
+  process.exit(0);
 });
 
-// ============================================
-// SYSTEM CONTROL ENDPOINTS (From Plan Section 2.2.4)
-// ============================================
-
-// Get full system status
-app.get('/api/control/status/system', async (req, res) => {
-  const allStatuses = {};
-  let liveCount = 0;
-  let totalCount = Object.keys(componentConfig).length;
-
-  for (const componentId of Object.keys(componentConfig)) {
-    allStatuses[componentId] = await getComponentStatus(componentId);
-    if (allStatuses[componentId].status === 'LIVE') liveCount++;
-  }
-
-  res.json({
-    overall_status: liveCount === totalCount ? 'ALL_LIVE' : liveCount > 0 ? 'PARTIAL' : 'ALL_DOWN',
-    live_count: liveCount,
-    total_count: totalCount,
-    components: allStatuses,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Start entire system (ordered by dependencies from Plan Section 3.2)
-app.post('/api/control/start/system', async (req, res) => {
-  const startOrder = [
-    'monitoring-server',
-    'database-api-server',
-    'monitoring-bridge',
-    'continuous-full-monitoring',
-    'cloudflared',
-    'ari-gstreamer',
-    'sttttserver',
-    'gateway-3333',
-    'gateway-4444'
-  ];
-
-  const results = {};
-
-  for (const componentId of startOrder) {
-    if (componentId === 'database-api-server') {
-      results[componentId] = { success: true, status: 'LIVE', note: 'Already running (self)' };
-      continue;
-    }
-
-    const config = componentConfig[componentId];
-    const currentStatus = await getComponentStatus(componentId);
-
-    if (currentStatus.status === 'LIVE') {
-      results[componentId] = { success: true, status: 'LIVE', note: 'Already running' };
-      continue;
-    }
-
-    try {
-      await execCommand(config.startCmd);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      const newStatus = await getComponentStatus(componentId);
-      results[componentId] = { success: newStatus.status === 'LIVE', status: newStatus.status };
-    } catch (error) {
-      results[componentId] = { success: false, error: error.message };
-    }
-  }
-
-  res.json({
-    success: Object.values(results).filter(r => !r.note).every(r => r.success),
-    action: 'start',
-    scope: 'system',
-    components: results,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Stop entire system (reverse order)
-app.post('/api/control/stop/system', async (req, res) => {
-  const stopOrder = [
-    'gateway-4444',
-    'gateway-3333',
-    'sttttserver',
-    'ari-gstreamer',
-    'cloudflared',
-    'continuous-full-monitoring',
-    'monitoring-bridge',
-    'monitoring-server'
-    // database-api-server excluded (self)
-  ];
-
-  const results = {};
-
-  for (const componentId of stopOrder) {
-    const config = componentConfig[componentId];
-    try {
-      await execCommand(config.stopCmd);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newStatus = await getComponentStatus(componentId);
-      results[componentId] = { success: newStatus.status === 'DOWN', status: newStatus.status };
-    } catch (error) {
-      results[componentId] = { success: true, note: 'Stop command executed' };
-    }
-  }
-
-  results['database-api-server'] = { success: true, status: 'LIVE', note: 'Skipped (self)' };
-
-  res.json({
-    success: true,
-    action: 'stop',
-    scope: 'system',
-    components: results,
-    warning: 'database-api-server was not stopped (use external restart if needed)',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Restart entire system
-app.post('/api/control/restart/system', async (req, res) => {
-  const restartOrder = [
-    'monitoring-server',
-    'monitoring-bridge',
-    'continuous-full-monitoring',
-    'cloudflared',
-    'ari-gstreamer',
-    'sttttserver',
-    'gateway-3333',
-    'gateway-4444'
-  ];
-
-  const results = {};
-
-  for (const componentId of restartOrder) {
-    const config = componentConfig[componentId];
-    try {
-      // Stop
-      try { await execCommand(config.stopCmd); } catch (e) {}
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Start
-      await execCommand(config.startCmd);
-      await new Promise(resolve => setTimeout(resolve, 4000));
-      const newStatus = await getComponentStatus(componentId);
-      results[componentId] = { success: newStatus.status === 'LIVE', status: newStatus.status };
-    } catch (error) {
-      results[componentId] = { success: false, error: error.message };
-    }
-  }
-
-  results['database-api-server'] = { success: true, status: 'LIVE', note: 'Skipped (self)' };
-
-  res.json({
-    success: Object.values(results).filter(r => !r.note).every(r => r.success),
-    action: 'restart',
-    scope: 'system',
-    components: results,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// ============================================
-// UTILITY ENDPOINTS
-// ============================================
-
-// List all available endpoints
-app.get('/api/endpoints', (req, res) => {
-  res.json({
-    endpoints: {
-      data: [
-        'GET /api/snapshots - Get recent monitoring snapshots',
-        'GET /api/stations - Get station data',
-        'POST /api/monitoring-data - Submit monitoring data'
-      ],
-      health: [
-        'GET /api/health - Basic health check',
-        'GET /api/health/system - Full system health (all components)',
-        'GET /api/health/core - Core services health',
-        'GET /api/health/monitoring - Monitoring layer health',
-        'GET /api/health/gateways - Gateway layer health',
-        'GET /api/health/component/:name - Individual component health',
-        'GET /api/health/stations - All stations health',
-        'GET /api/health/stations/:stationId - Specific station health',
-        'GET /api/health/metrics - Latest metrics by station',
-        'GET /api/health/metrics/:stationId - Metrics for specific station',
-        'GET /api/health/alerts - Active alerts',
-        'GET /api/health/components - All component statuses',
-        'GET /api/health/summary - Full health summary'
-      ],
-      control_individual: [
-        'POST /api/control/start/:component - Start a component',
-        'POST /api/control/stop/:component - Stop a component',
-        'POST /api/control/restart/:component - Restart a component'
-      ],
-      control_layer: [
-        'POST /api/control/restart/layer/core - Restart core layer',
-        'POST /api/control/restart/layer/monitoring - Restart monitoring layer',
-        'POST /api/control/restart/layer/gateways - Restart gateway layer'
-      ],
-      control_system: [
-        'GET /api/control/status/system - Get full system status',
-        'POST /api/control/start/system - Start entire system',
-        'POST /api/control/stop/system - Stop entire system',
-        'POST /api/control/restart/system - Restart entire system'
-      ],
-      utility: [
-        'GET /api/endpoints - This endpoint list'
-      ]
-    },
-    available_components: Object.keys(componentConfig),
-    timestamp: new Date().toISOString()
-  });
-});
-
-// ============================================
-// SERVER STARTUP
-// ============================================
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('');
-  console.log('=================================================================');
-  console.log('  Database API Server - COMPLETE MONITORING API IMPLEMENTATION');
-  console.log('  Based on: MODULS_MONITORING_API_PLAN.md');
-  console.log('=================================================================');
-  console.log('');
-  console.log('Server running on port ' + PORT);
-  console.log('');
-  console.log('=== Data Endpoints ===');
-  console.log('  GET  /api/snapshots');
-  console.log('  GET  /api/stations');
-  console.log('  POST /api/monitoring-data');
-  console.log('');
-  console.log('=== Health Endpoints ===');
-  console.log('  GET  /api/health');
-  console.log('  GET  /api/health/system');
-  console.log('  GET  /api/health/core');
-  console.log('  GET  /api/health/monitoring');
-  console.log('  GET  /api/health/gateways');
-  console.log('  GET  /api/health/component/:name');
-  console.log('  GET  /api/health/stations');
-  console.log('  GET  /api/health/stations/:stationId');
-  console.log('  GET  /api/health/metrics');
-  console.log('  GET  /api/health/metrics/:stationId');
-  console.log('  GET  /api/health/alerts');
-  console.log('  GET  /api/health/components');
-  console.log('  GET  /api/health/summary');
-  console.log('');
-  console.log('=== Process Control - Individual ===');
-  console.log('  POST /api/control/start/:component');
-  console.log('  POST /api/control/stop/:component');
-  console.log('  POST /api/control/restart/:component');
-  console.log('');
-  console.log('=== Process Control - Layer ===');
-  console.log('  POST /api/control/restart/layer/core');
-  console.log('  POST /api/control/restart/layer/monitoring');
-  console.log('  POST /api/control/restart/layer/gateways');
-  console.log('');
-  console.log('=== Process Control - System ===');
-  console.log('  GET  /api/control/status/system');
-  console.log('  POST /api/control/start/system');
-  console.log('  POST /api/control/stop/system');
-  console.log('  POST /api/control/restart/system');
-  console.log('');
-  console.log('=== Utility ===');
-  console.log('  GET  /api/endpoints');
-  console.log('');
-  console.log('Available components:', Object.keys(componentConfig).join(', '));
-  console.log('');
-  console.log('=================================================================');
-});
+module.exports = app;

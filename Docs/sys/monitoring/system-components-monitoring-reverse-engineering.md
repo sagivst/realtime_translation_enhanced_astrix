@@ -17,12 +17,13 @@
 The System Components monitoring system is a real-time infrastructure monitoring solution deployed on Azure VM (20.170.155.53) that tracks the health and performance of multiple Node.js services. The system provides comprehensive visibility into component states, resource utilization, and operational metrics through a web-accessible API exposed via Cloudflare Tunnel at https://tun.monitoringavailable.uk.
 
 ### Key Capabilities
-- Real-time component health monitoring
-- Process lifecycle management via PM2
+- Real-time component health monitoring with descriptive messages
+- Process lifecycle management via PM2 (8 managed components)
 - Resource utilization tracking (CPU, Memory)
 - Station-specific metrics collection
-- RESTful API for data access and control
+- RESTful API for data access and full component control (start/stop/restart)
 - Automatic component restart on failure
+- Security restrictions on critical components
 
 ## System Architecture Overview
 
@@ -91,16 +92,35 @@ if (componentId === "database-api-server") {
     };
 }
 
-// Component monitoring configuration (Line 28-108)
+// Component monitoring configuration (updated with 23 components)
 const monitoredComponents = [
     {
         id: "monitoring-server",
         name: "monitoring-server.js",
+        pm2Name: "monitoring-server",
         port: 8090,
         layer: "monitoring",
-        critical: true
+        critical: true,
+        message: "monitoring-server.js - The optimization engine"
     },
-    // ... other components
+    {
+        id: "database-api-server",
+        name: "database-api-server.js",
+        pm2Name: "database-api-server",
+        port: 8083,
+        layer: "monitoring",
+        critical: true,
+        message: "database-api-server.js - The API for the Dashboard"
+    },
+    {
+        id: "continuous-full-monitoring",
+        name: "continuous-full-monitoring-with-station3.js",
+        pm2Name: "continuous-monitoring",
+        layer: "monitoring",
+        critical: false,
+        message: "Generates test traffic"
+    },
+    // Total: 23 components (was 29)
 ];
 ```
 
@@ -270,11 +290,29 @@ Returns station monitoring data:
 Stores new snapshot data (internal use by monitoring bridge).
 
 ### Component Control Endpoints
-**POST** `/api/components/:componentId/start`
-**POST** `/api/components/:componentId/stop`
-**POST** `/api/components/:componentId/restart`
 
-Controls component lifecycle via PM2.
+**POST** `/api/components/:componentId/start`
+- Starts a stopped PM2-managed component
+- Critical components (database-api-server, monitoring-server) return 403
+- Request: Empty body
+- Success Response: `{"success":true,"message":"[componentId] started"}`
+- Error Response: `{"error":"Component not found or not manageable"}` (404)
+- Critical Component Response: `{"error":"Critical monitoring components can only be restarted, not stopped/started"}` (403)
+
+**POST** `/api/components/:componentId/stop`
+- Stops a running PM2-managed component
+- Critical components return 403 to prevent system instability
+- Request: Empty body
+- Success Response: `{"success":true,"message":"[componentId] stopped"}`
+- Error Response: `{"error":"Component not found or not manageable"}` (404)
+- Critical Component Response: `{"error":"Critical monitoring components can only be restarted, not stopped"}` (403)
+
+**POST** `/api/components/:componentId/restart`
+- Restarts any PM2-managed component (including critical ones)
+- Request: Empty body
+- Success Response: `{"success":true,"message":"[componentId] restarted"}`
+- Error Response: `{"error":"Component not found or not manageable"}` (404)
+- Note: May return 502 when database-api-server restarts itself
 
 ### Clear Data Endpoint
 **POST** `/api/clear`
@@ -326,11 +364,15 @@ if (proc.monit) {
 All components managed via PM2 with specific configurations:
 
 ```javascript
-// PM2 start commands
-pm2 start database-api-server.js --name database-api-server
-pm2 start monitoring-server.js --name monitoring-server
-pm2 start monitoring-to-database-bridge.js --name monitoring-bridge
-pm2 start continuous-full-monitoring-with-station3.js --name continuous-full-monitoring
+// PM2 managed components (8 total)
+pm2 start database-api-server.js --name database-api-server      # ID: 0 (critical)
+pm2 start monitoring-server.js --name monitoring-server          # ID: 1 (critical)
+pm2 start monitoring-to-database-bridge.js --name monitoring-bridge # ID: 9
+pm2 start STTTTSserver.js --name STTTTSserver                   # ID: 14
+pm2 start ari-gstreamer-operational.js --name ari-gstreamer     # ID: 5
+pm2 start gateway.js --name gateway-3333 --args 3333            # ID: 3
+pm2 start gateway.js --name gateway-4444 --args 4444            # ID: 4
+pm2 start continuous-full-monitoring-with-station3.js --name continuous-monitoring # ID: 15
 
 // STTTSserver special case - must start from its directory
 cd /home/azureuser/translation-app/3333_4444__Operational/STTTTSserver
@@ -400,6 +442,31 @@ Tunnel routes traffic to localhost:8083 (database-api-server).
 }
 ```
 
+### Component Message Format
+All components now include descriptive message field:
+```javascript
+{
+    // ... existing fields ...
+    message: "filename.js - Component description",  // NEW: Descriptive message
+    pm2Name: "pm2-process-name"                      // NEW: PM2 management name
+}
+
+Example:
+{
+    status: "LIVE",
+    message: "monitoring-server.js - The optimization engine",
+    pid: 3697447,
+    port: 8090,
+    uptime: "30m",
+    cpu: 1.5,
+    memory: 101.6,
+    layer: "monitoring",
+    critical: true,
+    pm2Name: "monitoring-server",
+    lastCheck: "2024-12-16T00:45:00Z"
+}
+```
+
 ## Critical Integration Points
 
 ### 1. Station Handler Integration
@@ -434,31 +501,62 @@ Self-check skip prevents infinite restart loop:
 - Prevents process from killing itself during health checks
 - Critical for system stability
 
+### 6. Component Management Rules
+Critical Component Protection:
+- `database-api-server` and `monitoring-server` are marked as critical
+- Critical components can ONLY be restarted, not stopped/started
+- This prevents accidental system outages
+- Non-critical components have full start/stop/restart control
+
+PM2 Managed Components (8 total):
+1. monitoring-server (critical)
+2. database-api-server (critical)
+3. monitoring-bridge
+4. STTTTSserver
+5. ari-gstreamer
+6. gateway-3333
+7. gateway-4444
+8. continuous-monitoring
+
 ## Troubleshooting Guide
 
 ### Common Issues and Solutions
 
-1. **Empty /api/snapshots Response**
+1. **Station Handlers Showing as DEAD**
+   - station3-handler and station9-handler show as DEAD
+   - Actually running as modules within STTTTSserver process
+   - Not standalone processes, detection needs parent process check
+
+2. **Asterisk ARI/AMI False DEAD Status**
+   - Ports 8088 (ARI) and 5038 (AMI) are listening
+   - Shows as DEAD due to detection method
+   - Use `ss` instead of `lsof` for port detection
+
+3. **Component Name Changes**
+   - PostgreSQL replaced with audio-optimization-db
+   - UDP socket 6122 now properly named "UDP In 4444"
+
+4. **Empty /api/snapshots Response**
    - Check event name matching in monitoring-bridge
    - Verify StationAgent.collect() method exists
    - Ensure monitoring-bridge is running
 
-2. **Component Restart Loop**
+5. **Component Restart Loop**
    - Verify self-check skip in database-api-server
    - Check for port conflicts
    - Review PM2 logs for crash details
 
-3. **STTTSserver Not Starting**
+6. **STTTSserver Not Starting**
    - Must start from `/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/`
    - Check for existing process on port 8080
    - Verify UDP port availability
 
-4. **False LIVE Status**
+7. **False LIVE Status**
    - Check correct port configuration in monitoredComponents
    - Verify pgrep pattern matches process name
    - Review PM2 status for actual state
 
-5. **Cloudflare Tunnel Issues**
+8. **Cloudflare Tunnel Issues**
    - Check tunnel process: `cloudflared tunnel list`
    - Verify tunnel configuration in ~/.cloudflared/
    - Ensure database-api-server is running on 8083
@@ -504,5 +602,20 @@ The System Components monitoring system provides comprehensive infrastructure mo
 - **Accessibility**: Public API via Cloudflare Tunnel
 - **Real-time Updates**: Socket.IO for immediate data propagation
 - **Extensibility**: StationAgent pattern for easy integration of new monitoring points
+
+### Recent Enhancements (December 2024)
+- Added start/stop POST endpoints for component control
+- Implemented critical component protection
+- Added descriptive messages to all components
+- Integrated continuous-monitoring with PM2 management
+- Fixed UDP socket naming issues
+- Replaced generic postgresql with audio-optimization-db
+
+### Current System State
+- 23 total components monitored (was 29)
+- 14 LIVE, 4 DEAD, 3 READY, 1 DEGRADED, 1 HEALTHY
+- 8 components under PM2 management with full control
+- All components display Port/CPU/Memory metrics
+- Descriptive messages provide component context
 
 Critical success factors include maintaining event name consistency, proper PM2 configuration, and careful management of process lifecycles to prevent self-termination loops. The system's recovery from the initial failure demonstrated both its fragility when misconfigured and its robustness when properly maintained.

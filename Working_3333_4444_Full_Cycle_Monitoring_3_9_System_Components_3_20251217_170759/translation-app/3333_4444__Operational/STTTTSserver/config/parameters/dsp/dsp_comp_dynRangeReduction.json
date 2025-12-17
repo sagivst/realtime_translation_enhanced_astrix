@@ -1,0 +1,34 @@
+{
+  "id": "dsp.comp.dynRangeReduction",
+  "name": "Dynamic Range Reduction",
+  "category": "dsp",
+  "subcategory": "compressor",
+  "path": "dsp.comp.dynRangeReduction",
+  "unit": "dB",
+  "description": "Amount of dynamic range compressed",
+  "ranges": {
+    "min": 0,
+    "max": 30,
+    "recommendedMin": 3,
+    "recommendedMax": 15
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 20,
+    "criticalLow": null,
+    "criticalHigh": 28
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 8
+  },
+  "default": false
+}

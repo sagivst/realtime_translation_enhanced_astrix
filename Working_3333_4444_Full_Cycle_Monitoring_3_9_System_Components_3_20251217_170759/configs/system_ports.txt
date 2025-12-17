@@ -1,0 +1,27 @@
+tcp   LISTEN 0      244        127.0.0.1:5432       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096       127.0.0.1:42191      0.0.0.0:*                                                 
+tcp   LISTEN 0      4096         0.0.0.0:8123       0.0.0.0:*                                                 
+tcp   LISTEN 0      511          0.0.0.0:8083       0.0.0.0:*    users:(("node /home/azur",pid=4176381,fd=20))
+tcp   LISTEN 0      10           0.0.0.0:8088       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096       127.0.0.1:20242      0.0.0.0:*    users:(("cloudflared",pid=750856,fd=3))      
+tcp   LISTEN 0      4096         0.0.0.0:3100       0.0.0.0:*                                                 
+tcp   LISTEN 0      511          0.0.0.0:3010       0.0.0.0:*    users:(("node /home/azur",pid=3460994,fd=21))
+tcp   LISTEN 0      4096         0.0.0.0:9096       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096         0.0.0.0:9060       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096         0.0.0.0:9061       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096         0.0.0.0:9000       0.0.0.0:*                                                 
+tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*                                                 
+tcp   LISTEN 0      10         127.0.0.1:5038       0.0.0.0:*                                                 
+tcp   LISTEN 0      128          0.0.0.0:22         0.0.0.0:*                                                 
+tcp   LISTEN 0      4096            [::]:8123          [::]:*                                                 
+tcp   LISTEN 0      511                *:8080             *:*    users:(("node /home/azur",pid=1319483,fd=20))
+tcp   LISTEN 0      4096               *:8090             *:*                                                 
+tcp   LISTEN 0      4096            [::]:3100          [::]:*                                                 
+tcp   LISTEN 0      511                *:3001             *:*    users:(("node /home/azur",pid=1319483,fd=21))
+tcp   LISTEN 0      4096            [::]:9096          [::]:*                                                 
+tcp   LISTEN 0      4096            [::]:9060          [::]:*                                                 
+tcp   LISTEN 0      4096            [::]:9061          [::]:*                                                 
+tcp   LISTEN 0      4096               *:9080             *:*    users:(("homer-app",pid=1064,fd=7))          
+tcp   LISTEN 0      4096            [::]:9000          [::]:*                                                 
+tcp   LISTEN 0      511                *:6211             *:*    users:(("node /home/azur",pid=3460994,fd=20))
+tcp   LISTEN 0      128             [::]:22            [::]:*                                                 

@@ -1,0 +1,34 @@
+{
+  "id": "dsp.dereverb.reverbLevel",
+  "name": "Reverb Level",
+  "category": "dsp",
+  "subcategory": "dereverberation",
+  "path": "dsp.dereverb.reverbLevel",
+  "unit": "%",
+  "description": "Amount of room reverberation",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 30
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 40,
+    "criticalLow": null,
+    "criticalHigh": 60
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 19
+  },
+  "default": false
+}

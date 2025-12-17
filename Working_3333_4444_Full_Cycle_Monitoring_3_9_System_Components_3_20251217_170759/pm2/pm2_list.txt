@@ -1,0 +1,12 @@
+┌────┬──────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name                     │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 26 │ STTTTSserver             │ default     │ 1.0.0   │ fork    │ 3460994  │ 5h     │ 0    │ online    │ 0%       │ 76.3mb   │ azureus… │ disabled │
+│ 27 │ ari-gstreamer            │ default     │ 1.0.0   │ fork    │ 3462529  │ 5h     │ 0    │ online    │ 0%       │ 67.5mb   │ azureus… │ disabled │
+│ 22 │ continuous-monitoring    │ default     │ 1.0.0   │ fork    │ 0        │ 0      │ 0    │ stopped   │ 0%       │ 0b       │ azureus… │ disabled │
+│ 24 │ database-api-server      │ default     │ 1.0.0   │ fork    │ 4176381  │ 35m    │ 17   │ online    │ 0%       │ 101.7mb  │ azureus… │ disabled │
+│ 28 │ gateway-3333             │ default     │ 1.0.0   │ fork    │ 3790564  │ 3h     │ 1    │ online    │ 0%       │ 52.7mb   │ azureus… │ disabled │
+│ 29 │ gateway-4444             │ default     │ 1.0.0   │ fork    │ 3472316  │ 5h     │ 1    │ online    │ 0%       │ 54.4mb   │ azureus… │ disabled │
+│ 25 │ monitoring-bridge        │ default     │ 1.0.0   │ fork    │ 1319897  │ 25h    │ 0    │ online    │ 0%       │ 47.9mb   │ azureus… │ disabled │
+│ 23 │ monitoring-server        │ default     │ 1.0.0   │ fork    │ 1319483  │ 25h    │ 0    │ online    │ 0%       │ 47.6mb   │ azureus… │ disabled │
+└────┴──────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘

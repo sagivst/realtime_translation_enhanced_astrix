@@ -1,0 +1,3145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Translation System - Monitoring Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .status-operational {
+            background: #51cf66;
+            color: white;
+        }
+
+        .status-degraded {
+            background: #fcc419;
+            color: #000;
+        }
+
+        .status-down {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid #2a3f5f;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #2a3f5f;
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .service-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+
+        .icon-deepgram {
+            background: #ff6b6b;
+        }
+
+        .icon-deepl {
+            background: #4dabf7;
+        }
+
+        .icon-elevenlabs {
+            background: #a78bfa;
+        }
+
+        .icon-hume {
+            background: #51cf66;
+        }
+
+        .icon-system {
+            background: #667eea;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #2a3f5f;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #aaa;
+            font-size: 0.95em;
+        }
+
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+
+        .metric-value.good {
+            color: #51cf66;
+        }
+
+        .metric-value.warning {
+            color: #fcc419;
+        }
+
+        .metric-value.critical {
+            color: #ff6b6b;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        .large-chart {
+            height: 300px;
+        }
+
+        .pipeline-viz {
+            background: #0f1419;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: #16213e;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .pipeline-step.active {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            box-shadow: 0 0 20px rgba(102,126,234,0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(102,126,234,0.5); }
+            50% { box-shadow: 0 0 30px rgba(102,126,234,0.8); }
+        }
+
+        .pipeline-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+            margin-right: 15px;
+            background: #2a3f5f;
+        }
+
+        .pipeline-step.active .pipeline-icon {
+            background: white;
+            color: #667eea;
+        }
+
+        .pipeline-info {
+            flex: 1;
+        }
+
+        .pipeline-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .pipeline-latency {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .pipeline-step.active .pipeline-latency {
+            color: white;
+            font-weight: bold;
+        }
+
+        .participants-list {
+            margin-top: 15px;
+        }
+
+        .participant {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #0f1419;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .participant-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+
+        .participant-info {
+            flex: 1;
+        }
+
+        .participant-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .participant-lang {
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        .participant-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #51cf66;
+            box-shadow: 0 0 10px #51cf66;
+        }
+
+        .participant-status.speaking {
+            background: #ff6b6b;
+            box-shadow: 0 0 10px #ff6b6b;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .emotion-viz {
+            margin-top: 15px;
+        }
+
+        .emotion-bar {
+            margin-bottom: 15px;
+        }
+
+        .emotion-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .emotion-progress {
+            height: 8px;
+            background: #2a3f5f;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .emotion-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.5s ease;
+        }
+
+        .latency-breakdown {
+            margin-top: 15px;
+        }
+
+        .latency-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .latency-bar-container {
+            flex: 1;
+            height: 30px;
+            background: #0f1419;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-left: 10px;
+            position: relative;
+        }
+
+        .latency-bar {
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .latency-asr {
+            background: #ff6b6b;
+        }
+
+        .latency-mt {
+            background: #4dabf7;
+        }
+
+        .latency-tts {
+            background: #a78bfa;
+        }
+
+        .latency-hume {
+            background: #51cf66;
+        }
+
+        .quota-card {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .quota-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .quota-service {
+            font-weight: bold;
+        }
+
+        .quota-percent {
+            font-size: 1.2em;
+        }
+
+        .quota-bar {
+            height: 6px;
+            background: #2a3f5f;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .quota-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .quota-fill.low {
+            background: #51cf66;
+        }
+
+        .quota-fill.medium {
+            background: #fcc419;
+        }
+
+        .quota-fill.high {
+            background: #ff6b6b;
+        }
+
+        .alert {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            animation: slideDown 0.5s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-icon {
+            font-size: 1.5em;
+        }
+
+        .controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: #2a3f5f;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #3a5f8f;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            color: #aaa;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #2a3f5f;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .qa-dropdown {            background: #2a3f5f;            color: #eee;            border: 1px solid #3a5f8f;            padding: 8px 12px;            border-radius: 6px;            font-size: 0.95em;            cursor: pointer;            outline: none;            transition: all 0.3s ease;            min-width: 140px;        }
+        .qa-dropdown:hover {            background: #3a5f8f;            border-color: #667eea;        }
+        .qa-dropdown:focus {            border-color: #667eea;            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);        }
+
+        .timestamp {
+            color: #aaa;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: #51cf66;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #fcc419;
+            color: #000;
+        }
+
+        .badge-error {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Live Transcription Window */
+        .transcription-window {
+            background: #0f1419;
+            border-radius: 8px;
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        .transcription-window::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .transcription-window::-webkit-scrollbar-track {
+            background: #16213e;
+            border-radius: 4px;
+        }
+
+        .transcription-window::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .transcription-window::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
+        }
+
+        .transcript-line {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: #16213e;
+            border-left: 3px solid transparent;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .transcript-line.partial {
+            border-left-color: #fcc419;
+            opacity: 0.7;
+        }
+
+        .transcript-line.final {
+            border-left-color: #51cf66;
+        }
+
+        .transcript-timestamp {
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .transcript-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-right: 10px;
+        }
+
+        .transcript-type.partial {
+            background: #fcc419;
+            color: #000;
+        }
+
+        .transcript-type.final {
+            background: #51cf66;
+            color: white;
+        }
+
+        .transcript-text {
+            color: #eee;
+        }
+
+        .transcript-empty {
+            color: #aaa;
+            text-align: center;
+            padding: 40px;
+            font-size: 16px;
+        }
+
+        .transcription-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .toggle-scroll {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-scroll:hover {
+            background: #764ba2;
+        }
+
+        .toggle-scroll.disabled {
+            background: #ff6b6b;
+        }
+
+        /* Audio Stream Components */
+        .audio-player-container {
+            background: #0f1419;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+
+        .audio-visualizer {
+            height: 120px;
+            background: #000;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .audio-visualizer canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .audio-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #16213e;
+            border-radius: 6px;
+            flex: 1;
+        }
+
+        .audio-status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .audio-status-indicator.active {
+            background: #51cf66;
+            box-shadow: 0 0 10px #51cf66;
+            animation: pulse-audio 1.5s infinite;
+        }
+
+        @keyframes pulse-audio {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .volume-slider {
+            width: 120px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: #2a3f5f;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        /* Recording List */
+        .recording-list {
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .recording-item {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .recording-item:hover {
+            background: #1f2d4a;
+            transform: translateX(5px);
+        }
+
+        .recording-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+
+        .recording-info {
+            flex: 1;
+        }
+
+        .recording-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .recording-meta {
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        .recording-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-icon {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s ease;
+        }
+
+        .btn-icon:hover {
+            background: #764ba2;
+            transform: scale(1.1);
+        }
+
+        .btn-icon.delete {
+            background: #ff6b6b;
+        }
+
+        .btn-icon.delete:hover {
+            background: #ff5252;
+        }
+
+        .waveform-container {
+            height: 60px;
+            background: #000;
+            border-radius: 4px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .call-info-box {
+            background: #0f1419;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .call-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #2a3f5f;
+        }
+
+        .call-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .call-info-label {
+            color: #aaa;
+        }
+
+        .call-info-value {
+            color: #eee;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 Real-Time Translation Monitoring Dashboard</h1>
+        <p>Live system metrics and third-party service monitoring</p>
+        <span class="status-badge status-operational" id="systemStatus">⚡ System Operational</span>
+    </div>
+
+    <div class="container">
+        <div id="alerts"></div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="refreshDashboard()">🔄 Refresh Data</button>
+            <button class="btn btn-secondary" onclick="toggleAutoRefresh()">
+                <span id="autoRefreshBtn">⏸️ Pause Auto-Refresh</span>
+            </button>
+            <button class="btn btn-secondary" onclick="exportMetrics()">📊 Export Metrics</button>
+            <button class="btn btn-secondary" onclick="window.open('/hmlcp-demo.html', '_blank')">📖 View System Flow</button>
+        </div>
+
+        <div class="grid">
+            <!-- Deepgram Service -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-deepgram">🎙️</div>
+                        <div>
+                            <div>Deepgram (ASR)</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Speech Recognition</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="deepgramStatus">✓ OK</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Entry Point</span>
+                    <span class="metric-value" style="font-size: 0.8em;">asr-streaming-worker:178</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Latency (p95)</span>
+                    <span class="metric-value good" id="deepgramLatency">240ms</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Requests/min</span>
+                    <span class="metric-value" id="deepgramRequests">45</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value good" id="deepgramErrors">0.5%</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="deepgramChart"></canvas>
+                </div>
+            </div>
+
+            <!-- DeepL Service -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-deepl">🌐</div>
+                        <div>
+                            <div>DeepL (MT)</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Machine Translation</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="deeplStatus">✓ OK</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Entry Point</span>
+                    <span class="metric-value" style="font-size: 0.8em;">deepl-incremental-mt:245</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Latency (p95)</span>
+                    <span class="metric-value good" id="deeplLatency">190ms</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Cache Hit Rate</span>
+                    <span class="metric-value good" id="deeplCacheHit">65%</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value good" id="deeplErrors">0.2%</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="deeplChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ElevenLabs Service -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-elevenlabs">🗣️</div>
+                        <div>
+                            <div>ElevenLabs (TTS)</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Text-to-Speech</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="elevenlabsStatus">✓ OK</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Entry Point</span>
+                    <span class="metric-value" style="font-size: 0.8em;">elevenlabs-tts-service:215</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Latency (p95)</span>
+                    <span class="metric-value good" id="elevenlabsLatency">245ms</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Requests/min</span>
+                    <span class="metric-value" id="elevenlabsRequests">40</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value good" id="elevenlabsErrors">0.8%</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="elevenlabsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Hume AI Service -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-hume">😊</div>
+                        <div>
+                            <div>Hume AI (EVI)</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Emotion Analysis</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="humeStatus">✓ OK</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Entry Point</span>
+                    <span class="metric-value" style="font-size: 0.8em;">hume-evi-adapter:165</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Latency (p95)</span>
+                    <span class="metric-value good" id="humeLatency">195ms</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Requests/min</span>
+                    <span class="metric-value" id="humeRequests">60</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Error Rate</span>
+                    <span class="metric-value good" id="humeErrors">0.3%</span>
+                </div>
+                <div class="chart-container">
+
+                    <canvas id="humeChart"></canvas>
+                </div>
+            </div>
+            <!-- QA Settings Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon icon-system">⚙️</div>
+                        <div>
+                            <div>QA Settings</div>
+                            <div style="font-size: 0.7em; color: #aaa;">Translation Configuration</div>
+                        </div>
+                    </div>
+                    <span class="status-badge status-operational" id="qaStatus">✓ Active</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Source Language</span>
+                    <div style="flex: 1; text-align: right;">
+                        <select id="qaSourceLang" class="qa-dropdown" onchange="updateQASettings()">
+                            <option value="en" selected>English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="ko">Korean</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ru">Russian</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Target Language</span>
+                    <div style="flex: 1; text-align: right;">
+                        <select id="qaTargetLang" class="qa-dropdown" onchange="updateQASettings()">
+                            <option value="en" selected>English</option>
+                            <option value="ja">Japanese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="ko">Korean</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ru">Russian</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Translation Mode</span>
+                    <span class="metric-value" id="qaTranslationMode" style="font-size: 0.9em; color: #fcc419;">⚠️ QA Mode (No Translation)</span>
+                </div>
+                <div style="margin-top: 15px; padding: 12px; background: #0f1419; border-radius: 8px; font-size: 0.85em; color: #aaa;">
+                    <strong style="color: #fcc419;">ℹ️ QA Mode:</strong> When source and target are the same, DeepL translation is bypassed for testing purposes.
+                </div>
+            </div>
+        </div>
+
+        <!-- AUDIO PIPELINE SECTION -->
+        <h2 style="color: #667eea; margin: 30px 0 20px 0; font-size: 1.5em;">📡 Live Audio Pipeline</h2>
+
+        <div class="grid">
+            <!-- 1. Asterisk Incoming Voice Stream -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #ff6b6b;">📞</div>
+                        <span>1. Asterisk Voice Stream (IN)</span>
+                    </div>
+                    <span class="status-badge" id="asteriskStreamStatus">⏸ Idle</span>
+                </div>
+
+                <div class="call-info-box" id="callInfo" style="display:none;">
+                    <div class="call-info-row">
+                        <span class="call-info-label">Call UUID:</span>
+                        <span class="call-info-value" id="callUUID">-</span>
+                    </div>
+                    <div class="call-info-row">
+                        <span class="call-info-label">Duration:</span>
+                        <span class="call-info-value" id="callDuration">0:00</span>
+                    </div>
+                    <div class="call-info-row">
+                        <span class="call-info-label">Sample Rate:</span>
+                        <span class="call-info-value">8kHz 16-bit PCM</span>
+                    </div>
+                </div>
+
+                <div class="audio-player-container">
+                    <div class="audio-visualizer">
+                        <canvas id="incomingAudioViz" width="800" height="120"></canvas>
+                    </div>
+                    <div class="audio-status">
+                        <div class="audio-status-indicator" id="incomingAudioIndicator"></div>
+                        <span id="incomingAudioStatus">No active call</span>
+                    </div>
+                    <div class="audio-controls">
+                        <div class="volume-control">
+                            <span>🔊</span>
+                            <input type="range" class="volume-slider" id="incomingVolume" min="0" max="100" value="0">
+                            <span id="incomingVolumeLabel">0%</span>
+                        </div>
+                    </div>
+                    <audio id="incomingAudioPlayer" autoplay style="display:none;"></audio>
+                </div>
+        </div>
+
+            <!-- 2. Deepgram Transcription (STT) -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #667eea;">🎙️</div>
+                        <span>2. Deepgram Transcription (STT)</span>
+                    </div>
+                    <span class="status-badge" id="deepgramStatus">⏸ Idle</span>
+                </div>
+
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="color: #aaa; font-size: 0.85em;">📝 Live Transcription (LIFO):</div>
+                            <button class="btn btn-secondary" onclick="clearTranscripts()" style="font-size: 0.8em; padding: 4px 8px;">🗑️ Clear</button>
+                        </div>
+                        <div class="transcription-window" id="transcriptionWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; min-height: 150px; max-height: 300px; overflow-y: auto; border-left: 3px solid #667eea; font-family: monospace;">
+                            <div class="transcript-empty" id="transcriptEmpty" style="color: #666; text-align: center; padding: 20px;">
+                                🎤 Waiting for transcriptions...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Transcriptions:</div>
+                            <div id="deepgramTranscriptCount" style="color: #667eea; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Avg Latency:</div>
+                            <div id="deepgramAvgLatency" style="color: #10b981; font-weight: bold; margin-top: 3px;">- ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Language:</div>
+                            <div id="deepgramLanguage" style="color: #a78bfa; font-weight: bold; margin-top: 3px;">en-US</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 4px; border-left: 3px solid #667eea;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div id="deepgramActivityIndicator" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></div>
+                        <span id="deepgramActivityText" style="color: #aaa; font-size: 0.9em;">Waiting for audio...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. DeepL Translation -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #10b981;">🔄</div>
+                        <span>3. DeepL Translation</span>
+                    </div>
+                    <span class="status-badge" id="deeplStatus">⏸ Idle</span>
+                </div>
+
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: #aaa; font-size: 0.85em; margin-bottom: 5px;">📝 Original → 🌐 Translated:</div>
+                        <div id="deeplTranslationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; color: #e0e0e0; max-height: 300px; overflow-y: auto; font-family: monospace; border-left: 3px solid #667eea;">
+                            <div class="translation-empty" style="color: #666; text-align: center; padding: 20px;">Waiting for translations...</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Language Pair:</div>
+                            <div id="deeplLanguagePair" style="color: #10b981; font-weight: bold; margin-top: 3px;">en → ja</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Translation Time:</div>
+                            <div id="deeplTranslationTime" style="color: #667eea; font-weight: bold; margin-top: 3px;">- ms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. ElevenLabs (Text to Voice) -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #a78bfa;">🎙️</div>
+                        <span>4. ElevenLabs (Text to Voice)</span>
+                    </div>
+                    <span class="status-badge" id="translatedStreamStatus">⏸ Idle</span>
+                </div>
+
+                <div class="audio-player-container">
+                    <div class="audio-visualizer">
+                        <canvas id="outgoingAudioViz" width="800" height="120"></canvas>
+                    </div>
+                    <div class="audio-status">
+                        <div class="audio-status-indicator" id="outgoingAudioIndicator"></div>
+                        <span id="outgoingAudioStatus">Waiting for translation</span>
+                    </div>
+                    <div class="audio-controls">
+                        <div class="volume-control">
+                            <span>🔊</span>
+                            <input type="range" class="volume-slider" id="outgoingVolume" min="0" max="100" value="0">
+                            <span id="outgoingVolumeLabel">0%</span>
+                        </div>
+                    </div>
+                    <audio id="outgoingAudioPlayer" autoplay style="display:none;"></audio>
+                </div>
+
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="color: #aaa; font-size: 0.85em;">🌐 Translated Text (LIFO):</div>
+                                <div id="ttsEmotionBadge" style="display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75em; font-weight: bold; background: #444; color: #888;">
+                                    😐 Neutral
+                                </div>
+                                <div id="humeServiceStatus" style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 10px; font-size: 0.7em; background: #1a1a1a; border: 1px solid #333;">
+                                    <div id="humeServicePulse" style="width: 6px; height: 6px; border-radius: 50%; background: #666;"></div>
+                                    <span id="humeServiceText" style="color: #666;">Hume: Waiting</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" onclick="clearTranslations()" style="font-size: 0.8em; padding: 4px 8px;">🗑️ Clear</button>
+                        </div>
+                        <div class="translation-window" id="translationWindow" style="padding: 10px; background: #1a2332; border-radius: 4px; min-height: 150px; max-height: 300px; overflow-y: auto; border-left: 3px solid #a78bfa; font-family: monospace;">
+                            <div class="translation-empty" id="translationEmpty" style="color: #666; text-align: center; padding: 20px;">
+                                🎙️ Waiting for translations...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Translations:</div>
+                            <div id="elevenlabsTranslationCount" style="color: #a78bfa; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Avg Latency:</div>
+                            <div id="elevenlabsAvgLatency" style="color: #10b981; font-weight: bold; margin-top: 3px;">- ms</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Languages:</div>
+                            <div id="elevenlabsLanguages" style="color: #a78bfa; font-weight: bold; margin-top: 3px;">en → ja</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; padding: 12px; background: #0f1419; border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="color: #aaa; font-size: 0.9em;">Translation Pipeline:</span>
+                        <span id="translationLanguage" style="color: #667eea; font-weight: bold;">en → es</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <div style="flex: 1; height: 4px; background: #51cf66; border-radius: 2px;" title="ASR"></div>
+                        <div style="flex: 1; height: 4px; background: #4dabf7; border-radius: 2px;" title="MT"></div>
+                        <div style="flex: 1; height: 4px; background: #a78bfa; border-radius: 2px;" title="TTS"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.75em; color: #aaa;">
+                        <span>ASR</span>
+                        <span>MT</span>
+                        <span>TTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. Hume AI (Emotion Detection) -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #51cf66;">😊</div>
+                        <span>5. Hume AI (Emotion Detection)</span>
+                    </div>
+                    <span class="status-badge" id="humeAIStatus">⏸ Idle</span>
+                </div>
+
+                <!-- Emotion Metrics -->
+                <div style="padding: 15px; background: #0f1419; border-radius: 6px; margin-top: 10px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: #aaa; font-size: 0.85em; margin-bottom: 10px;">😊 Real-Time Emotion Metrics:</div>
+
+                        <!-- Arousal -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Arousal:</span>
+                                <span id="humeArousal" style="color: #51cf66; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeArousalBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #51cf66, #4dabf7); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Valence -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Valence:</span>
+                                <span id="humeValence" style="color: #4dabf7; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeValenceBar" style="width: 50%; height: 100%; background: linear-gradient(90deg, #ff6b6b, #4dabf7, #51cf66); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Energy -->
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <span style="color: #aaa; font-size: 0.85em;">Energy:</span>
+                                <span id="humeEnergy" style="color: #a78bfa; font-weight: bold;">0.00</span>
+                            </div>
+                            <div style="background: #2a3f5f; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="humeEnergyBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #a78bfa, #ff6b6b); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Last Update:</div>
+                            <div id="humeLastUpdate" style="color: #667eea; font-weight: bold; margin-top: 3px;">Never</div>
+                        </div>
+                        <div>
+                            <div style="color: #aaa; font-size: 0.8em;">Detection Count:</div>
+                            <div id="humeDetectionCount" style="color: #51cf66; font-weight: bold; margin-top: 3px;">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px; background: rgba(81, 207, 102, 0.1); border-radius: 4px; border-left: 3px solid #51cf66;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div id="humeActivityIndicator" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></div>
+                        <span id="humeActivityText" style="color: #aaa; font-size: 0.9em;">Waiting for Hume AI connection...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Call Recordings -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon" style="background: #51cf66;">💾</div>
+                        <span>4. Call Recordings</span>
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshRecordings()">🔄 Refresh</button>
+                </div>
+
+                <div class="recording-list" id="recordingList">
+                    <div class="transcript-empty">
+                        📁 No recordings yet. Call recordings will appear here automatically.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+            <div class="transcription-window" id="transcriptionWindow">
+                <div class="transcript-empty">
+                    🎤 Waiting for transcriptions... Call extension 7000 to start.
+                </div>
+            </div>
+        </div>
+
+        <!-- End-to-End Latency -->
+        <div class="card full-width">
+            <div class="card-header">
+                <div class="card-title">
+                    <div class="service-icon icon-system">⚡</div>
+                    <span>End-to-End Translation Latency</span>
+                </div>
+                <span class="metric-value good" id="e2eLatency">875ms</span>
+            </div>
+            <div class="latency-breakdown">
+                <div class="latency-item">
+                    <span style="width: 100px;">ASR (Deepgram)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-asr" id="latencyBarAsr" style="width: 27%;">240ms</div>
+                    </div>
+                </div>
+                <div class="latency-item">
+                    <span style="width: 100px;">MT (DeepL)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-mt" id="latencyBarMt" style="width: 21%;">190ms</div>
+                    </div>
+                </div>
+                <div class="latency-item">
+                    <span style="width: 100px;">TTS (ElevenLabs)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-tts" id="latencyBarTts" style="width: 27%;">245ms</div>
+                    </div>
+                </div>
+                <div class="latency-item">
+                    <span style="width: 100px;">Network</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar" style="background: #667eea; width: 20%;">180ms</div>
+                    </div>
+                </div>
+                <div class="latency-item">
+                    <span style="width: 100px;">Hume (Parallel)</span>
+                    <div class="latency-bar-container">
+                        <div class="latency-bar latency-hume" id="latencyBarHume" style="width: 22%;">195ms (non-blocking)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container large-chart">
+                <canvas id="e2eChart"></canvas>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Audio Pipeline -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>🎵 Audio Processing Pipeline</span>
+                    </div>
+                </div>
+                <div class="pipeline-viz">
+                    <div class="pipeline-step active">
+                        <div class="pipeline-icon">📥</div>
+                        <div class="pipeline-info">
+                            <div class="pipeline-name">Frame Collector</div>
+                            <div class="pipeline-latency">< 1ms · 640 bytes @ 20ms</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon">🎯</div>
+                        <div class="pipeline-info">
+                            <div class="pipeline-name">Prosodic Segmenter</div>
+                            <div class="pipeline-latency">~3ms · VAD + Boundaries</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon">📊</div>
+                        <div class="pipeline-info">
+                            <div class="pipeline-name">Pacing Governor</div>
+                            <div class="pipeline-latency">< 1ms · Strict 20ms cadence</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Participants -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>👥 Active Participants</span>
+                    </div>
+                    <span class="metric-value" id="participantCount">0</span>
+                </div>
+                <div class="participants-list" id="participantsList">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <div>Waiting for participants...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emotion Analysis -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>😊 Real-Time Emotion Detection</span>
+                    </div>
+                </div>
+                <div class="emotion-viz">
+                    <div class="emotion-bar">
+                        <div class="emotion-label">
+                            <span>Arousal</span>
+                            <span id="emotionArousal">0.50</span>
+                        </div>
+                        <div class="emotion-progress">
+                            <div class="emotion-fill" id="emotionArousalBar" style="width: 50%;"></div>
+                        </div>
+                    </div>
+                    <div class="emotion-bar">
+                        <div class="emotion-label">
+                            <span>Valence</span>
+                            <span id="emotionValence">0.00</span>
+                        </div>
+                        <div class="emotion-progress">
+                            <div class="emotion-fill" id="emotionValenceBar" style="width: 50%;"></div>
+                        </div>
+                    </div>
+                    <div class="emotion-bar">
+                        <div class="emotion-label">
+                            <span>Energy</span>
+                            <span id="emotionEnergy">0.50</span>
+                        </div>
+                        <div class="emotion-progress">
+                            <div class="emotion-fill" id="emotionEnergyBar" style="width: 50%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Quota Usage -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>📊 API Quota Usage (Monthly)</span>
+                    </div>
+                </div>
+                <div class="quota-card">
+                    <div class="quota-header">
+                        <span class="quota-service">Deepgram</span>
+                        <span class="quota-percent" id="quotaDeepgram">10.4%</span>
+                    </div>
+                    <div class="quota-bar">
+                        <div class="quota-fill low" style="width: 10.4%;"></div>
+                    </div>
+                </div>
+                <div class="quota-card">
+                    <div class="quota-header">
+                        <span class="quota-service">DeepL</span>
+                        <span class="quota-percent" id="quotaDeepl">25.0%</span>
+                    </div>
+                    <div class="quota-bar">
+                        <div class="quota-fill medium" style="width: 25%;"></div>
+                    </div>
+                </div>
+                <div class="quota-card">
+                    <div class="quota-header">
+                        <span class="quota-service">ElevenLabs</span>
+                        <span class="quota-percent" id="quotaElevenlabs">32.0%</span>
+                    </div>
+                    <div class="quota-bar">
+                        <div class="quota-fill medium" style="width: 32%;"></div>
+                    </div>
+                </div>
+                <div class="quota-card">
+                    <div class="quota-header">
+                        <span class="quota-service">Hume AI</span>
+                        <span class="quota-percent" id="quotaHume">45.0%</span>
+                    </div>
+                    <div class="quota-bar">
+                        <div class="quota-fill medium" style="width: 45%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="timestamp" id="lastUpdate">Last updated: Never</div>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+
+        // Auto-refresh state
+        let autoRefresh = true;
+        let autoRefreshInterval;
+
+        // Charts
+        let charts = {};
+
+        // Initialize dashboard
+        function initDashboard() {
+            createCharts();
+            startAutoRefresh();
+            subscribeToEvents();
+            refreshDashboard();
+        }
+
+        // Create all charts
+        function createCharts() {
+            const chartConfig = (label, color) => ({
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#aaa' },
+                            grid: { color: '#2a3f5f' }
+                        }
+                    }
+                }
+            });
+
+            charts.deepgram = new Chart(
+                document.getElementById('deepgramChart'),
+                chartConfig('Latency (ms)', '#ff6b6b')
+            );
+
+            charts.deepl = new Chart(
+                document.getElementById('deeplChart'),
+                chartConfig('Latency (ms)', '#4dabf7')
+            );
+
+            charts.elevenlabs = new Chart(
+                document.getElementById('elevenlabsChart'),
+                chartConfig('Latency (ms)', '#a78bfa')
+            );
+
+            charts.hume = new Chart(
+                document.getElementById('humeChart'),
+                chartConfig('Latency (ms)', '#51cf66')
+            );
+
+            // E2E Chart
+            charts.e2e = new Chart(
+                document.getElementById('e2eChart'),
+                {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: 'Total Latency',
+                                data: [],
+                                borderColor: '#667eea',
+                                backgroundColor: '#667eea20',
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Target (900ms)',
+                                data: [],
+                                borderColor: '#ff6b6b',
+                                borderDash: [5, 5],
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: { color: '#eee' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#aaa' },
+                                grid: { color: '#2a3f5f' }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                max: 1200,
+                                ticks: { color: '#aaa' },
+                                grid: { color: '#2a3f5f' }
+                            }
+                        }
+                    }
+                }
+            );
+        }
+
+        // Subscribe to Socket.IO events
+        function subscribeToEvents() {
+            // Join monitoring room to receive audio streams and transcriptions
+            socket.emit('subscribe', { room: 'monitoring' });
+            console.log('[Dashboard] Subscribed to monitoring room');
+
+            socket.on('metrics_update', (data) => {
+                updateMetrics(data);
+            });
+
+            socket.on('participant_joined', (data) => {
+                addParticipant(data);
+            });
+
+            socket.on('participant_left', (data) => {
+                removeParticipant(data);
+            });
+
+            socket.on('emotion_detected', (data) => {
+                updateHumeEmotions(data);
+            });
+
+            socket.on('latency_measurement', (data) => {
+                updateLatencyCharts(data);
+            });
+
+            socket.on('service_status', (data) => {
+                updateServiceStatus(data);
+            });
+
+            // Live transcription events
+            socket.on('transcriptionPartial', (data) => {
+                console.log('[Dashboard] Received transcriptionPartial:', data);
+                addTranscript(data, 'partial');
+            });
+
+            socket.on('transcriptionFinal', (data) => {
+                console.log('[Dashboard] Received transcriptionFinal:', data);
+                addTranscript(data, 'final');
+// Update Deepgram status badge                const deepgramStatus = document.getElementById("deepgramStatus");                const deepgramIndicator = document.getElementById("deepgramActivityIndicator");                const deepgramText = document.getElementById("deepgramActivityText");                if (deepgramStatus) {                    deepgramStatus.className = "status-badge status-operational";                    deepgramStatus.textContent = "🎙️ TRANSCRIBING";                }                if (deepgramIndicator) deepgramIndicator.style.background = "#10b981";                if (deepgramText) deepgramText.textContent = "Transcription active...";
+            });
+
+
+            // DeepL Translation Complete event
+            socket.on("translationComplete", (data) => {
+                console.log("[Dashboard] Translation complete:", data);
+                
+                // Update DeepL status
+                document.getElementById("deeplStatus").textContent = "✅ Active";
+                document.getElementById("deeplStatus").style.background = "#10b981";
+                
+                // Use new addTranslation function for scrolling display
+                addTranslation(data);
+
+                // Update language pair (if element exists)
+                const langPairElement = document.getElementById("deeplLanguagePair");
+                if (langPairElement) {
+                    langPairElement.textContent = data.sourceLang + " → " + data.targetLang;
+                }
+
+                // Update translation time (if element exists)
+                const timeElement = document.getElementById("deeplTranslationTime");
+                if (timeElement) {
+                    timeElement.textContent = data.time + " ms";
+                }
+            });
+
+            // AUDIO STREAM FORK - Receive same audio as Deepgram
+            socket.on('audioStream', handleAudioStreamFromFork);
+
+            // TRANSLATED AUDIO - Receive translated audio from ElevenLabs
+            socket.on('translatedAudio', handleTranslatedAudio);
+
+            // Listen for Hume→ElevenLabs status updates
+            socket.on('hume_to_elevenlabs', (data) => {
+                updateHumeToElevenLabsStatus(data);
+            });
+        }
+
+        // Refresh dashboard data
+
+        // QA Settings: Update language configuration
+        function updateQASettings() {
+            const sourceLang = document.getElementById('qaSourceLang').value;
+            const targetLang = document.getElementById('qaTargetLang').value;
+            const modeElement = document.getElementById('qaTranslationMode');
+
+            // Update UI to show current mode
+            if (sourceLang === targetLang) {
+                modeElement.innerHTML = '⚠️ QA Mode (No Translation)';
+                modeElement.style.color = '#fcc419';
+            } else {
+                modeElement.innerHTML = '✓ Translation Enabled';
+                modeElement.style.color = '#51cf66';
+            }
+
+            // Emit configuration to server (with safety check)
+            if (socket && socket.connected) {
+                socket.emit('qa-language-config', {
+                    sourceLang: sourceLang,
+                    targetLang: targetLang,
+                    qaMode: sourceLang === targetLang
+                });
+                console.log(`[QA Settings] ✓ Updated and sent to server: ${sourceLang} → ${targetLang} (QA Mode: ${sourceLang === targetLang})`);
+            } else {
+                console.warn('[QA Settings] Socket not connected, will retry on connect');
+            }
+        }
+
+        // Initialize QA settings on page load
+        socket.on('connect', () => {
+            updateQASettings();
+        });
+
+        function refreshDashboard() {
+            // Simulate data refresh (replace with actual API calls)
+            updateSimulatedMetrics();
+            updateTimestamp();
+        }
+
+        // Update simulated metrics (for demo)
+        function updateSimulatedMetrics() {
+            // Update latency values
+            const now = new Date().toLocaleTimeString();
+
+            // Deepgram
+            const dgLatency = 220 + Math.random() * 40;
+            updateChart(charts.deepgram, now, dgLatency);
+            document.getElementById('deepgramLatency').textContent = Math.round(dgLatency) + 'ms';
+            updateLatencyClass(document.getElementById('deepgramLatency'), dgLatency, 250);
+
+            // DeepL
+            const dlLatency = 170 + Math.random() * 40;
+            updateChart(charts.deepl, now, dlLatency);
+            document.getElementById('deeplLatency').textContent = Math.round(dlLatency) + 'ms';
+            updateLatencyClass(document.getElementById('deeplLatency'), dlLatency, 200);
+
+            // ElevenLabs
+            const elLatency = 230 + Math.random() * 40;
+            updateChart(charts.elevenlabs, now, elLatency);
+            document.getElementById('elevenlabsLatency').textContent = Math.round(elLatency) + 'ms';
+            updateLatencyClass(document.getElementById('elevenlabsLatency'), elLatency, 250);
+
+            // Hume
+            const hmLatency = 180 + Math.random() * 40;
+            updateChart(charts.hume, now, hmLatency);
+            document.getElementById('humeLatency').textContent = Math.round(hmLatency) + 'ms';
+            updateLatencyClass(document.getElementById('humeLatency'), hmLatency, 200);
+
+            // E2E
+            const e2eLatency = dgLatency + dlLatency + elLatency + 180;
+            updateE2EChart(now, e2eLatency);
+            document.getElementById('e2eLatency').textContent = Math.round(e2eLatency) + 'ms';
+            updateLatencyClass(document.getElementById('e2eLatency'), e2eLatency, 900);
+
+            // Update latency bars
+            updateLatencyBars(dgLatency, dlLatency, elLatency, hmLatency, e2eLatency);
+        }
+
+        // Update chart data
+        function updateChart(chart, label, value) {
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(value);
+
+            // Keep only last 20 data points
+            if (chart.data.labels.length > 20) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+
+            chart.update('none');
+        }
+
+        // Update E2E chart
+        function updateE2EChart(label, value) {
+            charts.e2e.data.labels.push(label);
+            charts.e2e.data.datasets[0].data.push(value);
+            charts.e2e.data.datasets[1].data.push(900); // Target line
+
+            // Keep only last 20 data points
+            if (charts.e2e.data.labels.length > 20) {
+                charts.e2e.data.labels.shift();
+                charts.e2e.data.datasets[0].data.shift();
+                charts.e2e.data.datasets[1].data.shift();
+            }
+
+            charts.e2e.update('none');
+        }
+
+        // Update latency class (good/warning/critical)
+        function updateLatencyClass(element, value, target) {
+            element.classList.remove('good', 'warning', 'critical');
+            if (value <= target) {
+                element.classList.add('good');
+            } else if (value <= target * 1.2) {
+                element.classList.add('warning');
+            } else {
+                element.classList.add('critical');
+            }
+        }
+
+        // Update latency breakdown bars
+        function updateLatencyBars(asr, mt, tts, hume, total) {
+            const asrPct = (asr / 900) * 100;
+            const mtPct = (mt / 900) * 100;
+            const ttsPct = (tts / 900) * 100;
+            const humePct = (hume / 900) * 100;
+
+            document.getElementById('latencyBarAsr').style.width = asrPct + '%';
+            document.getElementById('latencyBarAsr').textContent = Math.round(asr) + 'ms';
+
+            document.getElementById('latencyBarMt').style.width = mtPct + '%';
+            document.getElementById('latencyBarMt').textContent = Math.round(mt) + 'ms';
+
+            document.getElementById('latencyBarTts').style.width = ttsPct + '%';
+            document.getElementById('latencyBarTts').textContent = Math.round(tts) + 'ms';
+
+            document.getElementById('latencyBarHume').style.width = humePct + '%';
+            document.getElementById('latencyBarHume').textContent = Math.round(hume) + 'ms (non-blocking)';
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            document.getElementById('lastUpdate').textContent =
+                'Last updated: ' + new Date().toLocaleTimeString();
+        }
+
+        // Toggle auto-refresh
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            const btn = document.getElementById('autoRefreshBtn');
+
+            if (autoRefresh) {
+                btn.textContent = '⏸️ Pause Auto-Refresh';
+                startAutoRefresh();
+            } else {
+                btn.textContent = '▶️ Resume Auto-Refresh';
+                stopAutoRefresh();
+            }
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(refreshDashboard, 5000); // Every 5 seconds
+        }
+
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Export metrics to CSV
+        function exportMetrics() {
+            const csvContent = generateMetricsCSV();
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `metrics-${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Generate CSV from current metrics
+        function generateMetricsCSV() {
+            const timestamp = new Date().toISOString();
+            return `Timestamp,Service,Latency_ms,Error_Rate,Requests_Per_Min
+${timestamp},Deepgram,${document.getElementById('deepgramLatency').textContent},${document.getElementById('deepgramErrors').textContent},${document.getElementById('deepgramRequests').textContent}
+${timestamp},DeepL,${document.getElementById('deeplLatency').textContent},${document.getElementById('deeplErrors').textContent},-
+${timestamp},ElevenLabs,${document.getElementById('elevenlabsLatency').textContent},${document.getElementById('elevenlabsErrors').textContent},${document.getElementById('elevenlabsRequests').textContent}
+${timestamp},Hume,${document.getElementById('humeLatency').textContent},${document.getElementById('humeErrors').textContent},${document.getElementById('humeRequests').textContent}
+${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-`;
+        }
+
+        // Transcription handling
+        let autoScrollEnabled = true;
+        let transcriptCount = 0;
+
+        // Add transcript to the window
+        function addTranscript(data, type) {
+            const window = document.getElementById('transcriptionWindow');
+
+            // Remove empty message if present
+            const emptyMsg = window.querySelector('.transcript-empty');
+            if (emptyMsg) {
+                emptyMsg.remove();
+            }
+
+            // Create transcript element
+            const transcriptLine = document.createElement('div');
+            transcriptLine.className = `transcript-line ${type}`;
+            transcriptLine.id = `transcript-${transcriptCount++}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            const typeLabel = type.toUpperCase();
+            const text = data.text || '';
+            const language = data.language || 'en';
+            const confidence = data.confidence ? ` (${Math.round(data.confidence * 100)}%)` : '';
+
+            transcriptLine.innerHTML = `
+                <span class="transcript-timestamp">[${timestamp}]</span>
+                <span class="transcript-type ${type}">${typeLabel}</span>
+                <span class="transcript-text">${escapeHtml(text)}</span>
+                <span style="color: #aaa; font-size: 0.85em;">${language}${confidence}</span>
+            `;
+
+            // For partial transcripts, replace the last partial if it exists
+            if (type === 'partial') {
+                const lastPartial = window.querySelector('.transcript-line.partial:last-child');
+                if (lastPartial && window.children.length > 0) {
+                    // Replace last partial with new one
+                    lastPartial.replaceWith(transcriptLine);
+                } else {
+                    const emptyMsgCheck = window.querySelector(".transcript-empty"); if (emptyMsgCheck) window.removeChild(emptyMsgCheck); window.insertBefore(transcriptLine, window.firstChild);
+                }
+            } else {
+                // For final transcripts, always append
+                const emptyMsgCheck = window.querySelector(".transcript-empty"); if (emptyMsgCheck) window.removeChild(emptyMsgCheck); window.insertBefore(transcriptLine, window.firstChild);
+            }
+
+            // Keep ALL transcripts (no limit) - user requested to keep all lines with scroller
+
+            // Auto-scroll to bottom if enabled
+            if (autoScrollEnabled) {
+                window.scrollTop = 0;
+            }
+        }
+
+        // Add translation pair with scrolling (LIFO - newest at top)
+        let translationCount = 0;
+        function addTranslation(data) {
+            const window = document.getElementById('deeplTranslationWindow');
+
+            // Remove empty message if present
+            const emptyMsg = window.querySelector('.translation-empty');
+            if (emptyMsg) {
+                emptyMsg.remove();
+            }
+
+            // Create translation element
+            const translationLine = document.createElement('div');
+            translationLine.className = 'translation-pair';
+            translationLine.id = `translation-${translationCount++}`;
+            translationLine.style.cssText = 'margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #2a3f5f;';
+
+            const timestamp = new Date().toLocaleTimeString();
+            const original = escapeHtml(data.original || '');
+            const translation = escapeHtml(data.translation || '');
+            const sourceLang = data.sourceLang || 'en';
+            const targetLang = data.targetLang || 'ja';
+            const time = data.time ? ` (${data.time}ms)` : '';
+
+            translationLine.innerHTML = `
+                <div style="margin-bottom: 3px;">
+                    <span style="color: #667eea; font-size: 0.85em; font-weight: bold;">[${timestamp}]</span>
+                    <span style="color: #aaa; font-size: 0.75em;">${sourceLang} → ${targetLang}${time}</span>
+                </div>
+                <div style="margin-bottom: 5px; padding-left: 10px; border-left: 2px solid #667eea;">
+                    <div style="color: #999; font-size: 0.75em;">Original:</div>
+                    <div style="color: #e0e0e0;">${original}</div>
+                </div>
+                <div style="padding-left: 10px; border-left: 2px solid #10b981;">
+                    <div style="color: #999; font-size: 0.75em;">Translated:</div>
+                    <div style="color: #10b981;">${translation}</div>
+                </div>
+            `;
+
+            // Insert at top (LIFO - newest first)
+            window.insertBefore(translationLine, window.firstChild);
+
+            // Limit to 50 translations to prevent performance issues
+            const translations = window.querySelectorAll('.translation-pair');
+            if (translations.length > 50) {
+                // Remove oldest translations (from the bottom)
+                for (let i = 50; i < translations.length; i++) {
+                    translations[i].remove();
+                }
+            }
+
+            // Auto-scroll to top to show newest
+            window.scrollTop = 0;
+        }
+
+        // Toggle auto-scroll
+        function toggleAutoScroll() {
+            autoScrollEnabled = !autoScrollEnabled;
+            const btn = document.getElementById('toggleAutoScroll');
+
+            if (autoScrollEnabled) {
+                btn.textContent = '🔄 Auto-Scroll: ON';
+                btn.classList.remove('disabled');
+                // Scroll to bottom immediately
+                const window = document.getElementById('transcriptionWindow');
+                window.scrollTop = 0;
+            } else {
+                btn.textContent = '⏸️ Auto-Scroll: OFF';
+                btn.classList.add('disabled');
+            }
+        }
+
+        // Clear transcripts
+        function clearTranscripts() {
+            const window = document.getElementById('transcriptionWindow');
+            window.innerHTML = '<div class="transcript-empty">🎤 Transcription cleared. Waiting for new transcriptions...</div>';
+            transcriptCount = 0;
+        }
+
+        function clearTranslations() {
+            const window = document.getElementById('translationWindow');
+            const empty = document.getElementById('translationEmpty');
+            window.innerHTML = '';
+            if (empty) {
+                empty.style.display = 'block';
+                empty.textContent = '🎙️ Translations cleared. Waiting for new translations...';
+                window.appendChild(empty);
+            }
+            if (typeof translationCount !== 'undefined') {
+                translationCount = 0;
+            }
+            const countEl = document.getElementById('elevenlabsTranslationCount');
+            if (countEl) countEl.textContent = '0';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============ AUDIO STREAMING & VISUALIZATION ============
+
+        let incomingAudioContext, outgoingAudioContext;
+        let incomingAnalyser, outgoingAnalyser;
+        let incomingDataArray, outgoingDataArray;
+        let incomingAnimationId, outgoingAnimationId;
+        let currentCall = null;
+        let callStartTime = null;
+        let callDurationInterval = null;
+        let audioStreamBuffer = []; // Buffer for incoming audio chunks
+        let outgoingNextPlayTime = 0; // For Card 4 - ElevenLabs translated audio
+
+        // Handle translated audio from ElevenLabs TTS - Card 4
+        let incomingGainNode, outgoingGainNode;  // Global gain nodes for volume control
+        function handleTranslatedAudio(data) {
+            console.log('[Translated Audio] Received:', {
+                translation: data.translation,
+                original: data.original,
+                audioSize: data.audio ? data.audio.length : 0,
+                sampleRate: data.sampleRate,
+                duration: data.duration
+            });
+
+            // Initialize Web Audio API context if not already created
+            if (!outgoingAudioContext) {
+                outgoingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: data.sampleRate || 8000
+                });
+                outgoingNextPlayTime = outgoingAudioContext.currentTime;
+                
+                // Create global gain node for volume control
+                outgoingGainNode = outgoingAudioContext.createGain();
+                outgoingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                outgoingGainNode.connect(outgoingAudioContext.destination);
+                console.log('[Translated Audio] Web Audio Context initialized at', data.sampleRate, 'Hz');
+                console.log('[Translated Audio] AudioContext state:', outgoingAudioContext.state);
+            }
+
+            // Resume AudioContext if suspended (browser autoplay policy)
+            if (outgoingAudioContext.state === 'suspended') {
+                outgoingAudioContext.resume().then(() => {
+                    console.log('[Translated Audio] AudioContext resumed - audio should now play');
+                }).catch(err => {
+                    console.error('[Translated Audio] Failed to resume AudioContext:', err);
+                });
+            }
+
+            // Update UI indicators
+            const outgoingIndicator = document.getElementById('outgoingAudioIndicator');
+            const outgoingStatus = document.getElementById('outgoingAudioStatus');
+            
+            if (outgoingIndicator) {
+                outgoingIndicator.classList.add('active');
+            }
+            if (outgoingStatus) {
+                outgoingStatus.textContent = 'Playing translated audio (' + data.translation.substring(0, 30) + '...)';
+            }
+            // Also update the status badge in card header
+            const translatedStatusBadge = document.getElementById("translatedStreamStatus");
+            if (translatedStatusBadge) {
+                translatedStatusBadge.className = "status-badge status-operational";
+                translatedStatusBadge.textContent = "🔊 PLAYING";
+            }
+
+            // Add translated text to the translation window (LIFO)
+            const translationWindow = document.getElementById('translationWindow');
+            const translationEmpty = document.getElementById('translationEmpty');
+
+            if (translationWindow) {
+                // Hide empty state if visible
+                if (translationEmpty) {
+                    translationEmpty.style.display = 'none';
+                }
+
+                // Create translation entry
+                const translationEntry = document.createElement('div');
+                translationEntry.style.cssText = 'padding: 8px; margin-bottom: 8px; background: rgba(167, 139, 250, 0.1); border-left: 3px solid #a78bfa; border-radius: 4px;';
+
+                // Original text
+                const originalDiv = document.createElement('div');
+                originalDiv.style.cssText = 'color: #888; font-size: 0.85em; margin-bottom: 4px;';
+                originalDiv.textContent = '▶ ' + data.original;
+                translationEntry.appendChild(originalDiv);
+
+                // Translated text
+                const translatedDiv = document.createElement('div');
+                translatedDiv.style.cssText = 'color: #a78bfa; font-weight: bold;';
+                translatedDiv.textContent = '🌐 ' + data.translation;
+                translationEntry.appendChild(translatedDiv);
+
+                // Timestamp
+                const timestampDiv = document.createElement('div');
+                timestampDiv.style.cssText = 'color: #666; font-size: 0.75em; margin-top: 4px;';
+                timestampDiv.textContent = new Date().toLocaleTimeString();
+                translationEntry.appendChild(timestampDiv);
+
+                // Insert at the top (LIFO)
+                translationWindow.insertBefore(translationEntry, translationWindow.firstChild);
+
+                // Keep only last 20 translations
+                while (translationWindow.children.length > 20) {
+                    translationWindow.removeChild(translationWindow.lastChild);
+                }
+
+                // Update translation count
+                if (!window.translationCount) window.translationCount = 0;
+                window.translationCount++;
+                const countEl = document.getElementById('elevenlabsTranslationCount');
+                if (countEl) countEl.textContent = window.translationCount;
+            }
+
+            // Decode base64 audio to Int16Array
+            try {
+                // Decode base64 to binary string
+                const binaryString = atob(data.audio);
+
+                // Create ArrayBuffer from binary string
+                const arrayBuffer = new ArrayBuffer(binaryString.length);
+                const uint8View = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < binaryString.length; i++) {
+                    uint8View[i] = binaryString.charCodeAt(i);
+                }
+
+                // Create Int16Array from ArrayBuffer
+                const samples = new Int16Array(arrayBuffer);
+                console.log('[Translated Audio] Decoded', samples.length, 'samples, range:',
+                    Math.min(...samples), 'to', Math.max(...samples));
+
+                // Visualize waveform for Card 4 (Translated Voice OUT)
+                const outgoingCanvas = document.getElementById('outgoingAudioViz');
+                if (outgoingCanvas) {
+                    const ctx = outgoingCanvas.getContext('2d');
+                    const width = outgoingCanvas.width;
+                    const height = outgoingCanvas.height;
+
+                    // Clear canvas
+                    ctx.fillStyle = '#0f1419';
+                    ctx.fillRect(0, 0, width, height);
+
+                    // Draw waveform
+                    ctx.strokeStyle = '#10b981';  // Green for translated audio
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+
+                    const step = Math.max(1, Math.floor(samples.length / width));
+                    for (let i = 0; i < width; i++) {
+                        const sampleIndex = i * step;
+                        const sample = samples[sampleIndex] || 0;
+                        const amplitude = Math.abs(sample / 32768.0);
+                        const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                        if (i === 0) {
+                            ctx.moveTo(i, y);
+                        } else {
+                            ctx.lineTo(i, y);
+                        }
+                    }
+                    ctx.stroke();
+
+                    console.log('[Translated Audio] Waveform visualized');
+                }
+
+                // Convert Int16 PCM (-32768 to 32767) to Float32 (-1.0 to 1.0)
+                const float32Samples = new Float32Array(samples.length);
+                for (let i = 0; i < samples.length; i++) {
+                    float32Samples[i] = samples[i] / 32768.0;
+                }
+
+                // Only schedule audio playback if NOT muted
+                if (!outgoingMuted) {
+                    // Use Web Audio API for smooth playback (instead of MP3)
+                    // Create AudioBuffer from Float32 PCM
+                    const audioBuffer = outgoingAudioContext.createBuffer(
+                        1,  // mono
+                        float32Samples.length,
+                        data.sampleRate || 8000
+                    );
+
+                    // Copy samples to buffer
+                    audioBuffer.getChannelData(0).set(float32Samples);
+
+                    // Schedule for playback
+                    const source = outgoingAudioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    
+                    // Connect to global gain node (controlled by volume slider)
+                    source.connect(outgoingGainNode);
+
+                    // Schedule playback with proper timing to avoid gaps
+                    const playTime = Math.max(outgoingNextPlayTime, outgoingAudioContext.currentTime);
+                    source.start(playTime);
+
+                    // Update next play time
+                    const duration = audioBuffer.length / audioBuffer.sampleRate;
+                    outgoingNextPlayTime = playTime + duration;
+
+                    console.log('[Translated Audio] Scheduled playback at', playTime.toFixed(3),
+                        's, duration:', duration.toFixed(3), 's, next:', outgoingNextPlayTime.toFixed(3), 's');
+
+                    // Reset UI indicator when audio ends
+                    source.onended = () => {
+                        if (outgoingIndicator) outgoingIndicator.classList.remove("active");
+                        const translatedStatusBadge = document.getElementById("translatedStreamStatus");
+                        if (translatedStatusBadge) {
+                            translatedStatusBadge.className = "status-badge status-idle";
+                            translatedStatusBadge.textContent = "⏸ IDLE";
+                        }
+                    };
+                } else {
+                    console.log("[Translated Audio] Muted - skipping audio playback");
+                }
+
+            } catch (err) {
+                console.error('[Translated Audio] Error processing audio:', err);
+                console.error('[Translated Audio] Stack:', err.stack);
+            }
+        }
+
+        let isAudioPlaying = false;
+        let nextPlayTime = 0;
+
+        // Handle audio stream from fork (same audio as Deepgram receives)
+        function handleAudioStreamFromFork(data) {
+            console.log('[Audio Fork] Received frame:', data.sequenceNumber, 'buffer size:', data.buffer ? data.buffer.byteLength || data.buffer.length : 0);
+
+            // Initialize Web Audio API context if not already created
+            if (!incomingAudioContext) {
+                incomingAudioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: data.sampleRate || 8000
+                });
+                nextPlayTime = incomingAudioContext.currentTime;
+                
+                // Create global gain node for volume control
+                incomingGainNode = incomingAudioContext.createGain();
+                incomingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                incomingGainNode.connect(incomingAudioContext.destination);
+                console.log('[Audio Fork] Web Audio Context initialized at', data.sampleRate, 'Hz');
+                console.log('[Audio Fork] AudioContext state:', incomingAudioContext.state);
+            }
+
+            // Resume AudioContext if suspended (browser autoplay policy)
+            if (incomingAudioContext.state === 'suspended') {
+                incomingAudioContext.resume().then(() => {
+                    console.log('[Audio Fork] AudioContext resumed - audio should now play');
+                }).catch(err => {
+                    console.error('[Audio Fork] Failed to resume AudioContext:', err);
+                });
+            }
+
+            // Update UI indicators
+            document.getElementById('incomingAudioIndicator').classList.add('active');
+            
+            // Also update the status badge in card header
+            const statusBadge = document.getElementById('asteriskStreamStatus');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge status-operational';
+                statusBadge.textContent = '🔴 LIVE';
+            }
+            document.getElementById('incomingAudioStatus').textContent = 'Receiving audio stream (fork from Deepgram)';
+
+            // Handle binary data (ArrayBuffer from Socket.IO)
+            try {
+                let samples;
+
+                // Check if data.buffer is ArrayBuffer (binary from Socket.IO)
+                if (data.buffer instanceof ArrayBuffer) {
+                    samples = new Int16Array(data.buffer);
+                    console.log('[Audio Fork] Received ArrayBuffer, decoded', samples.length, 'samples');
+                } else if (typeof data.buffer === 'string') {
+                    // Fallback: base64 string
+                    const binaryString = atob(data.buffer);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    samples = new Int16Array(bytes.buffer);
+                    console.log('[Audio Fork] Decoded base64, got', samples.length, 'samples');
+                } else {
+                    console.error('[Audio Fork] Unknown buffer type:', typeof data.buffer);
+                    return;
+                }
+                console.log('[Audio Fork] Decoded', samples.length, 'samples, range:',
+                    Math.min(...samples), 'to', Math.max(...samples));
+
+                // Convert Int16 PCM (-32768 to 32767) to Float32 (-1.0 to 1.0)
+                const float32Samples = new Float32Array(samples.length);
+                for (let i = 0; i < samples.length; i++) {
+                    float32Samples[i] = samples[i] / 32768.0;
+                }
+
+                // Visualize waveform for Card 1 (Incoming Audio IN)
+                const incomingCanvas = document.getElementById('incomingAudioViz');
+                if (incomingCanvas) {
+                    const ctx = incomingCanvas.getContext('2d');
+                    const width = incomingCanvas.width;
+                    const height = incomingCanvas.height;
+
+                    // Clear canvas
+                    ctx.fillStyle = '#0f1419';
+                    ctx.fillRect(0, 0, width, height);
+
+                    // Draw waveform
+                    ctx.strokeStyle = '#3b82f6';  // Blue for incoming audio
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+
+                    const step = Math.max(1, Math.floor(samples.length / width));
+                    for (let i = 0; i < width; i++) {
+                        const sampleIndex = i * step;
+                        const sample = samples[sampleIndex] || 0;
+                        const amplitude = Math.abs(sample / 32768.0);
+                        const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                        if (i === 0) {
+                            ctx.moveTo(i, y);
+                        } else {
+                            ctx.lineTo(i, y);
+                        }
+                    }
+                    ctx.stroke();
+
+                    console.log('[Incoming Audio] Waveform visualized');
+                }
+
+                // Visualize waveform for Card 5 (Hume AI Emotion Detection)
+                visualizeHumeAudio(samples);
+
+                // Update Hume AI activity indicator
+                const humeIndicator = document.getElementById('humeAudioIndicator');
+                const humeStatus = document.getElementById('humeAudioStatus');
+                const humeActivityIndicator = document.getElementById('humeActivityIndicator');
+                const humeActivityText = document.getElementById('humeActivityText');
+
+                if (humeIndicator) humeIndicator.classList.add('active');
+                if (humeStatus) humeStatus.textContent = 'Receiving audio stream (same as Deepgram)';
+                if (humeActivityIndicator) {
+                    humeActivityIndicator.style.background = '#4dabf7';
+                    humeActivityIndicator.style.boxShadow = '0 0 10px #4dabf7';
+                }
+                if (humeActivityText) {
+                    humeActivityText.textContent = 'Audio stream active...';
+                    humeActivityText.style.color = '#4dabf7';
+                }
+
+                // Only schedule audio playback if NOT muted (skip buffering when muted)
+                if (!incomingMuted) {
+                    // Create AudioBuffer
+                    const audioBuffer = incomingAudioContext.createBuffer(
+                        data.channels || 1,
+                        float32Samples.length,
+                        data.sampleRate || 8000
+                    );
+
+                    // Copy samples to buffer
+                    audioBuffer.getChannelData(0).set(float32Samples);
+
+                    // Schedule for playback
+                    const source = incomingAudioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+
+                    // Connect to global gain node (controlled by volume slider)
+                    source.connect(incomingGainNode);
+
+                    // Schedule playback with proper timing to avoid gaps
+                    const playTime = Math.max(nextPlayTime, incomingAudioContext.currentTime);
+                    source.start(playTime);
+
+                    // Update next play time (duration = samples / sampleRate)
+                    const duration = audioBuffer.length / audioBuffer.sampleRate;
+                    nextPlayTime = playTime + duration;
+
+                    console.log('[Audio Fork] Scheduled playback at', playTime.toFixed(3),
+                        's, duration:', duration.toFixed(3), 's, next:', nextPlayTime.toFixed(3), 's');
+                } else {
+                    console.log('[Audio Fork] Muted - skipping audio scheduling');
+                }
+
+            } catch (err) {
+                console.error('[Audio Fork] Error processing audio:', err);
+            }
+        }
+
+        // Initialize audio visualizers
+        function initAudioVisualizers() {
+
+        // Handle translated audio from pipeline (ElevenLabs TTS output)
+            // handleTranslatedAudio moved to global scope for Card 4
+
+            // Incoming audio visualizer
+            const incomingCanvas = document.getElementById('incomingAudioViz');
+            const incomingCtx = incomingCanvas.getContext('2d');
+
+            // Outgoing audio visualizer
+            const outgoingCanvas = document.getElementById('outgoingAudioViz');
+            const outgoingCtx = outgoingCanvas.getContext('2d');
+
+            // Set up volume controls
+            document.getElementById('incomingVolume').addEventListener('input', (e) => {
+                const volume = e.target.value;
+                document.getElementById('incomingVolumeLabel').textContent = volume + '%';
+                
+                // Control Web Audio API gain node instead of HTML5 audio element
+                if (incomingGainNode) {
+                    incomingGainNode.gain.value = volume / 100;
+                    console.log('[Volume] Incoming volume set to', volume + '%');
+                }
+            });
+
+            document.getElementById('outgoingVolume').addEventListener('input', (e) => {
+                const volume = e.target.value;
+                document.getElementById('outgoingVolumeLabel').textContent = volume + '%';
+                
+                // Control Web Audio API gain node instead of HTML5 audio element
+                if (outgoingGainNode) {
+                    outgoingGainNode.gain.value = volume / 100;
+                    console.log('[Volume] Outgoing volume set to', volume + '%');
+                }
+            });
+
+            // Subscribe to audio stream events
+            socket.on('audioStreamStart', handleAudioStreamStart);
+            socket.on('audioStreamData', handleAudioStreamData);
+            socket.on('audioStreamEnd', handleAudioStreamEnd);
+            socket.on('callConnected', handleCallConnected);
+            socket.on('callDisconnected', handleCallDisconnected);
+            socket.on('recordingReady', handleRecordingReady);
+
+            // Also listen for audiosocket events (different event names)
+            socket.on('audiosocket-connected', (data) => {
+                console.log('[Dashboard] audiosocket-connected event received:', data);
+                handleCallConnected(data);
+            });
+            socket.on('audiosocket-disconnected', (data) => {
+                console.log('[Dashboard] audiosocket-disconnected event received:', data);
+                handleCallDisconnected(data);
+            });
+        }
+
+        // Handle call connected
+        function handleCallConnected(data) {
+            console.log('[Dashboard] Call connected:', data);
+            currentCall = data;
+            callStartTime = Date.now();
+
+            // Update UI with debug logging
+            console.log('[Dashboard] Updating UI elements...');
+
+            const callInfoEl = document.getElementById('callInfo');
+            console.log('[Dashboard] callInfo element:', callInfoEl);
+            if (callInfoEl) callInfoEl.style.display = 'block';
+
+            const callUUIDEl = document.getElementById('callUUID');
+            console.log('[Dashboard] callUUID element:', callUUIDEl);
+            if (callUUIDEl) callUUIDEl.textContent = data.callUUID || data.uuid || 'Unknown';
+
+            const statusEl = document.getElementById('asteriskStreamStatus');
+            console.log('[Dashboard] asteriskStreamStatus element:', statusEl);
+            if (statusEl) {
+                statusEl.className = 'status-badge status-operational';
+                statusEl.textContent = '🔴 LIVE';
+                statusEl.style.backgroundColor = '#00ff00';  // Bright green - IMPOSSIBLE to miss!
+                statusEl.style.color = '#000000';
+                statusEl.style.fontWeight = 'bold';
+                statusEl.style.fontSize = '16px';
+                console.log('[Dashboard] Updated status to LIVE with green background');
+                console.log('[Dashboard] Status text is now:', statusEl.textContent);
+                console.log('[Dashboard] Status background is now:', statusEl.style.backgroundColor);
+            }
+
+            const audioStatusEl = document.getElementById('incomingAudioStatus');
+            console.log('[Dashboard] incomingAudioStatus element:', audioStatusEl);
+            if (audioStatusEl) audioStatusEl.textContent = 'Receiving audio stream...';
+
+            const indicatorEl = document.getElementById('incomingAudioIndicator');
+            console.log('[Dashboard] incomingAudioIndicator element:', indicatorEl);
+            if (indicatorEl) indicatorEl.classList.add('active');
+
+            // Add participant
+            addParticipant({
+                uuid: data.callUUID || data.uuid,
+                name: data.caller || `Call ${(data.callUUID || data.uuid || '').substring(0, 8)}`,
+                language: data.language || 'en'
+            });
+
+            // Start duration timer
+            if (callDurationInterval) clearInterval(callDurationInterval);
+            callDurationInterval = setInterval(updateCallDuration, 1000);
+
+            // Start visualization
+            drawIncomingVisualizer();
+        }
+
+        // Handle call disconnected
+        function handleCallDisconnected(data) {
+            console.log('[Dashboard] Call disconnected:', data);
+
+            // Remove participant
+            removeParticipant({
+                uuid: data.callUUID || data.uuid || (currentCall && currentCall.callUUID)
+            });
+
+            currentCall = null;
+            callStartTime = null;
+
+            // Update UI
+            const statusEl = document.getElementById('asteriskStreamStatus');
+            statusEl.className = 'status-badge';
+            statusEl.textContent = '⏸ Idle';
+            statusEl.style.backgroundColor = '';  // Reset background
+            statusEl.style.color = '';
+            statusEl.style.fontWeight = '';
+            statusEl.style.fontSize = '';
+            document.getElementById('incomingAudioStatus').textContent = 'No active call';
+            document.getElementById('incomingAudioIndicator').classList.remove('active');
+            document.getElementById('translatedStreamStatus').className = 'status-badge';
+            document.getElementById('translatedStreamStatus').textContent = '⏸ Idle';
+            document.getElementById('outgoingAudioIndicator').classList.remove('active');
+
+            // Stop duration timer
+            if (callDurationInterval) {
+                clearInterval(callDurationInterval);
+                callDurationInterval = null;
+            }
+
+            // Stop visualizations
+            if (incomingAnimationId) {
+                cancelAnimationFrame(incomingAnimationId);
+                incomingAnimationId = null;
+            }
+            if (outgoingAnimationId) {
+                cancelAnimationFrame(outgoingAnimationId);
+                outgoingAnimationId = null;
+            }
+
+            // Refresh recordings after call ends
+            setTimeout(refreshRecordings, 2000);
+        }
+
+        // Update call duration
+        function updateCallDuration() {
+            if (!callStartTime) return;
+            const duration = Math.floor((Date.now() - callStartTime) / 1000);
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            document.getElementById('callDuration').textContent =
+                `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Draw incoming audio visualizer (waveform)
+        function drawIncomingVisualizer() {
+            const canvas = document.getElementById('incomingAudioViz');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw animated waveform
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const time = Date.now() / 1000;
+            const amplitude = currentCall ? 30 + Math.random() * 20 : 5;
+
+            for (let x = 0; x < width; x++) {
+                const y = height / 2 + Math.sin((x / 30) + time * 2) * amplitude;
+                if (x === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+
+            ctx.stroke();
+
+            // Continue animation if call is active
+            if (currentCall) {
+                incomingAnimationId = requestAnimationFrame(drawIncomingVisualizer);
+            }
+        }
+
+        // Draw outgoing audio visualizer
+        function drawOutgoingVisualizer() {
+            const canvas = document.getElementById('outgoingAudioViz');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw animated bars
+            ctx.fillStyle = '#a78bfa';
+            const barCount = 50;
+            const barWidth = width / barCount;
+            const time = Date.now() / 1000;
+
+            for (let i = 0; i < barCount; i++) {
+                const barHeight = (Math.sin(i / 5 + time * 3) + 1) * (height / 4);
+                ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
+            }
+
+            // Continue animation if call is active
+            if (currentCall) {
+                outgoingAnimationId = requestAnimationFrame(drawOutgoingVisualizer);
+            }
+        }
+
+        // Handle audio stream start
+        function handleAudioStreamStart(data) {
+            console.log('[Dashboard] Audio stream started:', data);
+            if (data.direction === 'outgoing') {
+                document.getElementById('translatedStreamStatus').className = 'status-badge status-operational';
+                document.getElementById('translatedStreamStatus').textContent = '🔴 LIVE';
+                document.getElementById('outgoingAudioStatus').textContent = 'Playing translated audio...';
+                document.getElementById('outgoingAudioIndicator').classList.add('active');
+                drawOutgoingVisualizer();
+            }
+        }
+
+        // Handle audio stream data
+        function handleAudioStreamData(data) {
+            // This would handle raw audio data if needed
+            // For now, we're using HTML5 audio elements with Socket.IO streams
+        }
+
+        // Handle audio stream end
+        function handleAudioStreamEnd(data) {
+            console.log('[Dashboard] Audio stream ended:', data);
+            if (data.direction === 'outgoing') {
+                document.getElementById('outgoingAudioIndicator').classList.remove('active');
+            }
+        }
+
+        // Mute/unmute functions (start MUTED by default for browser autoplay policy)
+        let incomingMuted = false;
+        let outgoingMuted = false;
+
+        function muteIncoming() {
+            incomingMuted = !incomingMuted;
+            const player = document.getElementById('incomingAudioPlayer');
+            if (player) player.muted = incomingMuted;
+
+            const btn = document.getElementById('incomingMuteBtn');
+            btn.textContent = incomingMuted ? '🔊 Unmute' : '🔇 Mute';
+
+            // When unmuting, resume AudioContext and reset play time to current (skip old buffered audio)
+            if (!incomingMuted && incomingAudioContext) {
+                // Resume AudioContext (browser autoplay policy)
+                if (incomingAudioContext.state === 'suspended') {
+                    incomingAudioContext.resume().then(() => {
+                        console.log('[Incoming Audio] AudioContext resumed on unmute');
+                    });
+                }
+                // Reset nextPlayTime to current time to avoid playing old buffered audio
+                nextPlayTime = incomingAudioContext.currentTime;
+                console.log('[Incoming Audio] Unmuted - will play live audio from current time');
+            }
+        }
+
+        function muteOutgoing() {
+            outgoingMuted = !outgoingMuted;
+            const player = document.getElementById('outgoingAudioPlayer');
+            if (player) player.muted = outgoingMuted;
+
+            const btn = document.getElementById('outgoingMuteBtn');
+            btn.textContent = outgoingMuted ? '🔊 Unmute' : '🔇 Mute';
+        }
+
+        // ============ HUME AI EMOTION DETECTION ============
+
+        let humeMuted = false;
+        let humeDetectionCount = 0;
+
+        function muteHumeAudio() {
+            humeMuted = !humeMuted;
+            const btn = document.getElementById('humeMuteBtn');
+            btn.textContent = humeMuted ? '🔊 Unmute' : '🔇 Mute';
+
+            console.log('[Hume AI]', humeMuted ? 'Muted' : 'Unmuted');
+        }
+
+        // Handle emotion detection from Hume AI
+        function updateHumeEmotions(data) {
+            console.log('[Hume AI] Emotion detected:', data);
+
+            // Update status
+            const statusBadge = document.getElementById('humeAIStatus');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge status-operational';
+                statusBadge.textContent = '🟢 ACTIVE';
+            }
+
+            // Update activity indicator
+            const activityIndicator = document.getElementById('humeActivityIndicator');
+            const activityText = document.getElementById('humeActivityText');
+            if (activityIndicator) {
+                activityIndicator.style.background = '#51cf66';
+                activityIndicator.style.boxShadow = '0 0 10px #51cf66';
+            }
+            if (activityText) {
+                activityText.textContent = 'Processing audio...';
+                activityText.style.color = '#51cf66';
+            }
+
+            // Update emotion metrics
+            if (data.arousal !== undefined) {
+                const arousalValue = parseFloat(data.arousal);
+                document.getElementById('humeArousal').textContent = arousalValue.toFixed(2);
+                document.getElementById('humeArousalBar').style.width = (arousalValue * 100) + '%';
+            }
+
+            if (data.valence !== undefined) {
+                const valenceValue = parseFloat(data.valence);
+                // Valence ranges from -1 to 1, so we normalize to 0-100%
+                const valencePercent = ((valenceValue + 1) / 2) * 100;
+                document.getElementById('humeValence').textContent = valenceValue.toFixed(2);
+                document.getElementById('humeValenceBar').style.width = valencePercent + '%';
+            }
+
+            if (data.energy !== undefined) {
+                const energyValue = parseFloat(data.energy);
+                document.getElementById('humeEnergy').textContent = energyValue.toFixed(2);
+                document.getElementById('humeEnergyBar').style.width = (energyValue * 100) + '%';
+            }
+
+            // Update timestamp
+            const now = new Date();
+            document.getElementById('humeLastUpdate').textContent = now.toLocaleTimeString();
+
+            // Update detection count
+            humeDetectionCount++;
+            document.getElementById('humeDetectionCount').textContent = humeDetectionCount;
+
+            // Update Hume service live status indicator
+            updateHumeServiceStatus(true);
+
+            // Classify emotion and update ElevenLabs TTS emotion badge
+            if (data.arousal !== undefined && data.valence !== undefined) {
+                const arousal = parseFloat(data.arousal);
+                const valence = parseFloat(data.valence);
+
+                let emotion = 'neutral';
+                let emoji = '😐';
+                let bgColor = '#444';
+                let textColor = '#aaa';
+
+                // Match style-mapper.js classification logic
+                if (arousal > 0.6 && valence > 0.6) {
+                    // High arousal + high valence = Joy
+                    emotion = 'joy';
+                    emoji = '😊';
+                    bgColor = '#10b981';
+                    textColor = '#fff';
+                } else if (arousal > 0.65 && valence < 0.45) {
+                    // High arousal + low valence = Anger
+                    emotion = 'anger';
+                    emoji = '😠';
+                    bgColor = '#ef4444';
+                    textColor = '#fff';
+                } else if (arousal < 0.4 && valence < 0.45) {
+                    // Low arousal + low valence = Sadness
+                    emotion = 'sadness';
+                    emoji = '😢';
+                    bgColor = '#3b82f6';
+                    textColor = '#fff';
+                } else if (arousal >= 0.4 && arousal <= 0.6 && valence >= 0.5 && valence <= 0.65) {
+                    // Medium arousal + medium-high valence = Empathy
+                    emotion = 'empathy';
+                    emoji = '🤗';
+                    bgColor = '#f59e0b';
+                    textColor = '#fff';
+                }
+
+                // Update ElevenLabs emotion badge
+                const ttsBadge = document.getElementById('ttsEmotionBadge');
+                if (ttsBadge) {
+                    ttsBadge.textContent = `${emoji} ${emotion.charAt(0).toUpperCase() + emotion.slice(1)}`;
+                    ttsBadge.style.background = bgColor;
+                    ttsBadge.style.color = textColor;
+                    ttsBadge.style.transition = 'all 0.3s ease';
+                }
+
+                console.log(`[TTS Emotion] Classified as ${emotion} (arousal: ${arousal.toFixed(2)}, valence: ${valence.toFixed(2)})`);
+            }
+        }
+
+        // Update Hume→ElevenLabs live status indicator
+        function updateHumeToElevenLabsStatus(data) {
+            const statusEl = document.getElementById('humeServiceStatus');
+            const pulseEl = document.getElementById('humeServicePulse');
+            const textEl = document.getElementById('humeServiceText');
+
+            if (!statusEl || !pulseEl || !textEl) return;
+
+            if (data.active) {
+                // ElevenLabs is receiving FRESH Hume data
+                pulseEl.style.background = '#10b981';
+                pulseEl.style.boxShadow = '0 0 8px #10b981';
+                pulseEl.style.animation = 'pulse 1.5s ease-in-out infinite';
+                textEl.style.color = '#10b981';
+                textEl.textContent = `Hume → ElevenLabs (${data.emotionAge}ms)`;
+                statusEl.style.borderColor = '#10b98144';
+
+                console.log('[Hume→ElevenLabs] ACTIVE - Fresh emotion data applied to TTS:', data.voiceSettings);
+            } else {
+                // ElevenLabs is using STALE or no Hume data
+                pulseEl.style.background = '#f59e0b';
+                pulseEl.style.boxShadow = '0 0 6px #f59e0b';
+                pulseEl.style.animation = 'none';
+                textEl.style.color = '#f59e0b';
+                textEl.textContent = data.emotionAge ? `Hume: Stale (${data.emotionAge}ms)` : 'Hume: No data';
+                statusEl.style.borderColor = '#f59e0b44';
+
+                console.log('[Hume→ElevenLabs] STALE - Using neutral fallback');
+            }
+        }
+
+        // Visualize audio for Hume AI (same as Deepgram's fork)
+        function visualizeHumeAudio(samples) {
+            const canvas = document.getElementById('humeAudioViz');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#0f1419';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw waveform
+            ctx.strokeStyle = '#51cf66';  // Green for Hume AI
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const step = Math.max(1, Math.floor(samples.length / width));
+            for (let i = 0; i < width; i++) {
+                const sampleIndex = i * step;
+                const sample = samples[sampleIndex] || 0;
+                const amplitude = Math.abs(sample / 32768.0);
+                const y = height / 2 + (amplitude * height / 2) * (sample < 0 ? 1 : -1);
+
+                if (i === 0) {
+                    ctx.moveTo(i, y);
+                } else {
+                    ctx.lineTo(i, y);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // ============ PARTICIPANT MANAGEMENT ============
+
+        let participants = new Map();
+
+        // Add participant to the list
+        function addParticipant(data) {
+            console.log('[Participants] Adding participant:', data);
+
+            const participantId = data.uuid || data.callUUID || data.id || `participant-${Date.now()}`;
+            participants.set(participantId, {
+                id: participantId,
+                name: data.name || `Caller ${participantId.substring(0, 8)}`,
+                language: data.language || 'en',
+                joinedAt: Date.now(),
+                speaking: false
+            });
+
+            refreshParticipantsList();
+        }
+
+        // Remove participant from the list
+        function removeParticipant(data) {
+            console.log('[Participants] Removing participant:', data);
+
+            const participantId = data.uuid || data.callUUID || data.id;
+            if (participantId) {
+                participants.delete(participantId);
+            }
+
+            refreshParticipantsList();
+        }
+
+        // Refresh participants list UI
+        function refreshParticipantsList() {
+            const list = document.getElementById('participantsList');
+            const count = document.getElementById('participantCount');
+
+            count.textContent = participants.size;
+
+            if (participants.size === 0) {
+                list.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <div>Waiting for participants...</div>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = Array.from(participants.values()).map(p => {
+                const duration = Math.floor((Date.now() - p.joinedAt) / 1000);
+                const minutes = Math.floor(duration / 60);
+                const seconds = duration % 60;
+                const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                return `
+                    <div class="participant">
+                        <div class="participant-avatar">${p.name.charAt(0).toUpperCase()}</div>
+                        <div class="participant-info">
+                            <div class="participant-name">${p.name}</div>
+                            <div class="participant-lang">Language: ${p.language} • Duration: ${durationStr}</div>
+                        </div>
+                        <div class="participant-status ${p.speaking ? 'speaking' : ''}"></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update participant durations every second
+        setInterval(() => {
+            if (participants.size > 0) {
+                refreshParticipantsList();
+            }
+        }, 1000);
+
+        // ============ RECORDINGS MANAGEMENT ============
+
+        let recordings = [];
+
+        // Handle new recording ready
+        function handleRecordingReady(data) {
+            console.log('[Dashboard] Recording ready:', data);
+            recordings.unshift(data);
+            refreshRecordingsList();
+        }
+
+        // Refresh recordings from server
+        async function refreshRecordings() {
+            try {
+                const response = await fetch('/api/recordings');
+                const data = await response.json();
+                recordings = data.recordings || [];
+                refreshRecordingsList();
+            } catch (err) {
+                console.error('[Dashboard] Failed to fetch recordings:', err);
+            }
+        }
+
+        // Refresh recordings list UI
+        function refreshRecordingsList() {
+            const list = document.getElementById('recordingList');
+
+            if (recordings.length === 0) {
+                list.innerHTML = '<div class="transcript-empty">📁 No recordings yet. Call recordings will appear here automatically.</div>';
+                return;
+            }
+
+            list.innerHTML = recordings.map((rec, index) => `
+                <div class="recording-item">
+                    <div class="recording-icon">🎵</div>
+                    <div class="recording-info">
+                        <div class="recording-title">Recording ${index + 1}</div>
+                        <div class="recording-meta">
+                            UUID: ${rec.uuid || rec.callUUID || 'Unknown'} •
+                            ${rec.duration || 'Unknown duration'} •
+                            ${new Date(rec.timestamp || rec.created || Date.now()).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="recording-actions">
+                        <button class="btn-icon" onclick="playRecording('${rec.filename || rec.path}')" title="Play">
+                            ▶️
+                        </button>
+                        <button class="btn-icon" onclick="downloadRecording('${rec.filename || rec.path}')" title="Download">
+                            ⬇️
+                        </button>
+                        <button class="btn-icon delete" onclick="deleteRecording('${rec.filename || rec.path}')" title="Delete">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Play recording
+        function playRecording(filename) {
+            const audio = new Audio(`/recordings/${filename}`);
+            audio.play();
+            console.log('[Dashboard] Playing recording:', filename);
+        }
+
+        // Download recording
+        function downloadRecording(filename) {
+            const a = document.createElement('a');
+            a.href = `/recordings/${filename}`;
+            a.download = filename;
+            a.click();
+            console.log('[Dashboard] Downloading recording:', filename);
+        }
+
+        // Delete recording
+        async function deleteRecording(filename) {
+            if (!confirm('Are you sure you want to delete this recording?')) return;
+
+            try {
+                await fetch(`/api/recordings/${filename}`, { method: 'DELETE' });
+                recordings = recordings.filter(r => (r.filename || r.path) !== filename);
+                refreshRecordingsList();
+                console.log('[Dashboard] Deleted recording:', filename);
+            } catch (err) {
+                console.error('[Dashboard] Failed to delete recording:', err);
+                alert('Failed to delete recording');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+            initAudioVisualizers();
+            refreshRecordings();
+        });
+    </script>
+</body>
+</html>

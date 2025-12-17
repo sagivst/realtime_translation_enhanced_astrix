@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.audioLevel",
+  "name": "Audio Level",
+  "category": "Audio Quality",
+  "path": "audioQuality.audioLevel",
+  "unit": "dBFS",
+  "description": "Current audio level in dBFS",
+  "ranges": {
+    "min": -60,
+    "max": 0,
+    "recommendedMin": -40,
+    "recommendedMax": -5
+  },
+  "thresholds": {
+    "warningLow": -40,
+    "warningHigh": -5,
+    "criticalLow": -50,
+    "criticalHigh": -3
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 38
+  }
+}

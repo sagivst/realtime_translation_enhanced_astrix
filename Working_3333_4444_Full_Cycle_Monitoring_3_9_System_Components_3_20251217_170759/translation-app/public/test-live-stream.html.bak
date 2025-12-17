@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live PCM Stream Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #ccc;
+            transition: background 0.3s;
+        }
+        .status-dot.connected {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        .log-container {
+            background: #1f2937;
+            color: #10b981;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #10b981;
+            padding-left: 10px;
+        }
+        .log-entry.info { border-left-color: #3b82f6; color: #3b82f6; }
+        .log-entry.success { border-left-color: #10b981; color: #10b981; }
+        .log-entry.warning { border-left-color: #f59e0b; color: #f59e0b; }
+        .log-entry.error { border-left-color: #ef4444; color: #ef4444; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            transition: width 0.3s;
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -100% 0; }
+            100% { background-position: 100% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Live PCM Stream Test</h1>
+            <p>Real-time audio streaming from Asterisk → Node.js → Browser</p>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="card">
+            <h2>📡 Connection Status</h2>
+            <div class="status">
+                <div class="status-dot" id="socketStatus"></div>
+                <span id="socketStatusText">Disconnected</span>
+            </div>
+            <div class="controls">
+                <button class="btn-primary" onclick="connectSocket()">Connect</button>
+                <button class="btn-danger" onclick="disconnectSocket()">Disconnect</button>
+                <button class="btn-secondary" onclick="clearStats()">Clear Stats</button>
+            </div>
+        </div>
+
+        <!-- Live Stream Stats -->
+        <div class="card">
+            <h2>📊 Live Stream Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value" id="frameCount">0</div>
+                    <div class="stat-label">PCM Frames Received</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="bytesReceived">0</div>
+                    <div class="stat-label">Bytes Received</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="framesPerSec">0</div>
+                    <div class="stat-label">Frames/Second</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" id="latency">0 ms</div>
+                    <div class="stat-label">Latency</div>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Deepgram Transcription Display -->
+        <div class="card">
+            <h2>🎤 Deepgram Transcription</h2>
+            <div style="background: #f0f0f0; padding: 20px; border-radius: 10px; margin: 10px 0;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">Partial (Real-time):</h3>
+                <div id="transcriptPartial" style="font-size: 1.2em; color: #333; min-height: 30px; font-weight: 500;">(waiting for audio...)</div>
+            </div>
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 10px; margin: 10px 0;">
+                <h3 style="color: #10b981; margin-bottom: 10px;">✅ Final:</h3>
+                <div id="transcriptFinal" style="font-size: 1.4em; color: #000; min-height: 30px; font-weight: bold;">(waiting for speech to complete...)</div>
+            </div>
+
+        <!-- Audio Playback Test -->
+        <div class="card">
+            <h2>🔊 Audio Playback Test</h2>
+            <div class="controls">
+                <button class="btn-primary" onclick="startPlayback()">▶️ Start Live Playback</button>
+                <button class="btn-danger" onclick="stopPlayback()">⏹️ Stop Playback</button>
+            </div>
+            <p style="margin-top: 10px; color: #6b7280;">
+                Note: Make a call to <strong>sip:7000@4.185.84.26</strong> to see live audio streaming
+            </p>
+        </div>
+
+        <!-- Event Log -->
+        <div class="card">
+            <h2>📝 Event Log</h2>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        let audioContext = null;
+        let isPlaying = false;
+
+        // Statistics
+        let frameCount = 0;
+        let bytesReceived = 0;
+        let lastFrameTime = Date.now();
+        let framesThisSecond = 0;
+        let fpsInterval = null;
+
+        // Logging
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Keep only last 50 entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Update stats display
+        function updateStats() {
+            document.getElementById('frameCount').textContent = frameCount.toLocaleString();
+            document.getElementById('bytesReceived').textContent = (bytesReceived / 1024).toFixed(1) + ' KB';
+
+            const now = Date.now();
+            const latency = now - lastFrameTime;
+            document.getElementById('latency').textContent = latency + ' ms';
+
+            // Animate progress bar
+            const progress = (frameCount % 50) * 2; // 0-100%
+            document.getElementById('progressFill').style.width = progress + '%';
+        }
+
+        // Calculate frames per second
+        function startFpsCounter() {
+            if (fpsInterval) return;
+            fpsInterval = setInterval(() => {
+                document.getElementById('framesPerSec').textContent = framesThisSecond;
+                framesThisSecond = 0;
+            }, 1000);
+        }
+
+        // Connect to Socket.IO
+        function connectSocket() {
+            if (socket) {
+                log('Already connected', 'warning');
+                return;
+            }
+
+            log('Connecting to Socket.IO...', 'info');
+            socket = io();
+
+            socket.on('connect', () => {
+                log('✓ Connected to server', 'success');
+                document.getElementById('socketStatus').classList.add('connected');
+                document.getElementById('socketStatusText').textContent = 'Connected';
+                startFpsCounter();
+            });
+
+            socket.on('disconnect', () => {
+                log('✗ Disconnected from server', 'error');
+                document.getElementById('socketStatus').classList.remove('connected');
+                document.getElementById('socketStatusText').textContent = 'Disconnected';
+                if (fpsInterval) {
+                    clearInterval(fpsInterval);
+                    fpsInterval = null;
+                }
+            });
+
+            socket.on('live-pcm-frame', (data) => {
+                handlePCMFrame(data);
+            });
+
+            socket.on('error', (error) => {
+                log('Socket error: ' + error, 'error');
+
+            // Listen for Deepgram transcriptions
+            socket.on("transcriptionPartial", (data) => {
+                addLog("🎤 Partial: " + data.text + " (" + Math.round(data.confidence * 100) + "%)", "info");
+                document.getElementById("transcriptPartial").textContent = data.text;
+            });
+
+            socket.on("transcriptionFinal", (data) => {
+                addLog("✅ FINAL: " + data.text + " (" + Math.round(data.confidence * 100) + "%)", "success");
+                document.getElementById("transcriptFinal").textContent = data.text;
+            });
+            });
+        }
+
+        // Disconnect from Socket.IO
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                log('Disconnected', 'warning');
+            }
+        }
+
+        // Handle incoming PCM frame
+        function handlePCMFrame(data) {
+            frameCount++;
+            framesThisSecond++;
+
+            // Calculate bytes (640 bytes per 20ms frame)
+            let frameSize = 640;
+            if (data.pcm) {
+                if (typeof data.pcm === 'string') {
+                    // Base64 encoded
+                    frameSize = Math.ceil(data.pcm.length * 0.75);
+                } else if (data.pcm.length) {
+                    frameSize = data.pcm.length;
+                }
+            }
+            bytesReceived += frameSize;
+
+            lastFrameTime = Date.now();
+            updateStats();
+
+            // Log every 50th frame
+            if (frameCount % 50 === 0) {
+                log(`Received frame #${frameCount} | ${(bytesReceived/1024).toFixed(1)} KB | ${framesThisSecond} fps`, 'success');
+            }
+
+            // Play audio if enabled
+            if (isPlaying && data.pcm) {
+                playPCMFrame(data.pcm, data.channelId);
+            }
+        }
+
+        // Initialize Web Audio API
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log('Audio context initialized: ' + audioContext.sampleRate + ' Hz', 'success');
+            }
+            return audioContext;
+        }
+
+        // Play a single 20ms PCM frame
+        function playPCMFrame(pcmData, channelId) {
+            try {
+                const ctx = initAudioContext();
+
+                // Resume if suspended
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+
+                // Convert base64 to ArrayBuffer if needed
+                let pcmBuffer;
+                if (typeof pcmData === 'string') {
+                    const binaryString = atob(pcmData);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    pcmBuffer = bytes.buffer;
+                } else {
+                    pcmBuffer = pcmData.buffer || pcmData;
+                }
+
+                // Validate size
+                if (pcmBuffer.byteLength !== 640) {
+                    console.warn('Invalid PCM frame size:', pcmBuffer.byteLength);
+                    return;
+                }
+
+                // Convert to AudioBuffer
+                const pcmInt16 = new Int16Array(pcmBuffer);
+                const audioBuffer = ctx.createBuffer(1, 320, 16000); // 320 samples, 16kHz
+                const channelData = audioBuffer.getChannelData(0);
+
+                // Convert Int16 to Float32
+                for (let i = 0; i < pcmInt16.length; i++) {
+                    channelData[i] = pcmInt16[i] / 32768.0;
+                }
+
+                // Play
+                const source = ctx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(ctx.destination);
+                source.start(0);
+
+            } catch (error) {
+                console.error('Playback error:', error);
+            }
+        }
+
+        // Start live playback
+        function startPlayback() {
+            if (isPlaying) {
+                log('Playback already active', 'warning');
+                return;
+            }
+            isPlaying = true;
+            initAudioContext();
+            log('🔊 Live playback started', 'success');
+        }
+
+        // Stop live playback
+        function stopPlayback() {
+            isPlaying = false;
+            log('⏹️ Live playback stopped', 'warning');
+        }
+
+        // Clear statistics
+        function clearStats() {
+            frameCount = 0;
+            bytesReceived = 0;
+            framesThisSecond = 0;
+            updateStats();
+            log('Statistics cleared', 'info');
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', () => {
+            log('Page loaded, ready to connect', 'info');
+            log('Click "Connect" to start receiving live PCM frames', 'info');
+            connectSocket();
+        });
+    </script>
+</body>
+</html>

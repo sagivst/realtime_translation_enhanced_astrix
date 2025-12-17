@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.silenceCount",
+  "name": "Silence Periods",
+  "category": "Audio Quality",
+  "path": "audioQuality.silenceCount",
+  "unit": "events",
+  "description": "Number of silence detection events",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 10
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 10,
+    "criticalLow": 0,
+    "criticalHigh": 50
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 36
+  }
+}

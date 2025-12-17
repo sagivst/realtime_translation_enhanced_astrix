@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.channels",
+  "name": "Audio Channels",
+  "category": "Audio Quality",
+  "path": "audioQuality.channels",
+  "unit": "ch",
+  "description": "Number of audio channels",
+  "ranges": {
+    "min": 1,
+    "max": 2,
+    "recommendedMin": 1,
+    "recommendedMax": 2
+  },
+  "thresholds": {
+    "warningLow": 1,
+    "warningHigh": 2,
+    "criticalLow": 1,
+    "criticalHigh": 2
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 33
+  }
+}

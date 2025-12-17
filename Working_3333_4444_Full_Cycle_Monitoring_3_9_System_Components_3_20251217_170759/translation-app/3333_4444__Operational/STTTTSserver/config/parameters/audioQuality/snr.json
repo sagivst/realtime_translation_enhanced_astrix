@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.snr",
+  "name": "Signal-to-Noise Ratio",
+  "category": "Audio Quality",
+  "path": "audioQuality.snr",
+  "unit": "dB",
+  "description": "Audio signal-to-noise ratio",
+  "ranges": {
+    "min": 0,
+    "max": 60,
+    "recommendedMin": 30,
+    "recommendedMax": 60
+  },
+  "thresholds": {
+    "warningLow": 30,
+    "warningHigh": 60,
+    "criticalLow": 20,
+    "criticalHigh": 60
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 39
+  }
+}

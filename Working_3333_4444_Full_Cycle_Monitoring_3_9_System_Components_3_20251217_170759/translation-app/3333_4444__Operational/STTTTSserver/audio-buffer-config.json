@@ -1,0 +1,169 @@
+{
+  "version": "2.0",
+  "last_updated": "2025-11-25T00:00:00Z",
+  "buffer_stations": {
+    "station_1_asterisk_gateway": {
+      "enabled": true,
+      "name": "Asterisk → Gateway (Incoming ALAW)",
+      "description": "RTP packets from Asterisk to Gateway",
+      "socket_receive_buffer_bytes": 262144,
+      "queue_max_packets": 50,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_dropped_packets": true,
+        "track_latency": true,
+        "track_jitter": true
+      }
+    },
+    "station_2_gstreamer_input": {
+      "enabled": true,
+      "name": "GStreamer Input Buffer",
+      "description": "ALAW to PCM conversion input buffer",
+      "buffer_max_bytes": 65536,
+      "buffer_latency_ms": 100,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_underruns": true,
+        "track_overruns": true,
+        "track_conversion_time": true
+      }
+    },
+    "station_3_gstreamer_output": {
+      "enabled": true,
+      "name": "GStreamer Output Buffer",
+      "description": "PCM data after ALAW→PCM conversion",
+      "buffer_max_bytes": 65536,
+      "buffer_latency_ms": 100,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_output_size": true,
+        "track_format_changes": true
+      }
+    },
+    "station_4_stttts_udp_receive": {
+      "enabled": true,
+      "name": "STTTTSserver UDP Receive",
+      "description": "Incoming PCM from Gateway",
+      "socket_receive_buffer_bytes": 262144,
+      "accumulation_buffer_bytes": 32000,
+      "accumulation_threshold_bytes": 32000,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_accumulation_time": true,
+        "track_packet_count": true,
+        "track_bytes_received": true
+      }
+    },
+    "station_5_tts_output": {
+      "enabled": true,
+      "name": "TTS Output Buffer",
+      "description": "PCM audio from ElevenLabs TTS",
+      "buffer_max_bytes": 131072,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_tts_generation_time": true,
+        "track_audio_duration": true,
+        "track_bytes_generated": true
+      }
+    },
+    "station_6_udp_send_stttts": {
+      "enabled": true,
+      "name": "STTTTSserver UDP Send",
+      "description": "Outgoing PCM to Gateway (CHOPPY AUDIO SOURCE)",
+      "socket_send_buffer_bytes": 262144,
+      "frame_size_bytes": 160,
+      "frame_batch_size": 1,
+      "frame_delay_ms": 5,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "debug",
+      "metrics": {
+        "track_dropped_bytes": true,
+        "track_latency": true,
+        "track_packet_count": true,
+        "track_partial_frames": true
+      }
+    },
+    "station_7_gateway_receive": {
+      "enabled": true,
+      "name": "Gateway Receive from STTTTSserver",
+      "description": "PCM packets received from STTTTSserver",
+      "socket_receive_buffer_bytes": 262144,
+      "accumulation_buffer_bytes": 32000,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_packet_loss": true,
+        "track_out_of_order": true,
+        "track_latency": true
+      }
+    },
+    "station_8_rtp_output": {
+      "enabled": true,
+      "name": "RTP Output to Asterisk",
+      "description": "Final RTP packets to Asterisk",
+      "socket_send_buffer_bytes": 262144,
+      "rtp_payload_size": 160,
+      "rtp_ptime_ms": 20,
+      "warning_threshold_percent": 75,
+      "critical_threshold_percent": 90,
+      "monitoring_enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "track_sequence_wrapping": true,
+        "track_timestamp_drift": true,
+        "track_send_errors": true
+      }
+    }
+  },
+  "presets": {
+    "low_latency": {
+      "description": "Minimize latency, accept some packet loss",
+      "multiplier": 0.5,
+      "accumulation_threshold_multiplier": 0.75
+    },
+    "balanced": {
+      "description": "Default balanced performance",
+      "multiplier": 1.0,
+      "accumulation_threshold_multiplier": 1.0
+    },
+    "high_reliability": {
+      "description": "Maximum reliability, higher latency",
+      "multiplier": 2.0,
+      "accumulation_threshold_multiplier": 1.5
+    },
+    "diagnostic": {
+      "description": "Enhanced logging for troubleshooting",
+      "multiplier": 1.5,
+      "log_level": "debug",
+      "monitoring_interval_ms": 100
+    }
+  },
+  "global_settings": {
+    "monitoring_interval_ms": 1000,
+    "alert_cooldown_ms": 5000,
+    "enable_dashboard": true,
+    "dashboard_port": 3020,
+    "enable_api": true,
+    "auto_reload_config": true,
+    "config_reload_interval_ms": 30000
+  }
+}

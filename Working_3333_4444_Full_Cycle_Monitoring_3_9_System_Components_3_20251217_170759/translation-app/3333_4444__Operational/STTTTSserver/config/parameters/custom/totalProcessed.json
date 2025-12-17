@@ -1,0 +1,33 @@
+{
+  "id": "custom.totalProcessed",
+  "name": "Total Processed",
+  "category": "Custom",
+  "path": "custom.totalProcessed",
+  "unit": "items",
+  "description": "Total items processed",
+  "ranges": {
+    "min": 0,
+    "max": 100000,
+    "recommendedMin": 0,
+    "recommendedMax": 80000
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 80000,
+    "criticalLow": 0,
+    "criticalHigh": 95000
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 51
+  }
+}

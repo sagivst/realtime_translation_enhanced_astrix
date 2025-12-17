@@ -1,0 +1,34 @@
+{
+  "id": "dsp.aec.erle",
+  "name": "Echo Return Loss Enhancement (ERLE)",
+  "category": "dsp",
+  "subcategory": "aec",
+  "path": "dsp.aec.erle",
+  "unit": "dB",
+  "description": "Additional echo reduction from AEC",
+  "ranges": {
+    "min": 0,
+    "max": 60,
+    "recommendedMin": 20,
+    "recommendedMax": 50
+  },
+  "thresholds": {
+    "warningLow": 15,
+    "warningHigh": null,
+    "criticalLow": 10,
+    "criticalHigh": null
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 15
+  },
+  "default": false
+}

@@ -1,0 +1,34 @@
+{
+  "id": "dsp.speechEnh.intelligibilityScore",
+  "name": "Intelligibility Score",
+  "category": "dsp",
+  "subcategory": "speech_enhancer",
+  "path": "dsp.speechEnh.intelligibilityScore",
+  "unit": "%",
+  "description": "Speech intelligibility rating",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 70,
+    "recommendedMax": 100
+  },
+  "thresholds": {
+    "warningLow": 65,
+    "warningHigh": null,
+    "criticalLow": 50,
+    "criticalHigh": null
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "critical",
+    "displayOrder": 20
+  },
+  "default": false
+}

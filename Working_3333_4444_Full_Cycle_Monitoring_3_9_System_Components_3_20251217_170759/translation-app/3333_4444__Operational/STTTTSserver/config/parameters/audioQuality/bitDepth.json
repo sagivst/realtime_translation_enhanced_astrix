@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.bitDepth",
+  "name": "Bit Depth",
+  "category": "Audio Quality",
+  "path": "audioQuality.bitDepth",
+  "unit": "bits",
+  "description": "Audio bit depth",
+  "ranges": {
+    "min": 8,
+    "max": 32,
+    "recommendedMin": 16,
+    "recommendedMax": 24
+  },
+  "thresholds": {
+    "warningLow": 8,
+    "warningHigh": 32,
+    "criticalLow": 8,
+    "criticalHigh": 32
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 32
+  }
+}

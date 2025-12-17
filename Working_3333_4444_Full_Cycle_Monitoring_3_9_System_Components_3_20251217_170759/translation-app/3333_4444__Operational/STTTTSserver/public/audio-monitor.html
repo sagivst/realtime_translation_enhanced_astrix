@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Audio Monitoring - Socket.IO</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .stations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .station-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .station-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .station-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .station-id {
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+
+        .extension-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-active {
+            background: #4ade80;
+            box-shadow: 0 0 10px #4ade80;
+        }
+
+        .status-inactive {
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .visualizations {
+            display: grid;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .viz-section {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .viz-title {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100px;
+            border-radius: 5px;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: rgba(76, 175, 80, 0.7);
+            border-color: #4caf50;
+        }
+
+        .btn-danger {
+            background: rgba(244, 67, 54, 0.7);
+            border-color: #f44336;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .metric {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 0.8em;
+            opacity: 0.8;
+            text-transform: uppercase;
+        }
+
+        .connection-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .log {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-left: 3px solid #0f0;
+        }
+
+        .log-entry.error {
+            border-color: #f00;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 5px;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #4ade80;
+            cursor: pointer;
+        }
+
+        .volume-label {
+            min-width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Station Audio Monitoring System</h1>
+            <p>Real-time Audio Streaming via Socket.IO</p>
+        </div>
+
+        <div class="stations-grid" id="stations-container"></div>
+
+        <div class="connection-status" id="connection-status">
+            <div class="status-indicator status-inactive" id="ws-status"></div>
+            <span id="ws-text">Disconnected</span>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO client connection
+        let socket = null;
+        let isConnected = false;
+
+        class StationAudioMonitor {
+            constructor(stationId, extensionId, container) {
+                this.stationId = stationId;
+                this.extensionId = extensionId;
+                this.container = container;
+                this.isSubscribed = false;
+                this.isPlaying = false;
+                this.packetCount = 0;
+                this.lastActivity = null;
+
+                // Audio context and processing
+                this.audioContext = null;
+                this.gainNode = null;
+                this.analyser = null;
+                this.audioBuffer = [];
+                this.audioQueue = [];
+                this.isProcessing = false;
+                this.volume = 0.7;
+
+                // Create UI
+                this.createUI();
+
+                // Event handlers
+                this.subscribeBtn.addEventListener('click', () => this.toggleSubscription());
+                this.playBtn.addEventListener('click', () => this.toggleAudio());
+                this.clearBtn.addEventListener('click', () => this.clearLog());
+                this.volumeSlider.addEventListener('input', (e) => this.setVolume(e.target.value / 100));
+
+                // Start visualization animation
+                this.animationId = null;
+            }
+
+            createUI() {
+                const card = document.createElement('div');
+                card.className = 'station-card';
+                card.innerHTML = `
+                    <div class="station-header">
+                        <div class="station-info">
+                            <div class="status-indicator status-inactive" id="status-${this.extensionId}"></div>
+                            <span class="station-id">${this.stationId}</span>
+                            <span class="extension-badge">Ext: ${this.extensionId}</span>
+                        </div>
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn btn-primary" id="subscribe-${this.extensionId}">▶ Subscribe</button>
+                        <button class="btn" id="play-${this.extensionId}">🔊 Enable Audio</button>
+                        <button class="btn" id="clear-${this.extensionId}">Clear Log</button>
+                    </div>
+
+                    <div class="visualizations">
+                        <div class="viz-section">
+                            <div class="viz-title">Waveform</div>
+                            <canvas id="waveform-${this.extensionId}" width="600" height="100"></canvas>
+                        </div>
+                        <div class="viz-section">
+                            <div class="viz-title">Frequency Spectrum</div>
+                            <canvas id="spectrum-${this.extensionId}" width="600" height="100"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="audio-controls">
+                        <span>Volume:</span>
+                        <input type="range" class="volume-slider" id="volume-${this.extensionId}"
+                               min="0" max="100" value="70">
+                        <span class="volume-label" id="volume-label-${this.extensionId}">70%</span>
+                    </div>
+
+                    <div class="log" id="log-${this.extensionId}"></div>
+
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-value" id="packets-${this.extensionId}">0</div>
+                            <div class="metric-label">Packets</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="buffer-${this.extensionId}">0</div>
+                            <div class="metric-label">Buffer</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="activity-${this.extensionId}">-</div>
+                            <div class="metric-label">Activity</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="status-text-${this.extensionId}">Idle</div>
+                            <div class="metric-label">Status</div>
+                        </div>
+                    </div>
+                `;
+
+                this.container.appendChild(card);
+
+                // Get UI elements
+                this.subscribeBtn = document.getElementById(`subscribe-${this.extensionId}`);
+                this.playBtn = document.getElementById(`play-${this.extensionId}`);
+                this.clearBtn = document.getElementById(`clear-${this.extensionId}`);
+                this.volumeSlider = document.getElementById(`volume-${this.extensionId}`);
+                this.volumeLabel = document.getElementById(`volume-label-${this.extensionId}`);
+                this.statusIndicator = document.getElementById(`status-${this.extensionId}`);
+                this.logElement = document.getElementById(`log-${this.extensionId}`);
+                this.waveformCanvas = document.getElementById(`waveform-${this.extensionId}`);
+                this.spectrumCanvas = document.getElementById(`spectrum-${this.extensionId}`);
+                this.waveformCtx = this.waveformCanvas.getContext('2d');
+                this.spectrumCtx = this.spectrumCanvas.getContext('2d');
+            }
+
+            async initAudioContext() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                        sampleRate: 8000 // Telephony sample rate
+                    });
+
+                    // Create audio processing nodes
+                    this.gainNode = this.audioContext.createGain();
+                    this.gainNode.gain.value = this.volume;
+                    this.gainNode.connect(this.audioContext.destination);
+
+                    // Create analyser for visualization
+                    this.analyser = this.audioContext.createAnalyser();
+                    this.analyser.fftSize = 256;
+                    this.analyser.smoothingTimeConstant = 0.8;
+                    this.gainNode.connect(this.analyser);
+
+                    this.bufferLength = this.analyser.frequencyBinCount;
+                    this.dataArray = new Uint8Array(this.bufferLength);
+                    this.frequencyData = new Uint8Array(this.bufferLength);
+                }
+            }
+
+            toggleSubscription() {
+                if (!this.isSubscribed) {
+                    this.subscribe();
+                } else {
+                    this.unsubscribe();
+                }
+            }
+
+            subscribe() {
+                if (!socket || !isConnected) {
+                    this.addLog('Socket not connected', 'error');
+                    return;
+                }
+
+                // Subscribe to this extension's stream
+                socket.emit('subscribe', {
+                    extensionId: this.extensionId,
+                    port: parseInt(this.extensionId) // Use extension as port for testing
+                });
+
+                this.isSubscribed = true;
+                this.subscribeBtn.textContent = '⏸ Unsubscribe';
+                this.subscribeBtn.classList.add('btn-danger');
+                this.statusIndicator.classList.add('status-active');
+                this.statusIndicator.classList.remove('status-inactive');
+                this.updateMetric('status-text', 'Subscribed');
+
+                this.addLog(`Subscribed to extension ${this.extensionId}`);
+            }
+
+            unsubscribe() {
+                if (!socket || !isConnected) {
+                    return;
+                }
+
+                // Unsubscribe from this extension's stream
+                socket.emit('unsubscribe', {
+                    extensionId: this.extensionId
+                });
+
+                this.isSubscribed = false;
+                this.subscribeBtn.textContent = '▶ Subscribe';
+                this.subscribeBtn.classList.remove('btn-danger');
+                this.statusIndicator.classList.remove('status-active');
+                this.statusIndicator.classList.add('status-inactive');
+                this.updateMetric('status-text', 'Idle');
+
+                this.addLog(`Unsubscribed from extension ${this.extensionId}`);
+            }
+
+            async toggleAudio() {
+                if (!this.isPlaying) {
+                    await this.startAudio();
+                } else {
+                    this.stopAudio();
+                }
+            }
+
+            async startAudio() {
+                await this.initAudioContext();
+                this.isPlaying = true;
+                this.playBtn.textContent = '🔇 Mute Audio';
+                this.playBtn.classList.add('btn-danger');
+
+                // Start visualization
+                this.startVisualization();
+
+                // Start processing queued audio
+                this.processAudioQueue();
+
+                this.addLog('Audio playback enabled');
+            }
+
+            stopAudio() {
+                this.isPlaying = false;
+                this.playBtn.textContent = '🔊 Enable Audio';
+                this.playBtn.classList.remove('btn-danger');
+
+                // Stop visualization
+                this.stopVisualization();
+
+                this.addLog('Audio playback disabled');
+            }
+
+            handleAudioData(data) {
+                this.packetCount++;
+                this.lastActivity = new Date();
+
+                this.updateMetric('packets', this.packetCount);
+                this.updateMetric('activity', 'Active');
+                this.updateMetric('buffer', this.audioBuffer.length);
+
+                // Add to audio buffer
+                if (data.audio) {
+                    this.audioBuffer.push(data.audio);
+                    if (this.audioBuffer.length > 100) {
+                        this.audioBuffer.shift(); // Keep buffer size manageable
+                    }
+
+                    // Queue for playback if audio is enabled
+                    if (this.isPlaying && this.audioContext) {
+                        this.audioQueue.push(data.audio);
+                        if (!this.isProcessing) {
+                            this.processAudioQueue();
+                        }
+                    }
+                }
+
+                // Log the data reception
+                if (this.packetCount % 50 === 0) {
+                    this.addLog(`Received ${this.packetCount} packets`);
+                }
+            }
+
+            async processAudioQueue() {
+                if (!this.isPlaying || this.audioQueue.length === 0 || this.isProcessing) {
+                    return;
+                }
+
+                this.isProcessing = true;
+
+                while (this.audioQueue.length > 0 && this.isPlaying) {
+                    const audioData = this.audioQueue.shift();
+
+                    try {
+                        // Convert μ-law to PCM
+                        const pcmData = this.ulawToPCM(audioData);
+
+                        // Create audio buffer
+                        const audioBuffer = this.audioContext.createBuffer(1, pcmData.length, 8000);
+                        audioBuffer.copyToChannel(pcmData, 0);
+
+                        // Play the buffer
+                        const source = this.audioContext.createBufferSource();
+                        source.buffer = audioBuffer;
+                        source.connect(this.gainNode);
+                        source.start();
+
+                        // Wait for this chunk to play
+                        await new Promise(resolve => {
+                            source.onended = resolve;
+                        });
+                    } catch (error) {
+                        console.error('Audio playback error:', error);
+                    }
+                }
+
+                this.isProcessing = false;
+            }
+
+            ulawToPCM(ulawData) {
+                const pcmData = new Float32Array(ulawData.length);
+                const BIAS = 0x84;
+                const CLIP = 32635;
+
+                for (let i = 0; i < ulawData.length; i++) {
+                    let ulaw = ~ulawData[i] & 0xFF;
+                    let sign = (ulaw & 0x80) ? -1 : 1;
+                    let exponent = (ulaw >> 4) & 0x07;
+                    let mantissa = ulaw & 0x0F;
+                    let sample = mantissa << (exponent + 3);
+                    sample += BIAS << (exponent + 2);
+                    sample -= BIAS;
+                    pcmData[i] = (sign * sample) / 32768.0;
+                }
+
+                return pcmData;
+            }
+
+            setVolume(value) {
+                this.volume = value;
+                this.volumeLabel.textContent = Math.round(value * 100) + '%';
+
+                if (this.gainNode) {
+                    this.gainNode.gain.value = value;
+                }
+            }
+
+            startVisualization() {
+                this.visualize();
+            }
+
+            stopVisualization() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+            }
+
+            visualize() {
+                if (!this.isPlaying) return;
+
+                this.animationId = requestAnimationFrame(() => this.visualize());
+
+                if (this.analyser) {
+                    // Get time domain data for waveform
+                    this.analyser.getByteTimeDomainData(this.dataArray);
+                    this.drawWaveform();
+
+                    // Get frequency data for spectrum
+                    this.analyser.getByteFrequencyData(this.frequencyData);
+                    this.drawSpectrum();
+                }
+            }
+
+            drawWaveform() {
+                const width = this.waveformCanvas.width;
+                const height = this.waveformCanvas.height;
+
+                this.waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                this.waveformCtx.fillRect(0, 0, width, height);
+
+                this.waveformCtx.lineWidth = 2;
+                this.waveformCtx.strokeStyle = '#4ade80';
+                this.waveformCtx.beginPath();
+
+                const sliceWidth = width / this.bufferLength;
+                let x = 0;
+
+                for (let i = 0; i < this.bufferLength; i++) {
+                    const v = this.dataArray[i] / 128.0;
+                    const y = v * height / 2;
+
+                    if (i === 0) {
+                        this.waveformCtx.moveTo(x, y);
+                    } else {
+                        this.waveformCtx.lineTo(x, y);
+                    }
+
+                    x += sliceWidth;
+                }
+
+                this.waveformCtx.lineTo(width, height / 2);
+                this.waveformCtx.stroke();
+            }
+
+            drawSpectrum() {
+                const width = this.spectrumCanvas.width;
+                const height = this.spectrumCanvas.height;
+
+                this.spectrumCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                this.spectrumCtx.fillRect(0, 0, width, height);
+
+                const barWidth = (width / this.bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+
+                for (let i = 0; i < this.bufferLength; i++) {
+                    barHeight = (this.frequencyData[i] / 255) * height;
+
+                    const r = barHeight + 25 * (i / this.bufferLength);
+                    const g = 250 * (i / this.bufferLength);
+                    const b = 50;
+
+                    this.spectrumCtx.fillStyle = `rgb(${r},${g},${b})`;
+                    this.spectrumCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+
+                    x += barWidth + 1;
+                }
+            }
+
+            updateMetric(metric, value) {
+                const element = document.getElementById(`${metric}-${this.extensionId}`);
+                if (element) {
+                    element.textContent = value;
+                }
+            }
+
+            addLog(message, type = 'info') {
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${type}`;
+                const timestamp = new Date().toLocaleTimeString();
+                entry.textContent = `[${timestamp}] ${message}`;
+                this.logElement.appendChild(entry);
+                this.logElement.scrollTop = this.logElement.scrollHeight;
+
+                // Keep log size manageable
+                while (this.logElement.children.length > 50) {
+                    this.logElement.removeChild(this.logElement.firstChild);
+                }
+            }
+
+            clearLog() {
+                this.logElement.innerHTML = '';
+                this.addLog('Log cleared');
+            }
+        }
+
+        // Initialize stations
+        const stations = [
+            { id: 'STATION_3', extension: '3333' },
+            { id: 'STATION_3', extension: '4444' }
+        ];
+
+        const stationsContainer = document.getElementById('stations-container');
+        const monitors = {};
+
+        stations.forEach(station => {
+            monitors[station.extension] = new StationAudioMonitor(
+                station.id,
+                station.extension,
+                stationsContainer
+            );
+        });
+
+        // Socket.IO connection management
+        function connectSocket() {
+            const socketUrl = `http://${window.location.hostname}:3030`;
+            console.log('Connecting to Socket.IO server at:', socketUrl);
+
+            socket = io(socketUrl, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000
+            });
+
+            socket.on('connect', () => {
+                console.log('Socket.IO connected!');
+                isConnected = true;
+                updateConnectionStatus(true);
+
+                // Notify all monitors
+                Object.values(monitors).forEach(monitor => {
+                    monitor.addLog('Socket connected');
+                });
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Socket.IO disconnected');
+                isConnected = false;
+                updateConnectionStatus(false);
+
+                // Notify all monitors
+                Object.values(monitors).forEach(monitor => {
+                    monitor.addLog('Socket disconnected', 'error');
+                    if (monitor.isSubscribed) {
+                        monitor.unsubscribe();
+                    }
+                });
+            });
+
+            socket.on('error', (error) => {
+                console.error('Socket.IO error:', error);
+                Object.values(monitors).forEach(monitor => {
+                    monitor.addLog(`Socket error: ${error.message || error}`, 'error');
+                });
+            });
+
+            // Handle audio data events
+            socket.on('audioData', (data) => {
+                const monitor = monitors[data.extensionId];
+                if (monitor && monitor.isSubscribed) {
+                    monitor.handleAudioData(data);
+                }
+            });
+
+            // Handle stream events
+            socket.on('streamStarted', (data) => {
+                const monitor = monitors[data.extensionId];
+                if (monitor) {
+                    monitor.addLog(`Stream started on port ${data.port}`);
+                }
+            });
+
+            socket.on('streamStopped', (data) => {
+                const monitor = monitors[data.extensionId];
+                if (monitor) {
+                    monitor.addLog(`Stream stopped on port ${data.port}`);
+                }
+            });
+
+            socket.on('subscribed', (data) => {
+                const monitor = monitors[data.extensionId];
+                if (monitor) {
+                    monitor.addLog(`Successfully subscribed to stream`);
+                }
+            });
+
+            socket.on('unsubscribed', (data) => {
+                const monitor = monitors[data.extensionId];
+                if (monitor) {
+                    monitor.addLog(`Unsubscribed from stream`);
+                }
+            });
+        }
+
+        // Connection status UI
+        function updateConnectionStatus(connected) {
+            const statusIndicator = document.getElementById('ws-status');
+            const statusText = document.getElementById('ws-text');
+
+            if (connected) {
+                statusIndicator.classList.add('status-active');
+                statusIndicator.classList.remove('status-inactive');
+                statusText.textContent = 'Connected to Audio Server';
+            } else {
+                statusIndicator.classList.remove('status-active');
+                statusIndicator.classList.add('status-inactive');
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        // Initialize connection on page load
+        window.addEventListener('load', () => {
+            console.log('Initializing Socket.IO connection...');
+            connectSocket();
+        });
+
+        // Update activity indicators periodically
+        setInterval(() => {
+            Object.values(monitors).forEach(monitor => {
+                if (monitor.lastActivity) {
+                    const secondsAgo = Math.floor((Date.now() - monitor.lastActivity) / 1000);
+                    if (secondsAgo > 5) {
+                        monitor.updateMetric('activity', `${secondsAgo}s ago`);
+                    }
+                }
+            });
+        }, 1000);
+    </script>
+</body>
+</html>

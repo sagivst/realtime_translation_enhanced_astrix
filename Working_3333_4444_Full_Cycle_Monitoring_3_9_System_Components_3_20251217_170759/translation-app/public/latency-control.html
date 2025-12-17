@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency Control & Testing</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid #2a3f5f;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #2a3f5f;
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .service-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            background: #a78bfa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .status-operational {
+            background: #51cf66;
+            color: white;
+        }
+
+        .status-down {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #2a3f5f;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #aaa;
+            font-size: 0.95em;
+        }
+
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: bold;
+        }
+
+        .metric-value.good {
+            color: #51cf66;
+        }
+
+        .metric-value.warning {
+            color: #fcc419;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: #2a3f5f;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #3a5f8f;
+        }
+
+        input[type="number"] {
+            width: 80px;
+            padding: 4px 8px;
+            background: #0f1419;
+            border: 1px solid #2a3f5f;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 0.85em;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="grid">
+            <!-- SyncBuffer Status Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon">⏱️</div>
+                        SyncBuffer Status
+                    </div>
+                    <span class="status-badge status-operational" id="syncBufferStatus">✓ Active</span>
+                </div>
+
+                <div class="metric-row">
+                    <span class="metric-label">Reference Latency</span>
+                    <span class="metric-value good" id="syncBufferRefLatency">0 ms</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Active Languages</span>
+                    <span class="metric-value" id="syncBufferActiveLanguages">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Frames Buffered</span>
+                    <span class="metric-value" id="syncBufferFramesBuffered">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Avg Hold Time</span>
+                    <span class="metric-value warning" id="syncBufferAvgHold">0 ms</span>
+                </div>
+
+                <!-- Active Language Streams -->
+                <div style="margin-top: 20px;">
+                    <div style="font-weight: bold; margin-bottom: 10px;">📊 Active Streams:</div>
+                    <div id="activeLanguageStreams" style="padding: 15px; background: #0f1419; border-radius: 8px; min-height: 60px;">
+                        <div style="color: #666; text-align: center; padding: 10px;">
+                            No active streams
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Latency Configuration Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon">🎛️</div>
+                        Latency Configuration
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇬🇧 English:</label>
+                        <input type="number" id="qaLatency_en" min="0" max="5000" step="10" value="0" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇮🇱 Hebrew:</label>
+                        <input type="number" id="qaLatency_he" min="0" max="5000" step="10" value="150" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇯🇵 Japanese:</label>
+                        <input type="number" id="qaLatency_ja" min="0" max="5000" step="10" value="250" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇪🇸 Spanish:</label>
+                        <input type="number" id="qaLatency_es" min="0" max="5000" step="10" value="100" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇫🇷 French:</label>
+                        <input type="number" id="qaLatency_fr" min="0" max="5000" step="10" value="100" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #aaa; min-width: 80px;">🇩🇪 German:</label>
+                        <input type="number" id="qaLatency_de" min="0" max="5000" step="10" value="120" onchange="updateLatencySettings()">
+                        <span style="color: #666; font-size: 0.85em;">ms</span>
+                    </div>
+                </div>
+
+                <!-- Quick Presets -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px;">
+                    <button onclick="resetAllLatencies()" class="btn btn-secondary">🔄 Reset</button>
+                    <button onclick="applyLatencyPreset('low')" class="btn btn-secondary">⚡ Low</button>
+                    <button onclick="applyLatencyPreset('medium')" class="btn btn-secondary">🎯 Med</button>
+                    <button onclick="applyLatencyPreset('high')" class="btn btn-secondary">🐢 High</button>
+                </div>
+
+                <div style="margin-top: 15px; padding: 10px; background: #0f1419; border-radius: 6px; font-size: 0.85em; color: #aaa; text-align: center;">
+                    💡 All values are positive - adds delay for sync
+                </div>
+            </div>
+
+            <!-- Test Controls Card -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon">🧪</div>
+                        Test Audio Alignment
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+                    <button onclick="simulateStream('en')" class="btn btn-primary">🇬🇧 EN Stream</button>
+                    <button onclick="simulateStream('he')" class="btn btn-primary">🇮🇱 HE Stream</button>
+                    <button onclick="simulateStream('ja')" class="btn btn-primary">🇯🇵 JA Stream</button>
+                    <button onclick="simulateStream('es')" class="btn btn-primary">🇪🇸 ES Stream</button>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button onclick="simulateMultiLanguageConference()" class="btn btn-primary" style="background: #51cf66;">
+                        🌐 Simulate 3-Language Conference (EN+HE+JA)
+                    </button>
+                    <button onclick="stopAllSimulations()" class="btn btn-secondary">
+                        ⏹️ Stop All Simulations
+                    </button>
+                </div>
+
+                <div style="margin-top: 15px; padding: 15px; background: #0f1419; border-radius: 8px; font-size: 0.9em; color: #aaa;">
+                    <strong style="color: #eee;">How it works:</strong> Simulations register language streams with SyncBuffer and show how frames are held/aligned based on your latency settings.
+                </div>
+            </div>
+
+            <!-- Alignment Timeline Chart -->
+            <div class="card full-width">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="service-icon">📈</div>
+                        Alignment Timeline
+                    </div>
+                </div>
+
+                <div class="chart-container" style="background: #0f1419; border-radius: 8px; padding: 15px;">
+                    <canvas id="alignmentTimelineChart"></canvas>
+                </div>
+
+                <div style="margin-top: 15px; padding: 15px; background: #0f1419; border-radius: 8px;">
+                    <div style="color: #51cf66; font-weight: bold; margin-bottom: 8px; font-size: 1em;">⚙️ Alignment Formula:</div>
+                    <div style="color: #aaa; font-family: 'Courier New', monospace; font-size: 0.9em; line-height: 1.6;">
+                        holdTime = refLatency - pipelineLatency<br>
+                        finalPlayback = pipelineLatency + holdTime
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Connect to Socket.IO
+        const socket = io();
+
+        // Active simulations tracking
+        const activeSimulations = new Map();
+        let alignmentChart = null;
+
+        // Initialize on load
+        socket.on('connect', () => {
+            console.log('[Latency Control] Connected to server');
+            updateLatencySettings();
+            socket.emit('get-syncbuffer-status');
+        });
+
+        // Update latency settings
+        function updateLatencySettings() {
+            const languages = ['en', 'he', 'ja', 'es', 'fr', 'de'];
+            const latencyConfig = {};
+
+            languages.forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) {
+                    const value = Math.max(0, parseInt(input.value) || 0);
+                    input.value = value;
+                    latencyConfig[lang] = value;
+                }
+            });
+
+            socket.emit('qa-latency-config', latencyConfig);
+            console.log('[Latency Control] Updated:', latencyConfig);
+        }
+
+        // Reset all latencies
+        function resetAllLatencies() {
+            ['en', 'he', 'ja', 'es', 'fr', 'de'].forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) input.value = 0;
+            });
+            updateLatencySettings();
+        }
+
+        // Apply preset
+        function applyLatencyPreset(preset) {
+            const values = { low: 50, medium: 200, high: 500 };
+            const value = values[preset] || 0;
+
+            ['en', 'he', 'ja', 'es', 'fr', 'de'].forEach(lang => {
+                const input = document.getElementById(`qaLatency_${lang}`);
+                if (input) input.value = value;
+            });
+
+            updateLatencySettings();
+            console.log(`[Latency Control] Applied ${preset} preset: ${value}ms`);
+        }
+
+        // Simulate stream
+        function simulateStream(languageCode) {
+            console.log(`[Test] Starting simulation for ${languageCode}`);
+
+            socket.emit('test-register-stream', {
+                languageCode,
+                channelId: `test-${languageCode}-${Date.now()}`,
+                userId: `test-user-${languageCode}`
+            });
+
+            activeSimulations.set(languageCode, {
+                startTime: Date.now(),
+                languageCode
+            });
+
+            updateActiveStreamsDisplay();
+        }
+
+        // Simulate multi-language conference
+        function simulateMultiLanguageConference() {
+            console.log('[Test] Starting 3-language conference (EN+HE+JA)');
+            simulateStream('en');
+            setTimeout(() => simulateStream('he'), 500);
+            setTimeout(() => simulateStream('ja'), 1000);
+        }
+
+        // Stop all simulations
+        function stopAllSimulations() {
+            activeSimulations.forEach((sim, lang) => {
+                socket.emit('test-unregister-stream', { languageCode: lang });
+            });
+            activeSimulations.clear();
+            updateActiveStreamsDisplay();
+            updateAlignmentChart();
+        }
+
+        // Update active streams display
+        function updateActiveStreamsDisplay() {
+            const container = document.getElementById('activeLanguageStreams');
+
+            if (activeSimulations.size === 0) {
+                container.innerHTML = '<div style="color: #666; text-align: center; padding: 10px;">No active streams</div>';
+                return;
+            }
+
+            const langInfo = {
+                en: { name: 'English', flag: '🇬🇧' },
+                he: { name: 'Hebrew', flag: '🇮🇱' },
+                ja: { name: 'Japanese', flag: '🇯🇵' },
+                es: { name: 'Spanish', flag: '🇪🇸' },
+                fr: { name: 'French', flag: '🇫🇷' },
+                de: { name: 'German', flag: '🇩🇪' }
+            };
+
+            let html = '<div style="display: grid; gap: 8px;">';
+
+            activeSimulations.forEach((sim, lang) => {
+                const info = langInfo[lang] || { name: lang.toUpperCase(), flag: '🌐' };
+                const input = document.getElementById(`qaLatency_${lang}`);
+                const latency = input ? parseInt(input.value) : 0;
+                const runtime = ((Date.now() - sim.startTime) / 1000).toFixed(1);
+
+                html += `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(167, 139, 250, 0.1); border-radius: 4px; border-left: 3px solid #a78bfa;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.5em;">${info.flag}</span>
+                            <div>
+                                <div style="font-weight: bold; color: #a78bfa;">${info.name}</div>
+                                <div style="font-size: 0.75em; color: #666;">Runtime: ${runtime}s</div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.2em; font-weight: bold; color: #fcc419;">${latency} ms</div>
+                            <div style="font-size: 0.7em; color: #666;">hold time</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+            updateAlignmentChart();
+        }
+
+        // Update alignment chart
+        function updateAlignmentChart() {
+            const canvas = document.getElementById('alignmentTimelineChart');
+            const ctx = canvas.getContext('2d');
+
+            if (activeSimulations.size === 0) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No active streams - start a simulation above', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            if (alignmentChart) {
+                alignmentChart.destroy();
+            }
+
+            const langInfo = {
+                en: { name: 'English', color: '#667eea' },
+                he: { name: 'Hebrew', color: '#a78bfa' },
+                ja: { name: 'Japanese', color: '#10b981' },
+                es: { name: 'Spanish', color: '#fcc419' },
+                fr: { name: 'French', color: '#51cf66' },
+                de: { name: 'German', color: '#ff6b6b' }
+            };
+
+            const labels = [];
+            const holdTimes = [];
+            const colors = [];
+
+            activeSimulations.forEach((sim, lang) => {
+                const info = langInfo[lang] || { name: lang.toUpperCase(), color: '#999' };
+                const input = document.getElementById(`qaLatency_${lang}`);
+                const latency = input ? parseInt(input.value) : 0;
+
+                labels.push(info.name);
+                holdTimes.push(latency);
+                colors.push(info.color);
+            });
+
+            alignmentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Hold Time (ms)',
+                        data: holdTimes,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Hold: ${context.parsed.y}ms`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Hold Time (ms)',
+                                color: '#aaa'
+                            },
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Listen for SyncBuffer status updates
+        socket.on('syncbuffer-status', (status) => {
+            console.log('[SyncBuffer] Status:', status);
+
+            document.getElementById('syncBufferRefLatency').textContent = `${status.refLatency || 0} ms`;
+            document.getElementById('syncBufferActiveLanguages').textContent = status.activeLanguages || 0;
+            document.getElementById('syncBufferFramesBuffered').textContent = status.metrics?.totalBufferedFrames || 0;
+            document.getElementById('syncBufferAvgHold').textContent = `${Math.round(status.metrics?.averageHoldTime || 0)} ms`;
+
+            const badge = document.getElementById('syncBufferStatus');
+            if (status.isRunning) {
+                badge.className = 'status-badge status-operational';
+                badge.textContent = '✓ Active';
+            } else {
+                badge.className = 'status-badge status-down';
+                badge.textContent = '✗ Inactive';
+            }
+        });
+
+        // Request status updates periodically
+        setInterval(() => {
+            socket.emit('get-syncbuffer-status');
+        }, 2000);
+    </script>
+</body>
+</html>

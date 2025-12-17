@@ -1,0 +1,33 @@
+{
+  "id": "buffer.total",
+  "name": "Total Buffer",
+  "category": "Buffer",
+  "path": "buffer.total",
+  "unit": "%",
+  "description": "Overall buffer utilization across all stages",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 20,
+    "recommendedMax": 80
+  },
+  "thresholds": {
+    "warningLow": 20,
+    "warningHigh": 80,
+    "criticalLow": 10,
+    "criticalHigh": 95
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 1
+  }
+}

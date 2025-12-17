@@ -1,0 +1,108 @@
+{
+  "stationId": "station-1",
+  "name": "ARI RECEIVE",
+  "type": "ari-rx",
+  "description": "Asterisk ARI receiving station",
+  "activeParameters": [
+    "buffer.total",
+    "buffer.input",
+    "buffer.output",
+    "buffer.jitter",
+    "buffer.underrun",
+    "buffer.overrun",
+    "latency.avg",
+    "latency.min",
+    "latency.max",
+    "latency.jitter",
+    "latency.variance",
+    "latency.percentile95",
+    "packet.loss",
+    "packet.received",
+    "packet.sent",
+    "packet.dropped",
+    "packet.outOfOrder",
+    "packet.duplicate",
+    "audioQuality.snr",
+    "audioQuality.mos",
+    "audioQuality.pesq",
+    "audioQuality.polqa",
+    "audioQuality.thd",
+    "audioQuality.speechLevel",
+    "performance.cpu",
+    "performance.memory",
+    "performance.bandwidth",
+    "performance.throughput",
+    "dsp.agc.currentGain",
+    "dsp.agc.targetLevel",
+    "dsp.aec.echoLevel",
+    "dsp.noiseReduction.noiseLevel"
+  ],
+  "parameterOverrides": {
+    "buffer.total": {
+      "ranges": {
+        "min": 0,
+        "max": 100,
+        "recommendedMin": 20,
+        "recommendedMax": 80
+      },
+      "thresholds": {
+        "warningLow": 20,
+        "warningHigh": 80,
+        "criticalLow": 10,
+        "criticalHigh": 95
+      },
+      "editableFields": {
+        "bufferSize": {
+          "label": "Buffer Size",
+          "type": "number",
+          "unit": "KB",
+          "min": 128,
+          "max": 2048,
+          "default": 512
+        },
+        "bufferCount": {
+          "label": "Buffer Count",
+          "type": "number",
+          "unit": "",
+          "min": 2,
+          "max": 16,
+          "default": 4
+        },
+        "autoAdjust": {
+          "label": "Auto Adjust",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "latency.avg": {
+      "ranges": {
+        "min": 0,
+        "max": 500,
+        "recommendedMin": 0,
+        "recommendedMax": 100
+      },
+      "thresholds": {
+        "warningLow": 0,
+        "warningHigh": 100,
+        "criticalLow": 0,
+        "criticalHigh": 200
+      },
+      "editableFields": {
+        "maxLatency": {
+          "label": "Max Latency",
+          "type": "number",
+          "unit": "ms",
+          "min": 50,
+          "max": 500,
+          "default": 150
+        },
+        "latencyCompensation": {
+          "label": "Latency Compensation",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "buffer.processing",
+  "name": "Processing Buffer",
+  "category": "Buffer",
+  "path": "buffer.processing",
+  "unit": "%",
+  "description": "Buffer usage during audio processing pipeline",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 15,
+    "recommendedMax": 85
+  },
+  "thresholds": {
+    "warningLow": 15,
+    "warningHigh": 85,
+    "criticalLow": 5,
+    "criticalHigh": 95
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 3
+  }
+}

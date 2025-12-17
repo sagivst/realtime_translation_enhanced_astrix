@@ -1,0 +1,169 @@
+================================================================================
+BACKUP DOCUMENTATION
+Working_3333_4444_Full_Cycle_Monitoring_3_9_System_Components_3
+================================================================================
+
+BACKUP CREATED: 
+BACKUP TYPE: Full System Backup - Production Ready
+BACKUP LOCATION: Azure VM 20.170.155.53
+
+================================================================================
+PURPOSE AND SCOPE
+================================================================================
+This backup captures the complete working state of the 3333/4444 translation
+system with full monitoring capabilities for Station 3 and Station 9, along
+with all 23 system components monitoring as documented in:
+- /Users/sagivstavinsky/realtime-translation-enhanced_astrix/Docs/sys/monitoring/System-Components-Monitoring-Reverse-Engineering.md
+- /Users/sagivstavinsky/realtime-translation-enhanced_astrix/Docs/sys/3333_4444_INSTALLATION_GUIDE_V2.0.md
+
+================================================================================
+INCLUDED COMPONENTS
+================================================================================
+
+1. CORE OPERATIONAL DIRECTORY (3333_4444__Operational/)
+   ├── STTTTSserver/
+   │   ├── STTTTSserver.js (Port 8080)
+   │   ├── station3-handler.js
+   │   ├── station9-handler.js
+   │   └── monitoring/
+   │       ├── StationAgent.js
+   │       └── component-checkers.js
+   ├── gateway-3333.js (Port 7777)
+   ├── gateway-4444.js (Port 8888)
+   ├── ari-gstreamer-operational.js (Port 8089)
+   └── hume_worker/ (Hume AI integration)
+
+2. MONITORING INFRASTRUCTURE
+   ├── database-api-server.js (Port 8083) - PM2 ID: 24
+   ├── monitoring-server.js (Port 8090) - PM2 ID: 23
+   ├── monitoring-to-database-bridge.js (Port 3001) - PM2 ID: 25
+   ├── continuous-full-monitoring-with-station3.js (Port 9090) - PM2 ID: 22
+   └── monitoring/ directory (additional utilities)
+
+3. ASTERISK INTEGRATION
+   ├── asterisk-ari-handler.js
+   ├── asterisk-configs/
+   │   ├── extensions.conf
+   │   ├── pjsip.conf
+   │   └── ari.conf
+   └── Conference server components
+
+4. CONFIGURATION FILES
+   ├── package.json (dependencies)
+   ├── package-lock.json
+   ├── PM2 ecosystem configuration
+   └── System ports configuration
+
+5. PUBLIC ASSETS
+   └── public/ directory (web assets)
+
+================================================================================
+SYSTEM STATUS AT BACKUP TIME
+================================================================================
+
+PM2 MANAGED SERVICES (8 components):
+- STTTTSserver (ID: 26) - ONLINE
+- ari-gstreamer (ID: 27) - ONLINE
+- continuous-monitoring (ID: 22) - STOPPED/ONLINE
+- database-api-server (ID: 24) - ONLINE
+- gateway-3333 (ID: 28) - ONLINE
+- gateway-4444 (ID: 29) - ONLINE
+- monitoring-bridge (ID: 25) - ONLINE
+- monitoring-server (ID: 23) - ONLINE
+
+MONITORED COMPONENTS (23 total):
+Layer Distribution:
+- monitoring: 7 components (including cloudflared)
+- core: 2 components (STTTTSserver, ari-gstreamer)
+- gateways: 2 components (gateway-3333, gateway-4444)
+- telephony: 3 components (Asterisk core, ARI, AMI)
+- transport: 4 components (UDP sockets 6120-6123)
+- database: 1 component (audio-optimization-db)
+- external: 4 components (Deepgram, DeepL, ElevenLabs, Hume APIs)
+
+PORT ASSIGNMENTS:
+- 8083: Database API Server
+- 8090: Monitoring Server
+- 8080: STTTTSserver HTTP interface
+- 3001: Monitoring Bridge
+- 7777: Gateway-3333
+- 8888: Gateway-4444
+- 8088: Asterisk ARI
+- 5038: Asterisk AMI
+- 5060: Asterisk Core (SIP)
+- 5432: PostgreSQL (audio-optimization-db)
+- 6120-6123: UDP sockets
+- 7844: Cloudflared
+- 9090: Continuous monitoring
+
+PUBLIC ACCESS:
+- Cloudflare Tunnel: https://tun.monitoringavailable.uk
+- Tunnel ID: 9a3116ce-76e3-4d66-9c0e-d6688ebf0d01
+
+================================================================================
+EXCLUDED FROM BACKUP
+================================================================================
+- node_modules directories
+- *.tar.gz archives
+- *backup* files and directories
+- *checkpoint* files (including misspellings)
+- *bkp* files
+- .git directories
+- asterisk-build directory
+
+================================================================================
+KEY FEATURES AT BACKUP
+================================================================================
+
+1. STATION MONITORING:
+   - Station 3 (Extension 3333) - Full monitoring via station3-handler
+   - Station 9 (Extension 9999) - Full monitoring via station9-handler
+   - Real-time metrics via StationAgent
+   - Socket.IO events: unified-metrics
+
+2. COMPONENT MESSAGES:
+   - All 23 components have descriptive message fields
+   - Format: "filename.js - Description"
+   - Station handlers: "Within STTTTSserver.js - Called by STTTTSserver"
+   - External APIs: "External API Service - [Function]"
+
+3. CRITICAL COMPONENTS PROTECTION:
+   - database-api-server cannot be stopped (only restarted)
+   - monitoring-server cannot be stopped (only restarted)
+   - Self-check skip prevents infinite restart loops
+
+4. SPECIAL NOTES:
+   - "Back trafice" typo retained as unique identifier
+   - STTTTSserver must be started from its own directory
+   - PM2 names may differ from component IDs
+
+================================================================================
+RESTORATION INSTRUCTIONS
+================================================================================
+
+1. Extract backup to target location
+2. Install dependencies: npm install
+3. Start PM2 services in order:
+   pm2 start database-api-server.js --name database-api-server
+   pm2 start monitoring-server.js --name monitoring-server
+   pm2 start monitoring-to-database-bridge.js --name monitoring-bridge
+   cd 3333_4444__Operational/STTTTSserver && pm2 start STTTTSserver.js --name STTTTSserver
+   pm2 start 3333_4444__Operational/gateway-3333.js --name gateway-3333
+   pm2 start 3333_4444__Operational/gateway-4444.js --name gateway-4444
+   pm2 start 3333_4444__Operational/ari-gstreamer-operational.js --name ari-gstreamer
+   pm2 start continuous-full-monitoring-with-station3.js --name continuous-monitoring
+
+4. Verify services: pm2 status
+5. Check API: curl http://localhost:8083/api/health/system
+6. Verify tunnel: https://tun.monitoringavailable.uk/api/health/system
+
+================================================================================
+VERIFICATION CHECKSUMS
+================================================================================
+2025-12-17 17:12:19 UTC
+
+BACKUP STATISTICS:
+--------------------------------------------------------------------------------
+Total files backed up: 620
+Total backup size: 323M
+================================================================================

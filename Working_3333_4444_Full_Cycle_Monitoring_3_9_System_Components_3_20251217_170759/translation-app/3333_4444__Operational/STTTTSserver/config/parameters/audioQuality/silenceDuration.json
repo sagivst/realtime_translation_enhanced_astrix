@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.silenceDuration",
+  "name": "Silence Duration",
+  "category": "Audio Quality",
+  "path": "audioQuality.silenceDuration",
+  "unit": "ms",
+  "description": "Total duration of silence periods",
+  "ranges": {
+    "min": 0,
+    "max": 10000,
+    "recommendedMin": 0,
+    "recommendedMax": 1000
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 1000,
+    "criticalLow": 0,
+    "criticalHigh": 5000
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 37
+  }
+}

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Audio Recordings - Live</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 28px;
+        }
+
+        .refresh-indicator {
+            display: inline-block;
+            margin-left: 15px;
+            padding: 5px 12px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .refresh-indicator.updating {
+            background: #ff9800;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .last-update {
+            color: #666;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .info-box strong {
+            color: #856404;
+        }
+
+        .summary {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary h2 {
+            margin-top: 0;
+            color: #667eea;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .session-group {
+            background: white;
+            margin-bottom: 25px;
+            padding: 0;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .session-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .session-meta {
+            font-size: 13px;
+            opacity: 0.9;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .session-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-stats {
+            text-align: right;
+        }
+
+        .recording-count {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .recording-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .play-all-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .play-all-btn:hover {
+            background: #45a049;
+        }
+
+        .play-all-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .merge-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 10px;
+            margin-left: 10px;
+        }
+
+        .merge-btn:hover {
+            background: #f57c00;
+        }
+
+        .merge-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .merged-audio {
+            background: #e8f5e9;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px;
+        }
+
+        .merged-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2e7d32;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .recordings-container {
+            padding: 20px;
+        }
+
+        .audio-item {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .audio-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .audio-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .audio-filename {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .audio-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #666;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .meta-label {
+            font-weight: 600;
+        }
+
+        .audio-timestamp {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+
+        .no-recordings {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .no-recordings-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            background: #f44336;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>
+                🔍 Debug Audio Recordings
+                <span id="refresh-indicator" class="refresh-indicator">LIVE</span>
+            </h1>
+            <div class="last-update">Last updated: <span id="last-update-time">Loading...</span></div>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <strong>ℹ️ About Audio Frames:</strong> Asterisk sends 20ms audio frames (640 bytes PCM each).
+        Each frame is saved immediately as received - NO COMBINING. Expect 50 files per second of speech.
+        <br><strong>Capture Method:</strong> Snooping channel BEFORE ConfBridge with spy='out' for clean mic-only audio.
+        <br><strong>File Size:</strong> Each WAV file = 684 bytes (44-byte WAV header + 640 bytes PCM data)
+    </div>
+
+    <div id="error-container"></div>
+
+    <div class="summary">
+        <h2>Session Summary</h2>
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-label">Total Files</div>
+                <div class="stat-value" id="total-files">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Active Sessions</div>
+                <div class="stat-value" id="total-sessions">0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Total Size</div>
+                <div class="stat-value" id="total-size">0 KB</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Format</div>
+                <div class="stat-value">WAV</div>
+            </div>
+        </div>
+        <p style="margin-top: 20px; color: #666; font-size: 14px;">
+            <strong>Audio Format:</strong> PCM 16kHz, Mono, 16-bit<br>
+            <strong>Captured From:</strong> Asterisk Channel Snooping (spy='out', BEFORE bridge)<br>
+            <strong>Purpose:</strong> QA audio quality before Deepgram transcription<br>
+            <strong>Auto-refresh:</strong> Every 5 seconds | <strong>Sort:</strong> LIFO (newest first)
+        </p>
+    </div>
+
+    <div id="sessions-container">
+        <div class="loading">
+            <div class="loading-spinner"></div>
+            Loading recordings...
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval;
+        let currentlyPlaying = null;
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 10) / 10 + ' ' + sizes[i];
+        }
+
+        function formatTimestamp(timestamp) {
+            const date = new Date(parseInt(timestamp));
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
+
+        function formatDuration(ms) {
+            if (!ms) return '~3s';
+            const seconds = Math.round(ms / 1000);
+            if (seconds < 60) return `~${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s`;
+        }
+
+        async function loadRecordings() {
+            const indicator = document.getElementById('refresh-indicator');
+            indicator.classList.add('updating');
+            indicator.textContent = 'UPDATING...';
+
+            try {
+                const response = await fetch('/api/debug-audio');
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+                const data = await response.json();
+
+                // Update summary stats
+                document.getElementById('total-files').textContent = data.totalFiles;
+                document.getElementById('total-sessions').textContent = data.totalSessions;
+                document.getElementById('total-size').textContent = formatBytes(data.totalSize);
+
+                // Clear error
+                document.getElementById('error-container').innerHTML = '';
+
+                // Render sessions
+                renderSessions(data.sessions);
+
+                // Update timestamp
+                document.getElementById('last-update-time').textContent = new Date().toLocaleTimeString();
+
+            } catch (error) {
+                console.error('Error loading recordings:', error);
+                document.getElementById('error-container').innerHTML = `
+                    <div class="error-message">
+                        ⚠ Error loading recordings: ${error.message}
+                    </div>
+                `;
+            } finally {
+                indicator.classList.remove('updating');
+                indicator.textContent = 'LIVE';
+            }
+        }
+
+        function playAllRecordings(recordings, sessionId) {
+            // Stop any currently playing audio
+            if (currentlyPlaying) {
+                currentlyPlaying.pause();
+                currentlyPlaying.currentTime = 0;
+            }
+
+            const btn = document.getElementById(`play-all-${sessionId}`);
+            btn.disabled = true;
+
+            let currentIndex = 0;
+
+            function playNext() {
+                if (currentIndex >= recordings.length) {
+                    btn.disabled = false;
+                    btn.textContent = '▶ Play All';
+                    currentlyPlaying = null;
+                    return;
+                }
+
+                // Update button with frame counter
+                const frameNum = recordings.length - currentIndex;
+                btn.textContent = `🔊 Playing Frame ${frameNum} of ${recordings.length}`;
+
+                const audioElement = document.getElementById(`audio-${sessionId}-${currentIndex}`);
+                if (audioElement) {
+                    currentlyPlaying = audioElement;
+                    audioElement.play();
+                    audioElement.onended = () => {
+                        currentIndex++;
+                        playNext();
+                    };
+                } else {
+                    currentIndex++;
+                    playNext();
+                }
+            }
+
+            playNext();
+        }
+
+        async function mergeFrames(sessionId) {
+            const btn = document.getElementById(`merge-btn-${sessionId}`);
+            btn.disabled = true;
+            btn.textContent = 'Merging...';
+
+            try {
+                const response = await fetch(`/api/concatenate-session/${sessionId}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const result = await response.json();
+                console.log('[Merge] Success:', result);
+
+                // Reload to show merged file
+                await loadRecordings();
+
+                btn.textContent = '✓ Merged!';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔗 Merge Frames';
+                }, 2000);
+            } catch (error) {
+                console.error('[Merge] Error:', error);
+                btn.textContent = '✗ Error';
+                btn.disabled = false;
+                alert(`Failed to merge frames: ${error.message}`);
+            }
+        }
+
+        function renderSessions(sessions) {
+            const container = document.getElementById('sessions-container');
+
+            if (!sessions || sessions.length === 0) {
+                container.innerHTML = `
+                    <div class="session-group">
+                        <div class="no-recordings">
+                            <div class="no-recordings-icon">📭</div>
+                            <h3>No recordings available</h3>
+                            <p>Make a test call to extension 7000 to generate debug audio files</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort sessions by most recent first (LIFO)
+            const sortedSessions = sessions.sort((a, b) =>
+                b.recordings[0].timestamp - a.recordings[0].timestamp
+            );
+
+            let html = '';
+
+            sortedSessions.forEach((session, index) => {
+                const firstRecording = session.recordings[0];
+                const lastRecording = session.recordings[session.recordings.length - 1];
+                const sessionStart = formatTimestamp(firstRecording.timestamp);
+                const sessionDuration = lastRecording.timestamp - firstRecording.timestamp;
+
+                html += `
+                    <div class="session-group">
+                        <div class="session-header">
+                            <div class="session-info">
+                                <div class="session-title">Session ${index + 1} (Newest First)</div>
+                                <div class="session-meta">
+                                    <div class="session-meta-item">
+                                        <span>📞</span>
+                                        <span>Channel: <code>${session.channelId}</code></span>
+                                    </div>
+                                    <div class="session-meta-item">
+                                        <span>🕐</span>
+                                        <span>Started: ${sessionStart}</span>
+                                    </div>
+                                    <div class="session-meta-item">
+                                        <span>⏱</span>
+                                        <span>Duration: ${formatDuration(sessionDuration)}</span>
+                                    </div>
+                                </div>
+                                <button class="play-all-btn" id="play-all-${session.channelId}"
+                                        onclick="playAllRecordings(${JSON.stringify(session.recordings).replace(/"/g, '&quot;')}, '${session.channelId}')">
+                                    ▶ Play All (${session.recordings.length} segments)
+                                </button>
+                                <button class="merge-btn" id="merge-btn-${session.channelId}"
+                                        onclick="mergeFrames('${session.channelId}')">
+                                    🔗 Merge Frames
+                                </button>
+                            </div>
+                            <div class="session-stats">
+                                <div class="recording-count">${session.recordings.length}</div>
+                                <div class="recording-label">Recordings</div>
+                            </div>
+                        </div>
+                        ${renderMergedAudio(session.channelId)}
+                        <div class="recordings-container">
+                            ${renderRecordings(session.recordings, session.channelId)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderMergedAudio(sessionId) {
+            // Check if merged file exists (synchronous check via fetch is not possible, so we'll show after merge)
+            // The merged file will be /tmp/session-{channelId}-complete.wav
+            const mergedUrl = `/tmp/session-${sessionId}-complete.wav`;
+
+            // Return empty string for now - merged file will show after clicking "Merge Frames"
+            // We could add a HEAD request here but it's simpler to just reload after merge
+            return '';
+        }
+
+        function renderRecordings(recordings, sessionId) {
+            // Sort recordings by most recent first (LIFO)
+            const sortedRecordings = recordings.sort((a, b) => b.timestamp - a.timestamp);
+
+            return sortedRecordings.map((rec, index) => `
+                <div class="audio-item">
+                    <div class="audio-info">
+                        <div class="audio-filename">Frame ${recordings.length - index} of ${recordings.length}</div>
+                        <div class="audio-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Size:</span>
+                                <span>${formatBytes(rec.size)}</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Duration:</span>
+                                <span>20ms</span>
+                            </div>
+                            <div class="audio-timestamp">
+                                ${formatTimestamp(rec.timestamp)}
+                            </div>
+                        </div>
+                    </div>
+                    <audio id="audio-${sessionId}-${recordings.length - index - 1}" controls preload="metadata">
+                        <source src="${rec.url}" type="audio/wav">
+                        Your browser does not support the audio element.
+                    </audio>
+                </div>
+            `).join('');
+        }
+
+        // Initial load
+        loadRecordings();
+
+        // Auto-refresh every 5 seconds
+        refreshInterval = setInterval(loadRecordings, 5000);
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (currentlyPlaying) {
+                currentlyPlaying.pause();
+            }
+        });
+    </script>
+</body>
+</html>

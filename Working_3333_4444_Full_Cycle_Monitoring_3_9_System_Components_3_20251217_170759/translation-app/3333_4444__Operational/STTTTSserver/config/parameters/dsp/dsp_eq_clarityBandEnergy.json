@@ -1,0 +1,34 @@
+{
+  "id": "dsp.eq.clarityBandEnergy",
+  "name": "Clarity Band Energy (1-3kHz)",
+  "category": "dsp",
+  "subcategory": "equalizer",
+  "path": "dsp.eq.clarityBandEnergy",
+  "unit": "dB",
+  "description": "Energy in speech clarity range",
+  "ranges": {
+    "min": -20,
+    "max": 10,
+    "recommendedMin": -10,
+    "recommendedMax": 5
+  },
+  "thresholds": {
+    "warningLow": -15,
+    "warningHigh": 8,
+    "criticalLow": -18,
+    "criticalHigh": 10
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 12
+  },
+  "default": false
+}

@@ -1,0 +1,34 @@
+{
+  "id": "dsp.agc.gainAdjustmentSpeed",
+  "name": "Gain Adjustment Speed",
+  "category": "dsp",
+  "subcategory": "agc",
+  "path": "dsp.agc.gainAdjustmentSpeed",
+  "unit": "dB/s",
+  "description": "Rate of gain changes",
+  "ranges": {
+    "min": 0,
+    "max": 20,
+    "recommendedMin": 2,
+    "recommendedMax": 10
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 12,
+    "criticalLow": null,
+    "criticalHigh": 18
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 5
+  },
+  "default": false
+}

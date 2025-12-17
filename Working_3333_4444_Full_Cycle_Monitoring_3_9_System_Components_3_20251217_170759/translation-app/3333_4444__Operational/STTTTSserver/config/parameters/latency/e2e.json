@@ -1,0 +1,33 @@
+{
+  "id": "latency.e2e",
+  "name": "End-to-End Latency",
+  "category": "Latency",
+  "path": "latency.e2e",
+  "unit": "ms",
+  "description": "Total end-to-end latency",
+  "ranges": {
+    "min": 0,
+    "max": 500,
+    "recommendedMin": 0,
+    "recommendedMax": 120
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 120,
+    "criticalLow": 0,
+    "criticalHigh": 200
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "critical",
+    "displayOrder": 15
+  }
+}

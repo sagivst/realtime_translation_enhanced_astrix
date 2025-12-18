@@ -978,4 +978,3 @@ setInterval(async () => {
 }, 24 * 60 * 60 * 1000); // Run daily
 
 console.log("[Database API] Automatic cleanup scheduled (daily, removes >30 day old records)");
-// AUTO-SYNC TEST: Thu Dec 18 20:36:32 IST 2025

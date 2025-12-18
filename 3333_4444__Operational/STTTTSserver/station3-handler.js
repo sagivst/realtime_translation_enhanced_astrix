@@ -8,7 +8,7 @@ const ConfigFactory = require('./config-factory-defaults');
 class Station3Handler {
   constructor(extensionId) {
     this.extensionId = extensionId;
-    this.configPath = `/tmp/STATION_3-\${extensionId}-config.json`;
+    this.configPath = `/tmp/STATION_3-${extensionId}-config.json`;
     this.knobs = {};
     this.audioStartTime = Date.now();
     this.stationAgent = null;
@@ -32,13 +32,13 @@ class Station3Handler {
     // Start polling for config changes
     this.startPolling();
 
-    console.log(`[STATION-3] Enhanced handler initialized for extension \${extensionId} (full matrix)`);
+    console.log(`[STATION-3] Enhanced handler initialized for extension ${extensionId} (full matrix)`);
   }
 
   // Initialize StationAgent when available
   initStationAgent(StationAgent) {
     this.stationAgent = new StationAgent('STATION_3', this.extensionId);
-    console.log(`[STATION-3] StationAgent initialized for extension \${this.extensionId}`);
+    console.log(`[STATION-3] StationAgent initialized for extension ${this.extensionId}`);
   }
 
   // Poll config file every 100ms
@@ -48,7 +48,7 @@ class Station3Handler {
         const newKnobs = this.loadKnobs();
         if (JSON.stringify(newKnobs) !== JSON.stringify(this.knobs)) {
           this.knobs = newKnobs;
-          console.log(`[STATION-3] Config updated for extension \${this.extensionId}`);
+          console.log(`[STATION-3] Config updated for extension ${this.extensionId}`);
           this.onKnobsChanged?.(this.knobs);
         }
       } catch (e) {
@@ -178,7 +178,7 @@ class Station3Handler {
       const fullMatrix = {
         timestamp: now,
         extension: this.extensionId,
-        callId: `deepgram-\${this.extensionId}-\${now}`,
+        callId: `deepgram-${this.extensionId}-${now}`,
 
         // STATION_3 expected parameters (14 total) - ALL REAL VALUES
         'buffer.processing': this.audioBufferQueue?.length || 0,              // REAL: buffer queue size
@@ -213,13 +213,13 @@ class Station3Handler {
 
       // Log only for final transcripts to reduce noise
       if (isFinal && transcript.length > 0) {
-        console.log(`[STATION-3-\${this.extensionId}] Full matrix sent (ALL REAL): ` +
-          `transcript="\${transcript.substring(0, 30)}...", ` +
-          `confidence=\${confidence.toFixed(2)}, ` +
-          `SNR=\${audioMetrics.snr.toFixed(1)}dB, ` +
-          `CPU=\${cpuUsage.toFixed(1)}%, ` +
-          `MEM=\${memoryUsage.toFixed(1)}%, ` +
-          `successRate=\${successRate.toFixed(1)}%`);
+        console.log(`[STATION-3-${this.extensionId}] Full matrix sent (ALL REAL): ` +
+          `transcript="${transcript.substring(0, 30)}...", ` +
+          `confidence=${confidence.toFixed(2)}, ` +
+          `SNR=${audioMetrics.snr.toFixed(1)}dB, ` +
+          `CPU=${cpuUsage.toFixed(1)}%, ` +
+          `MEM=${memoryUsage.toFixed(1)}%, ` +
+          `successRate=${successRate.toFixed(1)}%`);
       }
 
       // Reset transcript timer for next transcript
@@ -228,7 +228,7 @@ class Station3Handler {
       }
 
     } catch (error) {
-      console.error(`[STATION-3-\${this.extensionId}] Full matrix collection error:`, error.message);
+      console.error(`[STATION-3-${this.extensionId}] Full matrix collection error:`, error.message);
     }
   }
 
@@ -240,7 +240,7 @@ class Station3Handler {
       const fullMatrix = {
         timestamp: Date.now(),
         extension: this.extensionId,
-        callId: `deepgram-error-\${this.extensionId}-\${Date.now()}`,
+        callId: `deepgram-error-${this.extensionId}-${Date.now()}`,
         error: error.message || error,
         errorType: error.type || 'unknown',
 
@@ -264,9 +264,9 @@ class Station3Handler {
       console.log("[STATION-3-DEBUG] About to call collect for error, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect(fullMatrix);
       console.log("[STATION-3-DEBUG] collect() called successfully for error");
-      console.log(`[STATION-3-\${this.extensionId}] Error matrix sent: \${error.type || 'unknown'}`);
+      console.log(`[STATION-3-${this.extensionId}] Error matrix sent: ${error.type || 'unknown'}`);
     } catch (err) {
-      console.error(`[STATION-3-\${this.extensionId}] Error collection error:`, err.message);
+      console.error(`[STATION-3-${this.extensionId}] Error collection error:`, err.message);
     }
   }
 
@@ -279,7 +279,7 @@ class Station3Handler {
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
-        callId: `deepgram-metadata-\${this.extensionId}-\${Date.now()}`,
+        callId: `deepgram-metadata-${this.extensionId}-${Date.now()}`,
         metadata: data,
 
         // Include basic matrix parameters for metadata
@@ -288,7 +288,7 @@ class Station3Handler {
       });
       console.log("[STATION-3-DEBUG] collect() called successfully for metadata");
     } catch (error) {
-      console.error(`[STATION-3-\${this.extensionId}] Metadata collection error:`, error.message);
+      console.error(`[STATION-3-${this.extensionId}] Metadata collection error:`, error.message);
     }
   }
 
@@ -297,7 +297,7 @@ class Station3Handler {
     if (this.collectionInterval) {
       clearInterval(this.collectionInterval);
     }
-    console.log(`[STATION-3] Enhanced handler destroyed for extension \${this.extensionId}`);
+    console.log(`[STATION-3] Enhanced handler destroyed for extension ${this.extensionId}`);
   }
 }
 

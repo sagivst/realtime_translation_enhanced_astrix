@@ -1,0 +1,107 @@
+{
+  "station_id": "STATION_8",
+  "extension": 3333,
+  "timestamp": "",
+  "optimization_version": "2.0",
+  "source": "empty_template_for_capture",
+  "audio_processing": {
+    "agc": {
+      "enabled": null,
+      "targetLevel": null,
+      "maxGain": null,
+      "attackTime": null,
+      "releaseTime": null,
+      "holdTime": null
+    },
+    "aec": {
+      "enabled": null,
+      "filterLength": null,
+      "adaptationRate": null,
+      "suppressionLevel": null,
+      "tailLength": null,
+      "convergenceTime": null,
+      "echoCancellation": null
+    },
+    "noiseReduction": {
+      "enabled": null,
+      "level": null,
+      "spectralFloor": null,
+      "preserveVoice": null,
+      "adaptiveMode": null,
+      "suppressionBands": null
+    },
+    "compressor": {
+      "enabled": null,
+      "threshold": null,
+      "ratio": null,
+      "attack": null,
+      "release": null,
+      "knee": null
+    },
+    "limiter": {
+      "enabled": null,
+      "threshold": null,
+      "release": null,
+      "lookahead": null
+    }
+  },
+  "codec": {
+    "type": null,
+    "bitrate": null,
+    "complexity": null,
+    "vbr": null,
+    "dtx": null,
+    "fec": null,
+    "packetLossPercentage": null,
+    "frameSize": null
+  },
+  "buffers": {
+    "jitterBuffer": {
+      "enabled": null,
+      "minDepth": null,
+      "maxDepth": null,
+      "targetDepth": null,
+      "adaptiveMode": null
+    },
+    "playback": {
+      "size": null,
+      "latency": null
+    },
+    "record": {
+      "size": null,
+      "latency": null
+    }
+  },
+  "deepgram": {
+    "model": null,
+    "language": null,
+    "punctuate": null,
+    "diarize": null,
+    "multichannel": null,
+    "alternatives": null,
+    "interim": null,
+    "endpointing": null
+  },
+  "translation": {
+    "enabled": null,
+    "sourceLanguage": null,
+    "targetLanguage": null,
+    "formality": null,
+    "timeout": null
+  },
+  "tts": {
+    "voice": null,
+    "speed": null,
+    "pitch": null,
+    "volume": null,
+    "emphasis": null,
+    "sentencePause": null,
+    "ssml": null
+  },
+  "quality_targets": {
+    "target_snr": null,
+    "target_mos": null,
+    "max_latency": null,
+    "max_packet_loss": null
+  }
+}

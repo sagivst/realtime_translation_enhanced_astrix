@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring System - 3 Levels (Editable Only)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      background: #0a0e1a;
+      color: #cbd5e1;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(90deg, #1e293b 0%, #334155 100%);
+      padding: 15px 20px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #475569;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 6px;
+    }
+
+    .level-indicator {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(96, 165, 250, 0.2);
+      color: #60a5fa;
+      margin-left: 10px;
+    }
+
+    /* ===== GRID LAYOUTS ===== */
+    .grid-level1 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* 2 columns = half width each */
+      gap: 16px;
+    }
+
+    .grid-level2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    /* ===== LEVEL 1: LARGE STATION BOX (contains 2 complete boxes stacked) ===== */
+    .monitoring-box--large {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .monitoring-box--large:hover {
+      border-color: #475569;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    /* ===== LEVEL 2: SMALL PARAMETER BOX ===== */
+    .monitoring-box--small {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 16px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .monitoring-box--small.editable {
+      cursor: pointer;
+    }
+
+    .monitoring-box--small.editable:hover {
+      border-color: #60a5fa;
+      box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+    }
+
+    .monitoring-box--small.readonly:hover {
+      border-color: #475569;
+    }
+
+    /* Read-only indicator */
+    .readonly-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(100, 116, 139, 0.2);
+      border: 1px solid #64748b;
+      color: #64748b;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ===== LEVEL 3: EDIT MODE OVERLAY (2x width + 2x height) ===== */
+    .monitoring-box--edit {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid #60a5fa;
+      border-radius: 6px;
+      padding: 24px;
+      width: 700px;
+      min-height: 500px;
+      z-index: 1000;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+      display: none;
+    }
+
+    .monitoring-box--edit.active {
+      display: block;
+    }
+
+    .overlay-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+      display: none;
+    }
+
+    .overlay-backdrop.active {
+      display: block;
+    }
+
+    /* ===== BOX HEADER ===== */
+    .box-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .box-title {
+      font-size: 10px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .monitoring-box--large .box-title {
+      font-size: 12px;
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .monitoring-box--edit .box-title {
+      font-size: 14px;
+      color: #60a5fa;
+      font-weight: 700;
+    }
+
+    .status-badge {
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .status-badge.good { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .status-badge.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .status-badge.critical { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* ===== BOX VALUE ===== */
+    .box-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #10b981;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .monitoring-box--large .box-value {
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .monitoring-box--edit .box-value {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+
+    .box-value.warning { color: #f59e0b; }
+    .box-value.critical { color: #ef4444; }
+
+    .box-unit {
+      font-size: 11px;
+      color: #64748b;
+      margin-left: 3px;
+    }
+
+    .monitoring-box--large .box-unit { font-size: 14px; }
+    .monitoring-box--edit .box-unit { font-size: 18px; }
+
+    /* ===== BAR CONTAINER ===== */
+    .bar-container {
+      margin: 12px 0 8px 0;
+      flex-grow: 1;
+    }
+
+    .bar-range-bg {
+      width: 100%;
+      height: 14px;
+      position: relative;
+      border-radius: 3px;
+      overflow: visible;
+      margin-bottom: 22px;
+    }
+
+    .monitoring-box--large .bar-range-bg {
+      height: 18px;
+      margin-bottom: 26px;
+    }
+
+    .monitoring-box--edit .bar-range-bg {
+      height: 24px;
+      margin-bottom: 32px;
+    }
+
+    .bar-zone-critical-low,
+    .bar-zone-critical-high {
+      position: absolute;
+      height: 100%;
+      background: rgba(239, 68, 68, 0.25);
+      border-radius: 3px 0 0 3px;
+    }
+
+    .bar-zone-critical-high { border-radius: 0 3px 3px 0; }
+
+    .bar-zone-warning-low,
+    .bar-zone-warning-high {
+      position: absolute;
+      height: 100%;
+      background: rgba(245, 158, 11, 0.25);
+    }
+
+    .bar-zone-operational {
+      position: absolute;
+      height: 100%;
+      background: rgba(16, 185, 129, 0.25);
+    }
+
+    .bar-optimal-marker {
+      position: absolute;
+      top: -4px;
+      height: 22px;
+      width: 3px;
+      background: #60a5fa;
+      z-index: 3;
+      box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+    }
+
+    .monitoring-box--large .bar-optimal-marker {
+      height: 26px;
+      width: 4px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker {
+      height: 32px;
+      width: 5px;
+    }
+
+    .bar-optimal-marker::before {
+      content: '◆';
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px;
+      color: #60a5fa;
+      text-shadow: 0 0 8px rgba(96, 165, 250, 0.8);
+    }
+
+    .monitoring-box--large .bar-optimal-marker::before {
+      font-size: 22px;
+      top: -20px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker::before {
+      font-size: 28px;
+      top: -24px;
+    }
+
+    .bar-optimal-marker::after {
+      content: 'OPTIMAL';
+      position: absolute;
+      bottom: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: #60a5fa;
+      white-space: nowrap;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
+    }
+
+    .monitoring-box--large .bar-optimal-marker::after {
+      font-size: 10px;
+      bottom: -24px;
+    }
+
+    .monitoring-box--edit .bar-optimal-marker::after {
+      font-size: 12px;
+      bottom: -28px;
+    }
+
+    .bar-current-value {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+      border-radius: 3px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+
+    .bar-current-value.warning {
+      background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+
+    .bar-current-value.critical {
+      background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    }
+
+    .bar-current-indicator {
+      position: absolute;
+      top: -3px;
+      right: -1px;
+      height: 20px;
+      width: 3px;
+      background: currentColor;
+    }
+
+    .monitoring-box--large .bar-current-indicator {
+      height: 24px;
+      width: 4px;
+    }
+
+    .monitoring-box--edit .bar-current-indicator {
+      height: 30px;
+      width: 5px;
+    }
+
+    .bar-current-indicator::after {
+      content: '';
+      position: absolute;
+      top: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid currentColor;
+    }
+
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .monitoring-box--large .bar-labels { font-size: 10px; }
+    .monitoring-box--edit .bar-labels { font-size: 11px; }
+
+    .bar-label-operational {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .range-info {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #334155;
+      font-size: 9px;
+    }
+
+    .monitoring-box--large .range-info {
+      font-size: 10px;
+      gap: 12px;
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+
+    .range-item {
+      flex: 1;
+      text-align: center;
+    }
+
+    .range-item-label {
+      color: #64748b;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .range-item-value {
+      color: #e2e8f0;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .monitoring-box--large .range-item-value { font-size: 13px; }
+
+    .range-item-value.good { color: #10b981; }
+    .range-item-value.warning { color: #f59e0b; }
+    .range-item-value.critical { color: #ef4444; }
+    .range-item-value.optimal { color: #60a5fa; }
+
+    /* ===== DUAL BOXES (2 complete boxes stacked in Level 1) ===== */
+    .dual-params {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .param-item {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border: 1px solid #475569;
+      border-radius: 4px;
+      padding: 14px;
+      min-height: 160px;
+    }
+
+    .param-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .param-item-title {
+      font-size: 10px;
+      color: #e2e8f0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .param-item-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: #10b981;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+
+    .param-item-value.warning { color: #f59e0b; }
+    .param-item-value.critical { color: #ef4444; }
+
+    .param-item-unit {
+      font-size: 12px;
+      color: #64748b;
+      margin-left: 3px;
+    }
+
+    /* Full-size bars for dual boxes */
+    .param-item .bar-range-bg {
+      height: 14px;
+      margin-bottom: 22px;
+    }
+
+    .param-item .bar-optimal-marker {
+      height: 22px;
+      width: 3px;
+    }
+
+    .param-item .bar-optimal-marker::before {
+      font-size: 18px;
+      top: -16px;
+    }
+
+    .param-item .bar-optimal-marker::after {
+      font-size: 9px;
+      bottom: -22px;
+    }
+
+    .param-item .bar-current-indicator {
+      height: 20px;
+      width: 3px;
+    }
+
+    .param-item .bar-labels {
+      font-size: 9px;
+    }
+
+    /* ===== EDIT MODE CONTROLS ===== */
+    .edit-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px solid #334155;
+    }
+
+    .edit-section-title {
+      font-size: 11px;
+      color: #60a5fa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .edit-controls {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .control-group {
+      margin-bottom: 12px;
+    }
+
+    .control-label {
+      font-size: 9px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .control-input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      padding: 8px 10px;
+      color: #e2e8f0;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    .control-input:focus {
+      outline: none;
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      cursor: pointer;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: #60a5fa;
+      color: #0a0e1a;
+    }
+
+    .btn-primary:hover {
+      background: #3b82f6;
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #ffffff;
+    }
+
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+
+    .expand-btn {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: rgba(96, 165, 250, 0.2);
+      border: 1px solid #60a5fa;
+      color: #60a5fa;
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .expand-btn:hover {
+      background: rgba(96, 165, 250, 0.3);
+      transform: scale(1.05);
+    }
+
+    .monitoring-box--small .expand-btn {
+      bottom: 12px;
+      right: 12px;
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+    }
+
+    .close-btn:hover {
+      color: #e2e8f0;
+    }
+
+    .box-path {
+      font-size: 8px;
+      color: #475569;
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    .monitoring-box--large .box-path { font-size: 9px; }
+    .monitoring-box--edit .box-path { font-size: 10px; }
+
+    .section-divider {
+      margin: 30px 0;
+      padding: 0;
+      border: 0;
+      border-top: 2px solid #334155;
+    }
+
+    .back-btn {
+      display: inline-block;
+      background: rgba(100, 116, 139, 0.2);
+      border: 1px solid #64748b;
+      color: #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .back-btn:hover {
+      background: rgba(100, 116, 139, 0.3);
+      border-color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>📊 MONITORING SYSTEM - EDITABLE PARAMETERS ONLY
+      <span class="level-indicator" id="currentLevel">LEVEL 1</span>
+    </h1>
+  </div>
+
+  <!-- ===== LEVEL 1: LARGE STATION BOXES ===== -->
+  <div id="level1" class="grid-level1">
+
+    <div class="monitoring-box--large">
+      <div class="box-header">
+        <div class="box-title">STATION 1: ARI RECEIVE</div>
+        <div class="status-badge good">ONLINE</div>
+      </div>
+
+      <div class="box-value good">
+        45.2<span class="box-unit">%</span>
+      </div>
+
+      <div class="bar-container">
+        <div class="bar-range-bg">
+          <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+          <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+          <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+          <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+          <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+          <div class="bar-optimal-marker" style="left: 50%;"></div>
+          <div class="bar-current-value good" style="width: 45.2%;">
+            <div class="bar-current-indicator"></div>
+          </div>
+        </div>
+        <div class="bar-labels">
+          <span>0%</span>
+          <span class="bar-label-operational">BUFFER: 20-80%</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="range-info">
+        <div class="range-item">
+          <div class="range-item-label">Current</div>
+          <div class="range-item-value good">45.2%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Optimal</div>
+          <div class="range-item-value optimal">50%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Deviation</div>
+          <div class="range-item-value good">-4.8%</div>
+        </div>
+      </div>
+
+      <div class="dual-params">
+        <!-- PARAM 1: Latency -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">AVERAGE LATENCY</div>
+            <div class="status-badge good">GOOD</div>
+          </div>
+          <div class="param-item-value good">
+            52<span class="param-item-unit">ms</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+              <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+              <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+              <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+              <div class="bar-current-value good" style="width: 13%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0ms</span>
+              <span class="bar-label-operational">0-200ms</span>
+              <span>400ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAM 2: SNR -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">SNR - SIGNAL/NOISE</div>
+            <div class="status-badge good">GOOD</div>
+          </div>
+          <div class="param-item-value good">
+            32.5<span class="param-item-unit">dB</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-critical-low" style="left: 0%; width: 25%;"></div>
+              <div class="bar-zone-warning-low" style="left: 25%; width: 16.67%;"></div>
+              <div class="bar-zone-operational" style="left: 41.67%; width: 58.33%;"></div>
+              <div class="bar-optimal-marker" style="left: 66.67%;"></div>
+              <div class="bar-current-value good" style="width: 54.17%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0dB</span>
+              <span class="bar-label-operational">25-60dB</span>
+              <span>60dB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box-path">station-1.ari-rx</div>
+      <button class="expand-btn" onclick="showLevel2('station-1')">EXPAND ⛶</button>
+    </div>
+
+    <div class="monitoring-box--large">
+      <div class="box-header">
+        <div class="box-title">STATION 2: UDP TRANSMIT</div>
+        <div class="status-badge warning">WARNING</div>
+      </div>
+
+      <div class="box-value warning">
+        78.0<span class="box-unit">%</span>
+      </div>
+
+      <div class="bar-container">
+        <div class="bar-range-bg">
+          <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+          <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+          <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+          <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+          <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+          <div class="bar-optimal-marker" style="left: 50%;"></div>
+          <div class="bar-current-value warning" style="width: 78%;">
+            <div class="bar-current-indicator"></div>
+          </div>
+        </div>
+        <div class="bar-labels">
+          <span>0%</span>
+          <span class="bar-label-operational">BUFFER: 20-80%</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <div class="range-info">
+        <div class="range-item">
+          <div class="range-item-label">Current</div>
+          <div class="range-item-value warning">78%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Optimal</div>
+          <div class="range-item-value optimal">50%</div>
+        </div>
+        <div class="range-item">
+          <div class="range-item-label">Deviation</div>
+          <div class="range-item-value warning">+28%</div>
+        </div>
+      </div>
+
+      <div class="dual-params">
+        <!-- PARAM 1: Latency -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">AVERAGE LATENCY</div>
+            <div class="status-badge critical">CRITICAL</div>
+          </div>
+          <div class="param-item-value critical">
+            298<span class="param-item-unit">ms</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+              <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+              <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+              <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+              <div class="bar-current-value critical" style="width: 74.5%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0ms</span>
+              <span class="bar-label-operational">0-200ms</span>
+              <span>400ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAM 2: Packet Loss -->
+        <div class="param-item">
+          <div class="param-item-header">
+            <div class="param-item-title">PACKET LOSS RATE</div>
+            <div class="status-badge warning">WARNING</div>
+          </div>
+          <div class="param-item-value warning">
+            3.2<span class="param-item-unit">%</span>
+          </div>
+          <div class="bar-container">
+            <div class="bar-range-bg">
+              <div class="bar-zone-operational" style="left: 0%; width: 20%;"></div>
+              <div class="bar-zone-warning-high" style="left: 20%; width: 40%;"></div>
+              <div class="bar-zone-critical-high" style="left: 60%; width: 40%;"></div>
+              <div class="bar-optimal-marker" style="left: 0%;"></div>
+              <div class="bar-current-value warning" style="width: 64%;">
+                <div class="bar-current-indicator"></div>
+              </div>
+            </div>
+            <div class="bar-labels">
+              <span>0%</span>
+              <span class="bar-label-operational">0-1%</span>
+              <span>5%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box-path">station-2.udp-tx</div>
+      <button class="expand-btn" onclick="showLevel2('station-2')">EXPAND ⛶</button>
+    </div>
+
+  </div>
+
+  <!-- ===== LEVEL 2: SMALL PARAMETER BOXES ===== -->
+  <div id="level2" style="display: none;">
+    <button class="back-btn" onclick="backToLevel1()">← BACK TO LEVEL 1</button>
+
+    <div class="grid-level2">
+
+      <!-- EDITABLE: Buffer Total -->
+      <div class="monitoring-box--small editable" onclick="showEdit('buffer', 'station-2.udp-tx.buffer.total')">
+        <div class="box-header">
+          <div class="box-title">TOTAL BUFFER</div>
+          <div class="status-badge warning">WARNING</div>
+        </div>
+
+        <div class="box-value warning">
+          78<span class="box-unit">%</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-critical-low" style="left: 0%; width: 10%;"></div>
+            <div class="bar-zone-warning-low" style="left: 10%; width: 10%;"></div>
+            <div class="bar-zone-operational" style="left: 20%; width: 60%;"></div>
+            <div class="bar-zone-warning-high" style="left: 80%; width: 15%;"></div>
+            <div class="bar-zone-critical-high" style="left: 95%; width: 5%;"></div>
+            <div class="bar-optimal-marker" style="left: 50%;"></div>
+            <div class="bar-current-value warning" style="width: 78%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0%</span>
+            <span class="bar-label-operational">20-80%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value warning">78%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">50%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value warning">+28%</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.buffer.total</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('buffer', 'station-2.udp-tx.buffer.total')">EDIT ✏</button>
+      </div>
+
+      <!-- EDITABLE: Latency -->
+      <div class="monitoring-box--small editable" onclick="showEdit('latency', 'station-2.udp-tx.latency.avg')">
+        <div class="box-header">
+          <div class="box-title">AVERAGE LATENCY</div>
+          <div class="status-badge critical">CRITICAL</div>
+        </div>
+
+        <div class="box-value critical">
+          298<span class="box-unit">ms</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-operational" style="left: 0%; width: 50%;"></div>
+            <div class="bar-zone-warning-high" style="left: 50%; width: 25%;"></div>
+            <div class="bar-zone-critical-high" style="left: 75%; width: 25%;"></div>
+            <div class="bar-optimal-marker" style="left: 12.5%;"></div>
+            <div class="bar-current-value critical" style="width: 74.5%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0ms</span>
+            <span class="bar-label-operational">0-200ms</span>
+            <span>400ms</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value critical">298ms</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">50ms</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value critical">+248ms</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.latency.avg</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('latency', 'station-2.udp-tx.latency.avg')">EDIT ✏</button>
+      </div>
+
+      <!-- READ-ONLY: SNR (NO EXPAND BUTTON) -->
+      <div class="monitoring-box--small readonly">
+        <div class="readonly-badge">READ-ONLY</div>
+        <div class="box-header">
+          <div class="box-title">SNR - SIGNAL/NOISE</div>
+          <div class="status-badge good">GOOD</div>
+        </div>
+
+        <div class="box-value good">
+          32.5<span class="box-unit">dB</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-critical-low" style="left: 0%; width: 25%;"></div>
+            <div class="bar-zone-warning-low" style="left: 25%; width: 16.67%;"></div>
+            <div class="bar-zone-operational" style="left: 41.67%; width: 58.33%;"></div>
+            <div class="bar-optimal-marker" style="left: 66.67%;"></div>
+            <div class="bar-current-value good" style="width: 54.17%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0dB</span>
+            <span class="bar-label-operational">25-60dB</span>
+            <span>60dB</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value good">32.5dB</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">40dB</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value good">-7.5dB</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-1.ari-rx.audioQuality.snr (Hardware calculated)</div>
+        <!-- NO EXPAND BUTTON - READ-ONLY -->
+      </div>
+
+      <!-- EDITABLE: Packet Loss -->
+      <div class="monitoring-box--small editable" onclick="showEdit('packetloss', 'station-2.udp-tx.packet.lossRate')">
+        <div class="box-header">
+          <div class="box-title">PACKET LOSS RATE</div>
+          <div class="status-badge warning">WARNING</div>
+        </div>
+
+        <div class="box-value warning">
+          3.2<span class="box-unit">%</span>
+        </div>
+
+        <div class="bar-container">
+          <div class="bar-range-bg">
+            <div class="bar-zone-operational" style="left: 0%; width: 20%;"></div>
+            <div class="bar-zone-warning-high" style="left: 20%; width: 40%;"></div>
+            <div class="bar-zone-critical-high" style="left: 60%; width: 40%;"></div>
+            <div class="bar-optimal-marker" style="left: 0%;"></div>
+            <div class="bar-current-value warning" style="width: 64%;">
+              <div class="bar-current-indicator"></div>
+            </div>
+          </div>
+          <div class="bar-labels">
+            <span>0%</span>
+            <span class="bar-label-operational">0-1%</span>
+            <span>5%</span>
+          </div>
+        </div>
+
+        <div class="range-info">
+          <div class="range-item">
+            <div class="range-item-label">Current</div>
+            <div class="range-item-value warning">3.2%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Optimal</div>
+            <div class="range-item-value optimal">0%</div>
+          </div>
+          <div class="range-item">
+            <div class="range-item-label">Deviation</div>
+            <div class="range-item-value warning">+3.2%</div>
+          </div>
+        </div>
+
+        <div class="box-path">station-2.udp-tx.packet.lossRate</div>
+        <button class="expand-btn" onclick="event.stopPropagation(); showEdit('packetloss', 'station-2.udp-tx.packet.lossRate')">EDIT ✏</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== OVERLAY BACKDROP ===== -->
+  <div class="overlay-backdrop" id="overlay" onclick="closeEdit()"></div>
+
+  <!-- ===== LEVEL 3: EDIT MODE OVERLAY ===== -->
+  <div class="monitoring-box--edit" id="editBox">
+    <button class="close-btn" onclick="closeEdit()">×</button>
+
+    <div class="box-header">
+      <div class="box-title" id="editTitle">PARAMETER - EDIT MODE</div>
+      <div class="status-badge warning" id="editStatus">WARNING</div>
+    </div>
+
+    <div class="box-value warning" id="editValue">
+      78<span class="box-unit" id="editUnit">%</span>
+    </div>
+
+    <div class="bar-container" id="editBarContainer">
+      <!-- Bar will be dynamically updated -->
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">⚙ Threshold Configuration</div>
+
+      <div class="edit-controls">
+        <div class="control-group">
+          <label class="control-label">Critical Low Threshold</label>
+          <input type="number" class="control-input" id="criticalLow" value="10">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Critical High Threshold</label>
+          <input type="number" class="control-input" id="criticalHigh" value="95">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Warning Low Threshold</label>
+          <input type="number" class="control-input" id="warningLow" value="20">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Warning High Threshold</label>
+          <input type="number" class="control-input" id="warningHigh" value="80">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Optimal Point</label>
+          <input type="number" class="control-input" id="optimal" value="50">
+        </div>
+
+        <div class="control-group">
+          <label class="control-label">Update Interval (ms)</label>
+          <input type="number" class="control-input" id="updateInterval" value="1000">
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">🔔 Alert Configuration</div>
+
+      <div class="checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="audioAlert" checked>
+          Audio Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="visualAlert" checked>
+          Visual Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="emailAlert">
+          Email Alert
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="webhookAlert">
+          Webhook
+        </label>
+      </div>
+    </div>
+
+    <div class="edit-section">
+      <div class="edit-section-title">📍 Parameter Path</div>
+      <div class="control-group">
+        <input type="text" class="control-input" id="paramPath" value="" readonly style="background: #1e293b;">
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button class="btn btn-danger" onclick="resetToDefault()">Reset to Default</button>
+      <button class="btn btn-secondary" onclick="closeEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+
+    <div class="box-path" id="editFooter">Last modified: 2025-01-15 18:45:32 | User: admin</div>
+  </div>
+
+  <script>
+    let currentParamPath = '';
+
+    function showLevel2(stationId) {
+      document.getElementById('level1').style.display = 'none';
+      document.getElementById('level2').style.display = 'block';
+      document.getElementById('currentLevel').textContent = 'LEVEL 2';
+      console.log('Showing Level 2 for:', stationId);
+    }
+
+    function backToLevel1() {
+      document.getElementById('level1').style.display = 'grid';
+      document.getElementById('level2').style.display = 'none';
+      document.getElementById('currentLevel').textContent = 'LEVEL 1';
+    }
+
+    function showEdit(paramId, paramPath) {
+      currentParamPath = paramPath;
+      document.getElementById('editBox').classList.add('active');
+      document.getElementById('overlay').classList.add('active');
+      document.getElementById('currentLevel').textContent = 'LEVEL 3 - EDIT MODE';
+      document.getElementById('paramPath').value = paramPath;
+
+      // Load config from unified config file (simulated)
+      loadParamConfig(paramPath);
+
+      console.log('Editing parameter:', paramId, 'Path:', paramPath);
+    }
+
+    function closeEdit() {
+      document.getElementById('editBox').classList.remove('active');
+      document.getElementById('overlay').classList.remove('active');
+      document.getElementById('currentLevel').textContent = 'LEVEL 2';
+    }
+
+    function loadParamConfig(paramPath) {
+      // In production, this would fetch from /tmp/monitoring-config-values.json
+      // For demo, we'll use hardcoded values
+      const configs = {
+        'station-2.udp-tx.buffer.total': {
+          title: 'TOTAL BUFFER',
+          value: 78,
+          unit: '%',
+          status: 'warning',
+          thresholds: { criticalLow: 10, criticalHigh: 95, warningLow: 20, warningHigh: 80, optimal: 50 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: false, webhookAlert: false },
+          updateInterval: 1000
+        },
+        'station-2.udp-tx.latency.avg': {
+          title: 'AVERAGE LATENCY',
+          value: 298,
+          unit: 'ms',
+          status: 'critical',
+          thresholds: { criticalLow: 0, criticalHigh: 300, warningLow: 0, warningHigh: 200, optimal: 50 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: true, webhookAlert: false },
+          updateInterval: 500
+        },
+        'station-2.udp-tx.packet.lossRate': {
+          title: 'PACKET LOSS RATE',
+          value: 3.2,
+          unit: '%',
+          status: 'warning',
+          thresholds: { criticalLow: 0, criticalHigh: 3, warningLow: 0, warningHigh: 1, optimal: 0 },
+          alerts: { audioAlert: true, visualAlert: true, emailAlert: true, webhookAlert: true },
+          updateInterval: 1000
+        }
+      };
+
+      const config = configs[paramPath];
+      if (config) {
+        document.getElementById('editTitle').textContent = config.title + ' - EDIT MODE';
+        document.getElementById('editValue').innerHTML = config.value + '<span class="box-unit">' + config.unit + '</span>';
+        document.getElementById('criticalLow').value = config.thresholds.criticalLow;
+        document.getElementById('criticalHigh').value = config.thresholds.criticalHigh;
+        document.getElementById('warningLow').value = config.thresholds.warningLow;
+        document.getElementById('warningHigh').value = config.thresholds.warningHigh;
+        document.getElementById('optimal').value = config.thresholds.optimal;
+        document.getElementById('updateInterval').value = config.updateInterval;
+        document.getElementById('audioAlert').checked = config.alerts.audioAlert;
+        document.getElementById('visualAlert').checked = config.alerts.visualAlert;
+        document.getElementById('emailAlert').checked = config.alerts.emailAlert;
+        document.getElementById('webhookAlert').checked = config.alerts.webhookAlert;
+      }
+    }
+
+    function saveEdit() {
+      const updatedConfig = {
+        path: currentParamPath,
+        thresholds: {
+          criticalLow: parseFloat(document.getElementById('criticalLow').value),
+          criticalHigh: parseFloat(document.getElementById('criticalHigh').value),
+          warningLow: parseFloat(document.getElementById('warningLow').value),
+          warningHigh: parseFloat(document.getElementById('warningHigh').value),
+          optimal: parseFloat(document.getElementById('optimal').value)
+        },
+        alerts: {
+          audioAlert: document.getElementById('audioAlert').checked,
+          visualAlert: document.getElementById('visualAlert').checked,
+          emailAlert: document.getElementById('emailAlert').checked,
+          webhookAlert: document.getElementById('webhookAlert').checked
+        },
+        updateInterval: parseInt(document.getElementById('updateInterval').value)
+      };
+
+      console.log('Saving configuration:', updatedConfig);
+
+      // In production, this would:
+      // 1. POST to monitoring server: /api/config/update
+      // 2. Server writes to /tmp/monitoring-config-values.json
+      // 3. STTTTSserver reads updated values on next cycle
+
+      alert('✓ Configuration saved to unified config file!\n\nPath: ' + currentParamPath + '\n\nThe STTTTSserver will load these values on next update cycle.');
+      closeEdit();
+    }
+
+    function resetToDefault() {
+      if (confirm('Reset all thresholds to default values?')) {
+        // Load defaults (would come from server in production)
+        alert('Configuration reset to factory defaults.');
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeEdit();
+      }
+    });
+  </script>
+
+</body>
+</html>

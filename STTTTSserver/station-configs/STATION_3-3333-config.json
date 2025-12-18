@@ -1,0 +1,103 @@
+{
+  "station_id": "STATION_3",
+  "extension": 3333,
+  "timestamp": "2024-12-03T14:00:00Z",
+  "optimization_version": "2.1",
+  "source": "fixed_configuration_for_stt",
+  "audio_processing": {
+    "agc": {
+      "enabled": true,
+      "targetLevel": -3,
+      "maxGain": 30,
+      "attackTime": 5,
+      "releaseTime": 100,
+      "holdTime": 50
+    },
+    "aec": {
+      "enabled": true,
+      "filterLength": 256,
+      "adaptationRate": 0.5,
+      "suppressionLevel": 12,
+      "tailLength": 200,
+      "convergenceTime": 300,
+      "echoCancellation": true
+    },
+    "noiseReduction": {
+      "enabled": true,
+      "level": 15,
+      "spectralFloor": -50,
+      "preserveVoice": true,
+      "adaptiveMode": true,
+      "smoothingFactor": 0.9
+    }
+  },
+  "codec": {
+    "type": "opus",
+    "bitrate": 32000,
+    "sampleRate": 16000,
+    "channels": 1,
+    "complexity": 5,
+    "packetLoss": 10,
+    "dtx": false,
+    "fec": true
+  },
+  "buffer": {
+    "jitter": {
+      "enabled": true,
+      "targetDelay": 20,
+      "maxDelay": 150,
+      "adaptiveMode": true,
+      "speedupFactor": 1.2
+    },
+    "audio": {
+      "size": 4096,
+      "prefetch": 2048,
+      "maxSize": 16384,
+      "underrunThreshold": 512
+    },
+    "network": {
+      "receiveBuffer": 65536,
+      "sendBuffer": 65536,
+      "congestionControl": true,
+      "pacingRate": 1000
+    },
+    "playout": {
+      "delay": 40,
+      "smoothing": true,
+      "catchupRate": 1.1,
+      "slowdownRate": 0.9
+    }
+  },
+  "deepgram": {
+    "model": "nova-2",
+    "language": "en-US",
+    "punctuate": true,
+    "profanityFilter": false,
+    "redact": false,
+    "diarize": true,
+    "smartFormat": true,
+    "utterances": true,
+    "interimResults": true,
+    "endpointing": 300,
+    "vadTurnoff": 500,
+    "alternatives": 1,
+    "numerals": true
+  },
+  "stt_processing": {
+    "confidenceThreshold": 0.7,
+    "minSpeechLength": 100,
+    "maxSilenceLength": 1000,
+    "punctuationMode": "auto",
+    "normalization": true,
+    "timestamping": true
+  },
+  "performance": {
+    "threadPriority": "high",
+    "cpuAffinity": null,
+    "realtime": true,
+    "monitoring": {
+      "interval": 100,
+      "detailed": true
+    }
+  }
+}

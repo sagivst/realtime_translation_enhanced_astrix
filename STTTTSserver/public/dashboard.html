@@ -13,8 +13,7 @@
 
         body {
             overflow: hidden;
-            background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 50%, #1a1a2e 100%);
-            background-attachment: fixed;
+            background: #000;
         }
 
         .split-container {
@@ -26,38 +25,35 @@
         .iframe-wrapper {
             flex: 1;
             height: 100vh;
+            border: none;
         }
 
         .iframe-wrapper iframe {
             width: 100%;
             height: 100%;
             border: none;
-            background: transparent;
         }
 
         .divider {
-            width: 2px;
-            background: linear-gradient(180deg,
-                rgba(91,111,216,0.3) 0%,
-                rgba(91,111,216,0.6) 50%,
-                rgba(91,111,216,0.3) 100%);
-            box-shadow: 0 0 10px rgba(91,111,216,0.3);
+            width: 3px;
+            background: #000;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
     <div class="split-container">
-        <!-- Left: Extension 3333 (English) -->
+        <!-- Left: Extension 3333 (Caller) -->
         <div class="iframe-wrapper">
-            <iframe src="/dashboard-single.html?ext=3333"></iframe>
+            <iframe src="/dashboard-single.html?ext=3333&v=2"></iframe>
         </div>
 
         <!-- Divider -->
         <div class="divider"></div>
 
-        <!-- Right: Extension 4444 (French) -->
+        <!-- Right: Extension 4444 (Answerer) -->
         <div class="iframe-wrapper">
-            <iframe src="/dashboard-single.html?ext=4444"></iframe>
+            <iframe src="/dashboard-single.html?ext=4444&v=2"></iframe>
         </div>
     </div>
 </body>

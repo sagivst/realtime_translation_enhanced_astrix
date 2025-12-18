@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Audio Monitor - Fixed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: rgba(20, 20, 20, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            border: 1px solid rgba(0, 255, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #00ff88, #00ffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5em;
+            text-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+        }
+
+        .audio-panel {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(0, 255, 0, 0.2);
+        }
+
+        .extension-label {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .status.connected {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        .status.disconnected {
+            background: linear-gradient(45deg, #ff4444, #cc0000);
+            color: #fff;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        /* Professional Spectrum Analyzer */
+        .spectrum-container {
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,50,0,0.3) 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+            position: relative;
+            height: 200px;
+        }
+
+        .spectrum-display {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 160px;
+            gap: 2px;
+            position: relative;
+        }
+
+        .frequency-bar {
+            flex: 1;
+            background: linear-gradient(180deg,
+                #ff0000 0%,
+                #ff6600 20%,
+                #ffff00 40%,
+                #00ff00 60%,
+                #00ffff 80%,
+                #0066ff 100%);
+            border-radius: 2px 2px 0 0;
+            transition: height 0.05s ease-out;
+            position: relative;
+            min-height: 2px;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .frequency-bar::after {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #fff;
+            border-radius: 2px;
+            opacity: 0.8;
+        }
+
+        /* Peak Level Meter */
+        .peak-meter-container {
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .peak-label {
+            font-size: 0.9em;
+            color: #00ff88;
+            margin-bottom: 8px;
+        }
+
+        .peak-meter {
+            height: 30px;
+            background: linear-gradient(90deg,
+                #00ff00 0%, #00ff00 50%,
+                #ffff00 50%, #ffff00 80%,
+                #ff0000 80%, #ff0000 100%);
+            border-radius: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .peak-level {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            transition: width 0.05s ease-out;
+            border-left: 3px solid #fff;
+            box-shadow: -5px 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .db-scale {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 0.7em;
+            color: #888;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .volume-control {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .volume-label {
+            color: #00ff88;
+            font-weight: bold;
+            min-width: 60px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 8px;
+            border-radius: 5px;
+            background: linear-gradient(90deg, #00ff88 0%, #00ff88 var(--volume, 50%), #333 var(--volume, 50%), #333 100%);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00ff88, #00cc66);
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+            border: 2px solid #fff;
+        }
+
+        .volume-value {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #00ffff;
+            font-size: 1.1em;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 136, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* Stats Display */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .log-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            border: 1px solid rgba(0, 255, 0, 0.2);
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #00ff88;
+            padding-left: 10px;
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        .timestamp {
+            color: #00ffff;
+            margin-right: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+            }
+
+            .volume-control {
+                width: 100%;
+            }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Professional Audio Monitor</h1>
+
+        <div id="ext3333" class="audio-panel">
+            <div class="panel-header">
+                <span class="extension-label">Extension 3333 (English)</span>
+                <span class="status disconnected" id="status-3333">Disconnected</span>
+            </div>
+
+            <div class="spectrum-container">
+                <div class="spectrum-display" id="spectrum-3333"></div>
+            </div>
+
+            <div class="peak-meter-container">
+                <div class="peak-label">Peak Level (dB)</div>
+                <div class="peak-meter">
+                    <div class="peak-level" id="peak-3333" style="width: 100%"></div>
+                </div>
+                <div class="db-scale">
+                    <span>-60</span><span>-40</span><span>-20</span><span>-10</span><span>-6</span><span>0</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="volume-control">
+                    <span class="volume-label">Volume:</span>
+                    <input type="range" class="volume-slider" id="volume-3333" min="0" max="100" value="50">
+                    <span class="volume-value" id="volume-value-3333">50%</span>
+                </div>
+                <button onclick="testAudio('3333')">Test Sound</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Packets Received</div>
+                    <div class="stat-value" id="packets-3333">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Data Rate</div>
+                    <div class="stat-value" id="rate-3333">0 KB/s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Buffer Size</div>
+                    <div class="stat-value" id="buffer-3333">0 KB</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Audio Format</div>
+                    <div class="stat-value" id="format-3333">PCM 16kHz</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="ext4444" class="audio-panel">
+            <div class="panel-header">
+                <span class="extension-label">Extension 4444 (French)</span>
+                <span class="status disconnected" id="status-4444">Disconnected</span>
+            </div>
+
+            <div class="spectrum-container">
+                <div class="spectrum-display" id="spectrum-4444"></div>
+            </div>
+
+            <div class="peak-meter-container">
+                <div class="peak-label">Peak Level (dB)</div>
+                <div class="peak-meter">
+                    <div class="peak-level" id="peak-4444" style="width: 100%"></div>
+                </div>
+                <div class="db-scale">
+                    <span>-60</span><span>-40</span><span>-20</span><span>-10</span><span>-6</span><span>0</span>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="volume-control">
+                    <span class="volume-label">Volume:</span>
+                    <input type="range" class="volume-slider" id="volume-4444" min="0" max="100" value="50">
+                    <span class="volume-value" id="volume-value-4444">50%</span>
+                </div>
+                <button onclick="testAudio('4444')">Test Sound</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Packets Received</div>
+                    <div class="stat-value" id="packets-4444">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Data Rate</div>
+                    <div class="stat-value" id="rate-4444">0 KB/s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Buffer Size</div>
+                    <div class="stat-value" id="buffer-4444">0 KB</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Audio Format</div>
+                    <div class="stat-value" id="format-4444">PCM 16kHz</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-container" id="log">
+            <div class="log-entry">
+                <span class="timestamp">[System]</span>
+                Audio monitor initialized...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io('http://20.170.155.53:3020');
+        const audioContexts = {};
+        const audioQueues = {};
+        const state = {
+            '3333': {
+                packets: 0,
+                bytes: 0,
+                lastDataTime: Date.now(),
+                frequencyBars: [],
+                isPlaying: false
+            },
+            '4444': {
+                packets: 0,
+                bytes: 0,
+                lastDataTime: Date.now(),
+                frequencyBars: [],
+                isPlaying: false
+            }
+        };
+
+        // Initialize spectrum displays
+        function initSpectrum(extensionId) {
+            const container = document.getElementById(`spectrum-${extensionId}`);
+            container.innerHTML = '';
+            state[extensionId].frequencyBars = [];
+
+            for (let i = 0; i < 32; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'frequency-bar';
+                bar.style.height = '2%';
+                container.appendChild(bar);
+                state[extensionId].frequencyBars.push(bar);
+            }
+        }
+
+        // Initialize audio contexts
+        function initAudioContext(extensionId) {
+            if (!audioContexts[extensionId]) {
+                audioContexts[extensionId] = new (window.AudioContext || window.webkitAudioContext)();
+                audioQueues[extensionId] = [];
+                log(`Audio context created for extension ${extensionId}`);
+            }
+        }
+
+        // FIXED: Proper PCM to WAV conversion with correct headers
+        function pcmToWav(pcmData, sampleRate = 16000) {
+            const length = pcmData.length;
+            const arrayBuffer = new ArrayBuffer(44 + length);
+            const view = new DataView(arrayBuffer);
+
+            // RIFF header
+            const writeString = (offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            // "RIFF"
+            writeString(0, 'RIFF');
+            // File size - 8
+            view.setUint32(4, 36 + length, true);
+            // "WAVE"
+            writeString(8, 'WAVE');
+            // "fmt "
+            writeString(12, 'fmt ');
+            // Format chunk size (16 for PCM)
+            view.setUint32(16, 16, true);
+            // Audio format (1 for PCM)
+            view.setUint16(20, 1, true);
+            // Number of channels (1 for mono)
+            view.setUint16(22, 1, true);
+            // Sample rate
+            view.setUint32(24, sampleRate, true);
+            // Byte rate (sampleRate * channels * bitsPerSample / 8)
+            view.setUint32(28, sampleRate * 2, true);
+            // Block align (channels * bitsPerSample / 8)
+            view.setUint16(32, 2, true);
+            // Bits per sample
+            view.setUint16(34, 16, true);
+            // "data"
+            writeString(36, 'data');
+            // Data chunk size
+            view.setUint32(40, length, true);
+
+            // Copy PCM data
+            const pcmView = new Uint8Array(arrayBuffer, 44);
+            pcmView.set(new Uint8Array(pcmData));
+
+            return arrayBuffer;
+        }
+
+        // FIXED: Proper visualizer update with correct audio analysis
+        function updateVisualizer(extensionId, audioBuffer) {
+            try {
+                // Convert base64 to ArrayBuffer if needed
+                let pcmData;
+                if (typeof audioBuffer === 'string') {
+                    const binaryString = atob(audioBuffer);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    pcmData = bytes.buffer;
+                } else {
+                    pcmData = audioBuffer;
+                }
+
+                // Convert PCM bytes to 16-bit samples
+                const samples = new Int16Array(pcmData);
+
+                // Calculate frequency bins
+                const binCount = 32;
+                const samplesPerBin = Math.floor(samples.length / binCount);
+
+                // Calculate magnitude for each frequency bin
+                for (let i = 0; i < binCount; i++) {
+                    let magnitude = 0;
+                    const start = i * samplesPerBin;
+                    const end = Math.min(start + samplesPerBin, samples.length);
+
+                    // Calculate RMS for this bin
+                    for (let j = start; j < end; j++) {
+                        const normalized = samples[j] / 32768.0; // Normalize to -1 to 1
+                        magnitude += normalized * normalized;
+                    }
+
+                    // RMS calculation
+                    magnitude = Math.sqrt(magnitude / (end - start));
+
+                    // Convert to percentage height (with scaling for visibility)
+                    const height = Math.min(100, magnitude * 400); // Scale up for visibility
+
+                    // Update bar height
+                    if (state[extensionId].frequencyBars[i]) {
+                        state[extensionId].frequencyBars[i].style.height = height + '%';
+                    }
+                }
+
+                // Calculate peak level for meter
+                let peak = 0;
+                for (let i = 0; i < samples.length; i++) {
+                    const abs = Math.abs(samples[i] / 32768.0);
+                    if (abs > peak) peak = abs;
+                }
+
+                // Convert to dB
+                const db = peak > 0 ? 20 * Math.log10(peak) : -60;
+                const percentage = Math.max(0, Math.min(100, (60 + db) / 60 * 100));
+
+                // Update peak meter
+                const peakElement = document.getElementById(`peak-${extensionId}`);
+                if (peakElement) {
+                    peakElement.style.width = (100 - percentage) + '%';
+                }
+
+            } catch (error) {
+                console.error('Visualizer error:', error);
+            }
+        }
+
+        // Play audio with improved quality
+        async function playAudioData(extensionId, audioData) {
+            try {
+                initAudioContext(extensionId);
+                const context = audioContexts[extensionId];
+
+                // Decode base64 to PCM
+                const binaryString = atob(audioData);
+                const len = binaryString.length;
+                const pcmBytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    pcmBytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Update visualizer with PCM data
+                updateVisualizer(extensionId, pcmBytes.buffer);
+
+                // Convert PCM to WAV with proper format
+                const wavBuffer = pcmToWav(pcmBytes.buffer, 16000);
+
+                // Decode WAV to audio buffer
+                const audioBuffer = await context.decodeAudioData(wavBuffer);
+
+                // Create buffer source
+                const source = context.createBufferSource();
+                source.buffer = audioBuffer;
+
+                // Create gain node for volume control
+                const gainNode = context.createGain();
+                const volume = document.getElementById(`volume-${extensionId}`).value / 100;
+                gainNode.gain.value = volume;
+
+                // Connect nodes
+                source.connect(gainNode);
+                gainNode.connect(context.destination);
+
+                // Play
+                source.start(0);
+
+                // Update stats
+                state[extensionId].packets++;
+                state[extensionId].bytes += pcmBytes.length;
+                updateStats(extensionId);
+
+            } catch (error) {
+                console.error(`Audio playback error for ${extensionId}:`, error);
+                log(`Error playing audio for ${extensionId}: ${error.message}`);
+            }
+        }
+
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            log('Connected to server');
+
+            // Subscribe to both extensions
+            socket.emit('subscribe-audio', { extensionId: '3333' });
+            socket.emit('subscribe-audio', { extensionId: '4444' });
+        });
+
+        socket.on('audio-subscribed', (data) => {
+            log(`Subscribed to extension ${data.extensionId} audio stream`);
+            document.getElementById(`status-${data.extensionId}`).className = 'status connected';
+            document.getElementById(`status-${data.extensionId}`).textContent = 'Connected';
+        });
+
+        socket.on('audio-data', async (data) => {
+            const { extensionId, data: audioData, sampleRate, format } = data;
+
+            // Play the audio
+            await playAudioData(extensionId, audioData);
+
+            // Log every 50th packet
+            if (state[extensionId].packets % 50 === 0) {
+                log(`Extension ${extensionId}: ${state[extensionId].packets} packets received`);
+            }
+        });
+
+        socket.on('disconnect', () => {
+            log('Disconnected from server');
+            document.querySelectorAll('.status').forEach(el => {
+                el.className = 'status disconnected';
+                el.textContent = 'Disconnected';
+            });
+        });
+
+        // Volume control handlers
+        ['3333', '4444'].forEach(ext => {
+            const slider = document.getElementById(`volume-${ext}`);
+            const value = document.getElementById(`volume-value-${ext}`);
+
+            slider.addEventListener('input', (e) => {
+                const vol = e.target.value;
+                value.textContent = vol + '%';
+                slider.style.setProperty('--volume', vol + '%');
+            });
+
+            // Initialize spectrum
+            initSpectrum(ext);
+
+            // Set initial volume display
+            slider.style.setProperty('--volume', '50%');
+        });
+
+        // Update stats periodically
+        function updateStats(extensionId) {
+            document.getElementById(`packets-${extensionId}`).textContent = state[extensionId].packets;
+
+            const kb = (state[extensionId].bytes / 1024).toFixed(1);
+            document.getElementById(`buffer-${extensionId}`).textContent = kb + ' KB';
+
+            // Calculate data rate (rough estimate)
+            const rate = (state[extensionId].bytes / 1024 / 30).toFixed(1); // Assuming 30 seconds
+            document.getElementById(`rate-${extensionId}`).textContent = rate + ' KB/s';
+        }
+
+        // Test audio function
+        function testAudio(extensionId) {
+            initAudioContext(extensionId);
+            const context = audioContexts[extensionId];
+
+            // Create oscillator for test tone
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+
+            oscillator.frequency.value = extensionId === '3333' ? 440 : 523; // A4 or C5
+            gainNode.gain.value = 0.1;
+
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.5);
+
+            log(`Test tone played for extension ${extensionId}`);
+        }
+
+        // Logging function
+        function log(message) {
+            const logContainer = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const time = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="timestamp">[${time}]</span>${message}`;
+
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Keep only last 50 entries
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Periodic visualizer decay (for smooth animation)
+        setInterval(() => {
+            ['3333', '4444'].forEach(ext => {
+                state[ext].frequencyBars.forEach(bar => {
+                    const currentHeight = parseFloat(bar.style.height);
+                    if (currentHeight > 2) {
+                        bar.style.height = (currentHeight * 0.9) + '%'; // Smooth decay
+                    }
+                });
+            });
+        }, 50);
+
+        log('Audio monitor ready - waiting for audio streams...');
+    </script>
+</body>
+</html>

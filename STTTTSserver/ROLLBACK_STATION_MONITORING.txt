@@ -1,0 +1,23 @@
+ROLLBACK INSTRUCTIONS:
+==================
+
+If you need to rollback STTTTSserver.js to before station monitoring:
+
+1. Stop the server:
+   pkill -f STTTTSserver.js
+
+2. Restore backup:
+   cp STTTTSserver.js.backup-before-station-monitoring-20251126_214123 STTTTSserver.js
+
+3. Restart the server:
+   node STTTTSserver.js &
+
+4. Verify checksum (original):
+   md5sum STTTTSserver.js
+   Should be: 02f48c75d64e47feb3fc5645f8b6dd2d
+
+Original file info:
+- Lines: 4085
+- Size: 147K
+- MD5: 02f48c75d64e47feb3fc5645f8b6dd2d
+- Date: Nov 25 20:44

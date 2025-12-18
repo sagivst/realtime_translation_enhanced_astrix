@@ -13,6 +13,8 @@ const deepl = require('deepl-node');
 // const sdk = require('microsoft-cognitiveservices-speech-sdk'); // Replaced with ElevenLabs
 const ElevenLabsTTSService = require('./elevenlabs-tts-service');
 const HumeStreamingClient = require('./hume-streaming-client');
+const Station3Handler = require('./station3-handler');
+const Station9Handler = require('./station9-handler');
 
 // Import HMLCP modules
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
@@ -62,6 +64,9 @@ const io = socketIo(server, {
 
 // Make Socket.IO available globally for audiosocket-integration
 global.io = io;
+
+// Load audio streaming extension for monitoring pages
+require("./audio-streaming-direct");
 
 // ========================================================================
 // OLD TIMING CLIENT - DISABLED 2025-11-12
@@ -497,6 +502,14 @@ async function createDeepgramStreamingConnection(extensionId) {
         console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
         
         // TODO Phase 4: Handle transcript and integrate with translation pipeline
+      // STATION-3 MONITORING: Record metrics
+      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
+      handler.onTranscript(data);
+      
+      // Reset timer for next segment
+      if (data.is_final) {
+        audioStartTimes[extensionId] = Date.now();
+      }
         // For now, just log it
         if (isFinal) {
           // Final transcript - ready for translation
@@ -508,6 +521,9 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Error occurred
     connection.on(LiveTranscriptionEvents.Error, (error) => {
       console.error(`[WEBSOCKET] Error for extension ${extensionId}:`, error);
+      // STATION-3 MONITORING: Record error
+      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
+      handler.onError(error);
       streamingStateManager.stats.errors++;
       state.errors.push({
         timestamp: Date.now(),
@@ -524,6 +540,9 @@ async function createDeepgramStreamingConnection(extensionId) {
     // Event: Metadata received
     connection.on(LiveTranscriptionEvents.Metadata, (data) => {
       console.log(`[WEBSOCKET] Metadata received for extension ${extensionId}:`, JSON.stringify(data));
+      // STATION-3 MONITORING: Record metadata
+      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
+      handler.onMetadata(data);
     });
 
     console.log(`[WEBSOCKET] ✓ Deepgram streaming connection created for extension ${extensionId}`);
@@ -1507,6 +1526,42 @@ extensionGainFactors.set("3333", 7.5);
 extensionGainFactors.set("4444", 7.5);
 console.log("[GAIN] Initialized extensions 3333/4444 with gain 1.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
+
+// Station-3 monitoring handlers
+const station3_3333 = new Station3Handler("3333");
+const station3_4444 = new Station3Handler("4444");
+
+// Initialize StationAgent when available
+try {
+  const StationAgent = require("./monitoring/StationAgent");
+  station3_3333.initStationAgent(StationAgent);
+  station3_4444.initStationAgent(StationAgent);
+  console.log("[STATION-3] Monitoring agents initialized");
+} catch (e) {
+  console.log("[STATION-3] StationAgent error:", e.message);
+  console.log("[STATION-3] Stack trace:", e.stack);
+  console.log("[STATION-3] Metrics disabled");
+}
+
+// Station-9 monitoring handlers
+const station9_3333 = new Station9Handler("3333");
+const station9_4444 = new Station9Handler("4444");
+
+// Initialize StationAgent for Station-9
+try {
+  const StationAgent = require("./monitoring/StationAgent");
+  station9_3333.initStationAgent(StationAgent);
+  station9_4444.initStationAgent(StationAgent);
+  console.log("[STATION-9] Monitoring agents initialized");
+} catch (e) {
+  console.log("[STATION-9] StationAgent not available, metrics disabled");
+}
+
+// Track audio start times for latency calculation
+const audioStartTimes = {
+  "3333": Date.now(),
+  "4444": Date.now()
+};
 const humeAudioBuffers = new Map(); // key: socket.id, value: array of audio chunks to buffer before sending to Hume
 const socketToExtension = new Map(); // key: socket.id, value: extension (for Hume emotion events)
 
@@ -3648,6 +3703,15 @@ const socket3333Out = dgram.createSocket('udp4');
 const socket4444In = dgram.createSocket('udp4');
 const socket4444Out = dgram.createSocket('udp4');
 
+// Expose UDP sockets globally for audio streaming extension
+global.udpSockets = {
+    socket3333In: socket3333In,
+    socket3333Out: socket3333Out,
+    socket4444In: socket4444In,
+    socket4444Out: socket4444Out
+};
+console.log("[STTTTSserver] UDP sockets exposed globally as global.udpSockets");
+
 // Statistics
 let udpPcmStats = {
   from3333Packets: 0,
@@ -4004,6 +4068,12 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
   const frameSize = UDP_PCM_CONFIG.frameSizeBytes;
   const totalFrames = Math.floor(pcmBuffer.length / frameSize);
 
+
+  // STATION-9 MONITORING: TTS output to Gateway
+  const station9Handler = targetExtension === '3333' ? station9_3333 : station9_4444;
+  if (station9Handler) {
+    station9Handler.onTTSOutput(pcmBuffer);
+  }
   console.log(`[UDP-${targetExtension}] Sending ${pcmBuffer.length} bytes (${totalFrames} frames)`);
 
   for (let i = 0; i < totalFrames; i++) {

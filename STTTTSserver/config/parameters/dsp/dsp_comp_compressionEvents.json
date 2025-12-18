@@ -1,0 +1,34 @@
+{
+  "id": "dsp.comp.compressionEvents",
+  "name": "Compression Events",
+  "category": "dsp",
+  "subcategory": "compressor",
+  "path": "dsp.comp.compressionEvents",
+  "unit": "count",
+  "description": "Number of times compressor engaged",
+  "ranges": {
+    "min": 0,
+    "max": 1000,
+    "recommendedMin": 50,
+    "recommendedMax": 500
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 700,
+    "criticalLow": null,
+    "criticalHigh": 900
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "low",
+    "displayOrder": 9
+  },
+  "default": false
+}

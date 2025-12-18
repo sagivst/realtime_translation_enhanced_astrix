@@ -1,0 +1,34 @@
+{
+  "id": "dsp.agc.rmsDeviation",
+  "name": "RMS Deviation",
+  "category": "dsp",
+  "subcategory": "agc",
+  "path": "dsp.agc.rmsDeviation",
+  "unit": "dB",
+  "description": "Deviation from target RMS",
+  "ranges": {
+    "min": 0,
+    "max": 10,
+    "recommendedMin": 0,
+    "recommendedMax": 3
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": 4,
+    "criticalLow": null,
+    "criticalHigh": 8
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 7
+  },
+  "default": false
+}

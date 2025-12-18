@@ -1,0 +1,434 @@
+/**
+ * Monitoring Box Component Styles
+ *
+ * Modular CSS for the reusable MonitoringBox JavaScript component
+ * Dark modern theme with purple/blue gradients and smooth animations
+ */
+
+/* Main container */
+.monitoring-box {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-radius: 15px;
+  padding: 25px;
+  border: 2px solid #475569;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  color: #e0e0e0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Box header */
+.box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #475569;
+}
+
+.box-header h2 {
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+}
+
+.station-id {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-left: 10px;
+}
+
+.status-badge {
+  padding: 8px 20px;
+  border-radius: 25px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.status-badge.active {
+  background: #10b981;
+  color: white;
+  animation: pulse-green 2s infinite;
+}
+
+.status-badge.inactive {
+  background: #64748b;
+  color: #cbd5e1;
+}
+
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 2px 20px rgba(16, 185, 129, 0.8); }
+}
+
+/* Metrics sections */
+.metrics-section {
+  margin-bottom: 25px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metrics-section h3 {
+  font-size: 16px;
+  color: #667eea;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 8px;
+}
+
+.metric-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Progress bars */
+.progress-bar {
+  height: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 16px;
+  transition: width 0.5s ease, background 0.3s ease;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+
+.progress-fill.good {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+}
+
+.progress-fill.critical {
+  background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+  50% { box-shadow: 0 0 25px rgba(239, 68, 68, 1); }
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Sub-metrics (mini bars) */
+.sub-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.sub-metric label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mini-bar {
+  height: 18px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.mini-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 9px;
+  transition: width 0.3s ease;
+}
+
+.mini-bar-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Latency metrics */
+.metric-value-display {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.metric-value-display .value {
+  display: block;
+  font-size: 36px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.metric-value-display .value.good {
+  color: #10b981;
+}
+
+.metric-value-display .value.warning {
+  color: #f59e0b;
+}
+
+.metric-value-display .value.critical {
+  color: #ef4444;
+  animation: pulse-text 1.5s infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.metric-value-display .label {
+  font-size: 13px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sparkline graph */
+.sparkline-container {
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.sparkline-container canvas {
+  width: 100%;
+  height: 80px;
+  display: block;
+}
+
+/* Metric details */
+.metric-details {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metric-details span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.metric-details strong {
+  color: #e0e0e0;
+  margin-left: 5px;
+}
+
+/* Packet flow visualization */
+.packet-flow-viz {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  margin-bottom: 15px;
+}
+
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px 25px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.flow-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 5px;
+}
+
+.flow-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.flow-arrow {
+  font-size: 24px;
+  color: #667eea;
+  position: relative;
+}
+
+.arrow-animation {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #667eea;
+  border-radius: 50%;
+  animation: flow-pulse 2s infinite;
+}
+
+@keyframes flow-pulse {
+  0% { left: 0; opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Packet stats */
+.packet-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-item {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  border-left: 3px solid #667eea;
+}
+
+.stat-item label {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+/* Audio quality indicators */
+.quality-indicators {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.quality-item {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quality-item label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.quality-value {
+  font-size: 15px;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+.quality-status {
+  font-size: 18px;
+  margin-left: 10px;
+}
+
+/* Control buttons */
+.box-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 2px solid #475569;
+}
+
+.control-btn {
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  color: #e0e0e0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.control-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.control-btn.active {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+}
+
+.control-btn.primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.control-btn.primary:hover {
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .sub-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .packet-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quality-indicators {
+    grid-template-columns: 1fr;
+  }
+
+  .box-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

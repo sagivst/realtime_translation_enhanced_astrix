@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.sampleRate",
+  "name": "Sample Rate",
+  "category": "Audio Quality",
+  "path": "audioQuality.sampleRate",
+  "unit": "Hz",
+  "description": "Audio sample rate",
+  "ranges": {
+    "min": 8000,
+    "max": 48000,
+    "recommendedMin": 16000,
+    "recommendedMax": 48000
+  },
+  "thresholds": {
+    "warningLow": 8000,
+    "warningHigh": 48000,
+    "criticalLow": 8000,
+    "criticalHigh": 48000
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 31
+  }
+}

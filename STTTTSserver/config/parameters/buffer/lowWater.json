@@ -1,0 +1,33 @@
+{
+  "id": "buffer.lowWater",
+  "name": "Low Water Mark",
+  "category": "Buffer",
+  "path": "buffer.lowWater",
+  "unit": "%",
+  "description": "Minimum buffer usage level",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 5,
+    "recommendedMax": 30
+  },
+  "thresholds": {
+    "warningLow": 5,
+    "warningHigh": 30,
+    "criticalLow": 2,
+    "criticalHigh": 40
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 8
+  }
+}

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Quality Monitoring Dashboard</title>
+  <link rel="stylesheet" href="monitoring-box.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 30px;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 20px;
+      border: 2px solid #475569;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .dashboard-header h1 {
+      font-size: 42px;
+      font-weight: bold;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 15px;
+    }
+
+    .dashboard-header .subtitle {
+      font-size: 16px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 10px;
+      border-left: 4px solid #667eea;
+      text-align: center;
+    }
+
+    .stat-card label {
+      display: block;
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    .stat-card .value.good {
+      color: #10b981;
+    }
+
+    .stat-card .value.warning {
+      color: #f59e0b;
+    }
+
+    .stat-card .value.critical {
+      color: #ef4444;
+    }
+
+    /* Compact Grid View */
+    #compactGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 25px;
+      margin-top: 30px;
+    }
+
+    /* Compact Station Card */
+    .station-card {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 15px;
+      padding: 20px;
+      border: 2px solid #475569;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .station-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+      border-color: #667eea;
+    }
+
+    .station-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #475569;
+    }
+
+    .station-card-header h3 {
+      font-size: 18px;
+      color: #667eea;
+      margin: 0;
+    }
+
+    .station-card-header .expand-icon {
+      font-size: 20px;
+      color: #667eea;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .station-card-header .expand-icon:hover {
+      transform: scale(1.2);
+      color: #764ba2;
+    }
+
+    .station-status {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .station-status.active {
+      background: #10b981;
+      color: white;
+      animation: pulse-green 2s infinite;
+    }
+
+    .station-status.inactive {
+      background: #64748b;
+      color: #cbd5e1;
+    }
+
+    .station-card-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .compact-metric {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .compact-metric label {
+      display: block;
+      font-size: 10px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .compact-metric .value {
+      font-size: 18px;
+      font-weight: bold;
+      color: #e0e0e0;
+    }
+
+    /* Expanded View */
+    #expandedView {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      z-index: 1000;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    #expandedView.visible {
+      display: block;
+    }
+
+    .expanded-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      border-radius: 15px;
+      border: 2px solid #475569;
+    }
+
+    .expanded-header h2 {
+      font-size: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .collapse-btn {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .collapse-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+
+    #expandedContent {
+      width: 100%;
+    }
+
+    /* Animations */
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.8); }
+    }
+
+    /* Loading state */
+    .loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 18px;
+      color: #94a3b8;
+    }
+
+    .loading::after {
+      content: '...';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #compactGrid {
+        grid-template-columns: 1fr;
+      }
+
+      .dashboard-header h1 {
+        font-size: 32px;
+      }
+
+      .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <h1>🎵 Audio Quality Monitoring Dashboard</h1>
+    <p class="subtitle">Real-time monitoring of audio processing pipeline stations</p>
+
+    <!-- System-Wide Stats -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <label>Active Stations</label>
+        <div class="value good" id="stats-active">0</div>
+      </div>
+      <div class="stat-card">
+        <label>Total Stations</label>
+        <div class="value" id="stats-total">0</div>
+      </div>
+      <div class="stat-card">
+        <label>Avg Latency</label>
+        <div class="value" id="stats-latency">--</div>
+      </div>
+      <div class="stat-card">
+        <label>Total Packets</label>
+        <div class="value" id="stats-packets">0</div>
+      </div>
+      <div class="stat-card">
+        <label>Buffer Health</label>
+        <div class="value good" id="stats-buffer">Good</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compact Grid View (Default) -->
+  <div id="compactGrid">
+    <div class="loading">Loading stations</div>
+  </div>
+
+  <!-- Expanded View (Full Screen) -->
+  <div id="expandedView">
+    <div class="expanded-header">
+      <h2 id="expandedTitle">Station Details</h2>
+      <button class="collapse-btn" onclick="collapseStation()">
+        <span>⛶</span>
+        <span>Back to Grid</span>
+      </button>
+    </div>
+    <div id="expandedContent"></div>
+  </div>
+
+  <!-- Include Socket.IO -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Include MonitoringBox Component -->
+  <script src="monitoring-box.js"></script>
+
+  <!-- Main Dashboard Logic -->
+  <script>
+    // WebSocket connection
+    const socket = io('http://20.170.155.53:3021');
+    let stations = {};
+    let expandedStationId = null;
+
+    // Connect to monitoring server
+    socket.on('connect', () => {
+      console.log('[Dashboard] Connected to monitoring server');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[Dashboard] Disconnected from monitoring server');
+    });
+
+    // Initial station state
+    socket.on('stations-state', (data) => {
+      console.log('[Dashboard] Received stations state:', Object.keys(data).length, 'stations');
+      stations = data;
+      renderCompactGrid();
+      updateSystemStats();
+    });
+
+    // Real-time station updates
+    socket.on('station-update', (data) => {
+      const { stationId, metrics } = data;
+
+      if (stations[stationId]) {
+        stations[stationId].metrics = metrics;
+
+        if (expandedStationId === stationId) {
+          // Update expanded MonitoringBox
+          if (window.monitoringBoxes[stationId]) {
+            window.monitoringBoxes[stationId].update(metrics);
+          }
+        } else {
+          // Update compact card
+          updateStationCard(stationId);
+        }
+
+        updateSystemStats();
+      }
+    });
+
+    /**
+     * Render compact grid view with all stations
+     */
+    function renderCompactGrid() {
+      const grid = document.getElementById('compactGrid');
+
+      if (Object.keys(stations).length === 0) {
+        grid.innerHTML = '<div class="loading">No stations available</div>';
+        return;
+      }
+
+      grid.innerHTML = '';
+
+      Object.entries(stations).forEach(([stationId, station]) => {
+        const card = createStationCard(stationId, station);
+        grid.appendChild(card);
+      });
+    }
+
+    /**
+     * Create compact station card
+     */
+    function createStationCard(stationId, station) {
+      const card = document.createElement('div');
+      card.className = 'station-card';
+      card.id = `card-${stationId}`;
+
+      const metrics = station.metrics || {};
+      const statusClass = station.active ? 'active' : 'inactive';
+      const statusText = station.active ? 'ACTIVE' : 'INACTIVE';
+
+      card.innerHTML = `
+        <div class="station-card-header">
+          <div>
+            <h3>${station.name}</h3>
+            <span class="station-status ${statusClass}">${statusText}</span>
+          </div>
+          <span class="expand-icon" onclick="expandStation('${stationId}')">⛶</span>
+        </div>
+
+        <div class="station-card-metrics">
+          <div class="compact-metric">
+            <label>Buffer</label>
+            <div class="value" id="${stationId}-compact-buffer">${(metrics.bufferUsage || 0).toFixed(1)}%</div>
+          </div>
+          <div class="compact-metric">
+            <label>Latency</label>
+            <div class="value" id="${stationId}-compact-latency">${(metrics.avgLatency || 0).toFixed(1)}ms</div>
+          </div>
+          <div class="compact-metric">
+            <label>Packets RX</label>
+            <div class="value" id="${stationId}-compact-rx">${(metrics.packetsRx || 0).toLocaleString()}</div>
+          </div>
+          <div class="compact-metric">
+            <label>Packets TX</label>
+            <div class="value" id="${stationId}-compact-tx">${(metrics.packetsTx || 0).toLocaleString()}</div>
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    /**
+     * Update single station card with new metrics
+     */
+    function updateStationCard(stationId) {
+      const station = stations[stationId];
+      if (!station) return;
+
+      const metrics = station.metrics || {};
+
+      // Update buffer
+      const bufferEl = document.getElementById(`${stationId}-compact-buffer`);
+      if (bufferEl) {
+        bufferEl.textContent = `${(metrics.bufferUsage || 0).toFixed(1)}%`;
+      }
+
+      // Update latency
+      const latencyEl = document.getElementById(`${stationId}-compact-latency`);
+      if (latencyEl) {
+        latencyEl.textContent = `${(metrics.avgLatency || 0).toFixed(1)}ms`;
+      }
+
+      // Update packets RX
+      const rxEl = document.getElementById(`${stationId}-compact-rx`);
+      if (rxEl) {
+        rxEl.textContent = (metrics.packetsRx || 0).toLocaleString();
+      }
+
+      // Update packets TX
+      const txEl = document.getElementById(`${stationId}-compact-tx`);
+      if (txEl) {
+        txEl.textContent = (metrics.packetsTx || 0).toLocaleString();
+      }
+    }
+
+    /**
+     * Expand station to full screen
+     */
+    function expandStation(stationId) {
+      const station = stations[stationId];
+      if (!station) return;
+
+      expandedStationId = stationId;
+
+      // Hide compact grid
+      document.getElementById('compactGrid').style.display = 'none';
+
+      // Show expanded view
+      const expandedView = document.getElementById('expandedView');
+      expandedView.classList.add('visible');
+
+      // Update title
+      document.getElementById('expandedTitle').textContent = `${station.name} - Detailed Metrics`;
+
+      // Clear and render full MonitoringBox
+      const content = document.getElementById('expandedContent');
+      content.innerHTML = `<div id="monitoring-box-${stationId}"></div>`;
+
+      // Create MonitoringBox instance
+      const box = new MonitoringBox(`monitoring-box-${stationId}`, station);
+      window.monitoringBoxes[stationId] = box;
+
+      // Update with current metrics
+      if (station.metrics) {
+        box.update(station.metrics);
+      }
+
+      console.log(`[Dashboard] Expanded station: ${stationId}`);
+    }
+
+    /**
+     * Collapse expanded station back to grid
+     */
+    function collapseStation() {
+      expandedStationId = null;
+
+      // Hide expanded view
+      const expandedView = document.getElementById('expandedView');
+      expandedView.classList.remove('visible');
+
+      // Show compact grid
+      document.getElementById('compactGrid').style.display = 'grid';
+
+      // Clear expanded content
+      document.getElementById('expandedContent').innerHTML = '';
+
+      console.log('[Dashboard] Collapsed to grid view');
+    }
+
+    /**
+     * Update system-wide statistics
+     */
+    function updateSystemStats() {
+      const stationArray = Object.values(stations);
+      const activeStations = stationArray.filter(s => s.active).length;
+      const totalStations = stationArray.length;
+
+      // Active stations
+      document.getElementById('stats-active').textContent = activeStations;
+
+      // Total stations
+      document.getElementById('stats-total').textContent = totalStations;
+
+      // Average latency across all active stations
+      const latencies = stationArray
+        .filter(s => s.active && s.metrics && s.metrics.avgLatency)
+        .map(s => s.metrics.avgLatency);
+
+      const avgLatency = latencies.length > 0
+        ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(1)
+        : '--';
+
+      const latencyEl = document.getElementById('stats-latency');
+      latencyEl.textContent = avgLatency !== '--' ? `${avgLatency}ms` : '--';
+
+      // Color code latency
+      if (avgLatency !== '--') {
+        latencyEl.className = 'value';
+        if (avgLatency > 100) latencyEl.classList.add('critical');
+        else if (avgLatency > 50) latencyEl.classList.add('warning');
+        else latencyEl.classList.add('good');
+      }
+
+      // Total packets (sum of all RX packets)
+      const totalPackets = stationArray
+        .filter(s => s.metrics && s.metrics.packetsRx)
+        .reduce((sum, s) => sum + s.metrics.packetsRx, 0);
+
+      document.getElementById('stats-packets').textContent = totalPackets.toLocaleString();
+
+      // Buffer health (percentage of stations with good buffer usage < 60%)
+      const bufferHealthy = stationArray
+        .filter(s => s.active && s.metrics && s.metrics.bufferUsage < 60).length;
+
+      const bufferHealth = activeStations > 0
+        ? Math.round((bufferHealthy / activeStations) * 100)
+        : 0;
+
+      const bufferEl = document.getElementById('stats-buffer');
+      if (bufferHealth > 80) {
+        bufferEl.textContent = 'Good';
+        bufferEl.className = 'value good';
+      } else if (bufferHealth > 60) {
+        bufferEl.textContent = 'Fair';
+        bufferEl.className = 'value warning';
+      } else {
+        bufferEl.textContent = 'Poor';
+        bufferEl.className = 'value critical';
+      }
+    }
+
+    // Initialize
+    console.log('[Dashboard] Initializing Audio Quality Monitoring Dashboard');
+  </script>
+
+</body>
+</html>

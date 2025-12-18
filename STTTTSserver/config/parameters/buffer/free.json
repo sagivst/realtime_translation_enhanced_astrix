@@ -1,0 +1,33 @@
+{
+  "id": "buffer.free",
+  "name": "Free Buffer Space",
+  "category": "Buffer",
+  "path": "buffer.free",
+  "unit": "KB",
+  "description": "Available free buffer space",
+  "ranges": {
+    "min": 0,
+    "max": 1024,
+    "recommendedMin": 200,
+    "recommendedMax": 800
+  },
+  "thresholds": {
+    "warningLow": 200,
+    "warningHigh": 800,
+    "criticalLow": 100,
+    "criticalHigh": 900
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 10
+  }
+}

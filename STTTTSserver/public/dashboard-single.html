@@ -2450,7 +2450,7 @@
 
                         // Create global gain node for volume control
                         window.asteriskOutboundGainNode = window.asteriskOutboundAudioContext.createGain();
-                        window.asteriskOutboundGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                        window.asteriskOutboundGainNode.gain.value = 0.0;  // Start muted - user controls volume  // Full gain - slider controls actual volume (matches slider default)
                         window.asteriskOutboundGainNode.connect(window.asteriskOutboundAudioContext.destination);
                         console.log('[Card #6] Web Audio Context initialized at', data.sampleRate, 'Hz');
                     }
@@ -2824,13 +2824,18 @@
 
             // Emit configuration to server (with safety check)
             if (socket && socket.connected) {
-                socket.emit('qa-language-config', {
-                    extension: filterExtension,
-                    sourceLang: sourceLang,
-                    targetLang: targetLang,
-                    qaMode: sourceLang === targetLang
+                // If no extension filter, update BOTH 3333 and 4444
+                const extensionsToUpdate = filterExtension ? [filterExtension] : ['3333', '4444'];
+                
+                extensionsToUpdate.forEach(ext => {
+                    socket.emit('qa-language-config', {
+                        extension: ext,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang,
+                        qaMode: sourceLang === targetLang
+                    });
+                    console.log(`[QA Settings] ✓ Extension ${ext} updated: ${sourceLang} → ${targetLang}`);
                 });
-                console.log(`[QA Settings] ✓ Extension ${filterExtension} updated and sent to server: ${sourceLang} → ${targetLang} (QA Mode: ${sourceLang === targetLang})`);
             } else {
                 console.warn('[QA Settings] Socket not connected, will retry on connect');
             }
@@ -3357,7 +3362,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                 
                 // Create global gain node for volume control
                 outgoingGainNode = outgoingAudioContext.createGain();
-                outgoingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                outgoingGainNode.gain.value = 0.0;  // Start muted - user controls volume  // Full gain - slider controls actual volume (matches slider default)
                 outgoingGainNode.connect(outgoingAudioContext.destination);
                 console.log('[Translated Audio] Web Audio Context initialized at', data.sampleRate, 'Hz');
                 console.log('[Translated Audio] AudioContext state:', outgoingAudioContext.state);
@@ -3557,7 +3562,7 @@ ${timestamp},End-to-End,${document.getElementById('e2eLatency').textContent},-,-
                 
                 // Create global gain node for volume control
                 incomingGainNode = incomingAudioContext.createGain();
-                incomingGainNode.gain.value = 0.0;  // Start at 0% (matches slider default)
+                incomingGainNode.gain.value = 0.0;  // Start muted - user controls volume  // Full gain - slider controls actual volume (matches slider default)
                 incomingGainNode.connect(incomingAudioContext.destination);
                 console.log('[Audio Fork] Web Audio Context initialized at', data.sampleRate, 'Hz');
                 console.log('[Audio Fork] AudioContext state:', incomingAudioContext.state);

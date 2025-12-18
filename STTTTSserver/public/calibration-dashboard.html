@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Calibration Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+      background: #0a0e27;
+      color: #e0e0e0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 30px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+      color: #10b981;
+    }
+
+    .header p {
+      color: #94a3b8;
+      font-size: 0.95em;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .sidebar {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 12px;
+      border: 1px solid #334155;
+      padding: 20px;
+      height: fit-content;
+    }
+
+    .sidebar h2 {
+      font-size: 1.2em;
+      margin-bottom: 15px;
+      color: #10b981;
+      border-bottom: 2px solid #334155;
+      padding-bottom: 10px;
+    }
+
+    .station-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .station-item {
+      background: rgba(255,255,255,0.05);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .station-item:hover {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .station-item.selected {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.15);
+    }
+
+    .station-item .name {
+      font-weight: bold;
+      font-size: 1.05em;
+      margin-bottom: 5px;
+    }
+
+    .station-item .type {
+      font-size: 0.85em;
+      color: #94a3b8;
+    }
+
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .controls-panel {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 12px;
+      border: 1px solid #334155;
+      padding: 25px;
+    }
+
+    .controls-panel h2 {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+      color: #10b981;
+    }
+
+    .control-group {
+      margin-bottom: 20px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #94a3b8;
+      font-size: 0.9em;
+    }
+
+    .control-group input {
+      width: 100%;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-family: inherit;
+      font-size: 0.95em;
+    }
+
+    .control-group input:focus {
+      outline: none;
+      border-color: #10b981;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.95em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: #10b981;
+      color: #0a0e27;
+    }
+
+    button.primary:hover {
+      background: #059669;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.1);
+      color: #e0e0e0;
+      border: 1px solid #334155;
+    }
+
+    button.secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status-panel {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 12px;
+      border: 1px solid #334155;
+      padding: 25px;
+    }
+
+    .status-panel h2 {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+      color: #10b981;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-box {
+      background: rgba(255,255,255,0.05);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+
+    .stat-box .label {
+      font-size: 0.85em;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+
+    .stat-box .value {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .chart-container {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 20px;
+      border: 1px solid #334155;
+      height: 300px;
+      position: relative;
+    }
+
+    .chart-container canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .log-panel {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 12px;
+      border: 1px solid #334155;
+      padding: 25px;
+    }
+
+    .log-panel h2 {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+      color: #10b981;
+    }
+
+    .log-output {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      height: 300px;
+      overflow-y: auto;
+      color: #94a3b8;
+    }
+
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-left: 3px solid transparent;
+    }
+
+    .log-entry.info {
+      border-left-color: #10b981;
+    }
+
+    .log-entry.warning {
+      border-left-color: #f59e0b;
+      color: #fbbf24;
+    }
+
+    .log-entry.error {
+      border-left-color: #ef4444;
+      color: #fca5a5;
+    }
+
+    .log-entry .timestamp {
+      color: #64748b;
+      margin-right: 10px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(16, 185, 129, 0.3);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge.running {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .badge.complete {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+
+    .badge.converged {
+      background: rgba(16, 185, 129, 0.3);
+      color: #10b981;
+    }
+
+    .score-display {
+      font-size: 3em;
+      font-weight: bold;
+      text-align: center;
+      margin: 20px 0;
+      background: linear-gradient(135deg, #10b981, #059669);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #059669);
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🤖 AI-Driven Calibration Dashboard</h1>
+    <p>Recursive audio optimization using ChatGPT-powered parameter tuning</p>
+  </div>
+
+  <div class="container">
+    <!-- Sidebar: Station Selection -->
+    <div class="sidebar">
+      <h2>Select Station</h2>
+      <div class="station-list" id="stationList">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Controls Panel -->
+      <div class="controls-panel">
+        <h2>Optimization Controls</h2>
+        <div class="control-group">
+          <label>Max Iterations</label>
+          <input type="number" id="maxIterations" value="20" min="1" max="100">
+        </div>
+        <div class="control-group">
+          <label>Convergence Threshold</label>
+          <input type="number" id="threshold" value="0.01" min="0.001" max="0.1" step="0.001">
+        </div>
+        <div class="button-group">
+          <button class="primary" id="startBtn" onclick="startOptimization()">Start Optimization</button>
+          <button class="secondary" id="runOnceBtn" onclick="runOnce()">Run Once</button>
+          <button class="secondary" id="resetBtn" onclick="resetParameters()">Reset Parameters</button>
+        </div>
+      </div>
+
+      <!-- Status Panel -->
+      <div class="status-panel">
+        <h2>Optimization Status <span id="statusBadge"></span></h2>
+        <div class="status-grid">
+          <div class="stat-box">
+            <div class="label">Current Iteration</div>
+            <div class="value" id="currentIteration">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Quality Score</div>
+            <div class="value" id="qualityScore">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Score Delta</div>
+            <div class="value" id="scoreDelta">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Elapsed Time</div>
+            <div class="value" id="elapsedTime">-</div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="scoreChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Log Panel -->
+      <div class="log-panel">
+        <h2>Optimization Log</h2>
+        <div class="log-output" id="logOutput">
+          <div class="log-entry info">
+            <span class="timestamp">[Ready]</span>
+            <span>Select a station and configure optimization parameters to begin.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // WebSocket connection
+    const socket = io();
+
+    // State
+    let selectedStation = null;
+    let currentOptimization = null;
+    let startTime = null;
+    let scoreHistory = [];
+
+    // Load stations
+    socket.on('stations-state', (stations) => {
+      const stationList = document.getElementById('stationList');
+      stationList.innerHTML = '';
+
+      Object.values(stations).forEach(station => {
+        const item = document.createElement('div');
+        item.className = 'station-item';
+        item.innerHTML = `
+          <div class="name">${station.name}</div>
+          <div class="type">${station.type}</div>
+        `;
+        item.onclick = () => selectStation(station.id);
+        stationList.appendChild(item);
+      });
+    });
+
+    // Select station
+    function selectStation(stationId) {
+      selectedStation = stationId;
+
+      // Update UI
+      document.querySelectorAll('.station-item').forEach(item => {
+        item.classList.remove('selected');
+      });
+      event.target.closest('.station-item').classList.add('selected');
+
+      addLog('info', `Selected station: ${stationId}`);
+
+      // Reset optimization state
+      resetState();
+    }
+
+    // Reset state
+    function resetState() {
+      currentOptimization = null;
+      startTime = null;
+      scoreHistory = [];
+      document.getElementById('currentIteration').textContent = '0';
+      document.getElementById('qualityScore').textContent = '-';
+      document.getElementById('scoreDelta').textContent = '-';
+      document.getElementById('elapsedTime').textContent = '-';
+      document.getElementById('statusBadge').innerHTML = '';
+      updateChart();
+    }
+
+    // Start optimization
+    async function startOptimization() {
+      if (!selectedStation) {
+        addLog('error', 'Please select a station first');
+        return;
+      }
+
+      const maxIterations = parseInt(document.getElementById('maxIterations').value);
+      const threshold = parseFloat(document.getElementById('threshold').value);
+
+      addLog('info', `Starting recursive optimization (max: ${maxIterations}, threshold: ${threshold})`);
+
+      document.getElementById('startBtn').disabled = true;
+      startTime = Date.now();
+
+      try {
+        const response = await fetch('/api/calibration/recursive-optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stationId: selectedStation,
+            maxIterations,
+            threshold
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          currentOptimization = data.optimizationId;
+          addLog('info', `Optimization started: ${data.optimizationId}`);
+          updateStatusBadge('running');
+        } else {
+          addLog('error', 'Failed to start optimization');
+          document.getElementById('startBtn').disabled = false;
+        }
+      } catch (error) {
+        addLog('error', `Error: ${error.message}`);
+        document.getElementById('startBtn').disabled = false;
+      }
+    }
+
+    // Run once
+    async function runOnce() {
+      if (!selectedStation) {
+        addLog('error', 'Please select a station first');
+        return;
+      }
+
+      addLog('info', 'Running single calibration...');
+      document.getElementById('runOnceBtn').disabled = true;
+
+      try {
+        const response = await fetch('/api/calibration/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stationId: selectedStation,
+            duration: 5000
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          const score = data.result.quality_score;
+          document.getElementById('qualityScore').textContent = score.toFixed(3);
+          addLog('info', `Calibration complete. Score: ${score.toFixed(3)}`);
+        } else {
+          addLog('error', 'Calibration failed');
+        }
+      } catch (error) {
+        addLog('error', `Error: ${error.message}`);
+      } finally {
+        document.getElementById('runOnceBtn').disabled = false;
+      }
+    }
+
+    // Reset parameters
+    function resetParameters() {
+      if (!selectedStation) {
+        addLog('error', 'Please select a station first');
+        return;
+      }
+
+      addLog('warning', 'Reset parameters feature coming soon');
+    }
+
+    // Listen for optimization progress
+    socket.on('optimization-progress', (data) => {
+      if (data.optimizationId === currentOptimization) {
+        const { iteration, currentScore, delta } = data;
+
+        document.getElementById('currentIteration').textContent = iteration;
+        document.getElementById('qualityScore').textContent = currentScore.toFixed(3);
+        document.getElementById('scoreDelta').textContent = delta.toFixed(4);
+
+        scoreHistory.push({ iteration, score: currentScore });
+        updateChart();
+
+        if (startTime) {
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          document.getElementById('elapsedTime').textContent = `${elapsed}s`;
+        }
+
+        addLog('info', `Iteration ${iteration}: Score ${currentScore.toFixed(3)} (Δ ${delta.toFixed(4)})`);
+      }
+    });
+
+    // Listen for optimization complete
+    socket.on('optimization-complete', (data) => {
+      if (data.optimizationId === currentOptimization) {
+        addLog('info', `Optimization complete: ${data.converged ? 'CONVERGED' : 'MAX ITERATIONS'}`);
+        addLog('info', `Final score: ${data.finalScore.toFixed(3)} (${data.totalIterations} iterations)`);
+
+        updateStatusBadge(data.converged ? 'converged' : 'complete');
+        document.getElementById('startBtn').disabled = false;
+      }
+    });
+
+    // Update status badge
+    function updateStatusBadge(status) {
+      const badge = document.getElementById('statusBadge');
+      if (status === 'running') {
+        badge.innerHTML = '<span class="spinner"></span><span class="badge running">Running</span>';
+      } else if (status === 'converged') {
+        badge.innerHTML = '<span class="badge converged">Converged ✓</span>';
+      } else if (status === 'complete') {
+        badge.innerHTML = '<span class="badge complete">Complete</span>';
+      } else {
+        badge.innerHTML = '';
+      }
+    }
+
+    // Add log entry
+    function addLog(type, message) {
+      const logOutput = document.getElementById('logOutput');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+
+      const timestamp = new Date().toLocaleTimeString();
+      entry.innerHTML = `<span class="timestamp">[${timestamp}]</span><span>${message}</span>`;
+
+      logOutput.appendChild(entry);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    // Update chart
+    function updateChart() {
+      const canvas = document.getElementById('scoreChart');
+      const ctx = canvas.getContext('2d');
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (scoreHistory.length === 0) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px SF Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data yet', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+
+      // Draw chart
+      const padding = 40;
+      const width = canvas.width - padding * 2;
+      const height = canvas.height - padding * 2;
+
+      const maxScore = Math.max(...scoreHistory.map(h => h.score), 1);
+      const minScore = Math.min(...scoreHistory.map(h => h.score), 0);
+      const scoreRange = maxScore - minScore || 1;
+
+      // Draw axes
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding, padding);
+      ctx.lineTo(padding, padding + height);
+      ctx.lineTo(padding + width, padding + height);
+      ctx.stroke();
+
+      // Draw grid
+      ctx.strokeStyle = '#1e293b';
+      for (let i = 0; i <= 4; i++) {
+        const y = padding + (height / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(padding + width, y);
+        ctx.stroke();
+      }
+
+      // Draw line
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+
+      scoreHistory.forEach((point, index) => {
+        const x = padding + (width / (scoreHistory.length - 1 || 1)) * index;
+        const y = padding + height - ((point.score - minScore) / scoreRange) * height;
+
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+
+      ctx.stroke();
+
+      // Draw points
+      scoreHistory.forEach((point, index) => {
+        const x = padding + (width / (scoreHistory.length - 1 || 1)) * index;
+        const y = padding + height - ((point.score - minScore) / scoreRange) * height;
+
+        ctx.fillStyle = '#10b981';
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Draw labels
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px SF Mono';
+      ctx.textAlign = 'right';
+      ctx.fillText(maxScore.toFixed(2), padding - 5, padding + 5);
+      ctx.fillText(minScore.toFixed(2), padding - 5, padding + height + 5);
+    }
+
+    // Initial connection
+    socket.on('connect', () => {
+      addLog('info', 'Connected to monitoring server');
+    });
+
+    socket.on('disconnect', () => {
+      addLog('error', 'Disconnected from server');
+    });
+
+    // Request initial stations state
+    socket.emit('request-stations');
+  </script>
+</body>
+</html>

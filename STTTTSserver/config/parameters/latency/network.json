@@ -1,0 +1,33 @@
+{
+  "id": "latency.network",
+  "name": "Network Latency",
+  "category": "Latency",
+  "path": "latency.network",
+  "unit": "ms",
+  "description": "Network transmission latency",
+  "ranges": {
+    "min": 0,
+    "max": 300,
+    "recommendedMin": 0,
+    "recommendedMax": 80
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 80,
+    "criticalLow": 0,
+    "criticalHigh": 150
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "high",
+    "displayOrder": 17
+  }
+}

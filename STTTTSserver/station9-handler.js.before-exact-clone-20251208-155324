@@ -1,0 +1,61 @@
+// Station-9 Handler - Monitors TTS output to Gateway
+const fs = require('fs');
+
+class Station9Handler {
+  constructor(extensionId) {
+    this.extensionId = extensionId;
+    this.configPath = `/tmp/STATION_9-${extensionId}-config.json`;
+    this.knobs = {};
+    this.stationAgent = null;
+
+    // Start polling for config changes
+    this.startPolling();
+  }
+
+  // Initialize StationAgent when available
+  initStationAgent(StationAgent) {
+    this.stationAgent = new StationAgent('STATION_9', this.extensionId);
+    console.log(`[STATION-9] StationAgent initialized for ${this.extensionId}`);
+  }
+
+  // Poll config file every 100ms
+  startPolling() {
+    setInterval(() => {
+      try {
+        const newKnobs = this.loadKnobs();
+        if (JSON.stringify(newKnobs) !== JSON.stringify(this.knobs)) {
+          this.knobs = newKnobs;
+          console.log(`[STATION-9] Config updated for extension ${this.extensionId}`);
+          this.onKnobsChanged?.(this.knobs);
+        }
+      } catch (e) {
+        // Silent fail - config loading is not critical
+      }
+    }, 100);
+  }
+
+  // Load knobs from config file
+  loadKnobs() {
+    try {
+      if (fs.existsSync(this.configPath)) {
+        return JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+      }
+    } catch (e) {}
+    return {};
+  }
+
+  // Trigger metrics collection on TTS output
+  async onTTSOutput(audioBuffer) {
+    if (!this.stationAgent) return;
+    
+    // Call collect() to trigger StationAgent to collect ALL 75 metrics + 113 knobs
+    // and send to monitoring server
+    await this.stationAgent.collect({
+      audioBuffer: audioBuffer,
+      bufferSize: audioBuffer ? audioBuffer.length : 0,
+      timestamp: Date.now()
+    });
+  }
+}
+
+module.exports = Station9Handler;

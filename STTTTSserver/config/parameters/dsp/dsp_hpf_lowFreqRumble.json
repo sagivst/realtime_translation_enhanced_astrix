@@ -1,0 +1,34 @@
+{
+  "id": "dsp.hpf.lowFreqRumble",
+  "name": "Low Freq Rumble",
+  "category": "dsp",
+  "subcategory": "hpf_lpf",
+  "path": "dsp.hpf.lowFreqRumble",
+  "unit": "dB",
+  "description": "Amount of low-frequency rumble below HPF cutoff",
+  "ranges": {
+    "min": -60,
+    "max": -20,
+    "recommendedMin": -50,
+    "recommendedMax": -30
+  },
+  "thresholds": {
+    "warningLow": null,
+    "warningHigh": -25,
+    "criticalLow": null,
+    "criticalHigh": -20
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 1
+  },
+  "default": false
+}

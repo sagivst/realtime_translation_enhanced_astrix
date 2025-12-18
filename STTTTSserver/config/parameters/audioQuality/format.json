@@ -1,0 +1,33 @@
+{
+  "id": "audioQuality.format",
+  "name": "Audio Format",
+  "category": "Audio Quality",
+  "path": "audioQuality.format",
+  "unit": "",
+  "description": "Audio codec format",
+  "ranges": {
+    "min": 0,
+    "max": 1,
+    "recommendedMin": 0,
+    "recommendedMax": 1
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 1,
+    "criticalLow": 0,
+    "criticalHigh": 1
+  },
+  "alerts": {
+    "enabled": false,
+    "audioAlert": false,
+    "visualAlert": false,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 5000,
+    "priority": "low",
+    "displayOrder": 34
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "editableFieldsByCategory": {
+    "buffer": {
+      "total": ["bufferSize", "bufferCount", "autoAdjust", "flushThreshold"],
+      "input": ["inputBufferSize", "inputQueueDepth", "overflowBehavior"],
+      "output": ["outputBufferSize", "outputQueueDepth", "underflowBehavior"],
+      "jitter": ["jitterBufferMin", "jitterBufferMax", "jitterBufferTarget"],
+      "underrun": ["underrunThreshold", "underrunAction"],
+      "overrun": ["overrunThreshold", "overrunAction"],
+      "playback": ["playbackBufferSize", "playbackLatency"],
+      "record": ["recordBufferSize", "recordLatency"],
+      "network": ["networkBufferSize", "networkTimeout"],
+      "processing": ["processingBufferSize", "processingThreads"]
+    },
+    "latency": {
+      "avg": ["maxLatency", "latencyCompensation", "adaptiveMode"],
+      "min": ["minAcceptableLatency"],
+      "max": ["maxAcceptableLatency", "dropOnExceed"],
+      "jitter": ["jitterTolerance", "jitterSmoothing"],
+      "variance": ["varianceThreshold"],
+      "percentile95": ["percentileTarget"],
+      "network": ["networkLatencyCompensation"],
+      "processing": ["processingLatencyLimit"]
+    },
+    "packet": {
+      "loss": ["maxPacketLoss", "fecEnabled", "retransmitEnabled"],
+      "received": ["receiveBufferSize", "receiveQueueDepth"],
+      "sent": ["sendBufferSize", "sendQueueDepth"],
+      "dropped": ["dropThreshold", "dropPolicy"],
+      "outOfOrder": ["reorderingDepth", "reorderTimeout"],
+      "duplicate": ["duplicateDetection", "duplicateWindow"],
+      "retransmit": ["retransmitCount", "retransmitDelay"],
+      "corruption": ["checksumValidation", "corruptionAction"],
+      "fragmentation": ["mtu", "fragmentationEnabled"],
+      "reassembly": ["reassemblyTimeout", "reassemblyBufferSize"],
+      "throughput": ["maxThroughput", "rateLimit"],
+      "bandwidth": ["maxBandwidth", "bandwidthShaping"]
+    },
+    "audioQuality": {
+      "snr": ["minSNR", "noiseGateThreshold"],
+      "mos": ["targetMOS", "mosCalculationMethod"],
+      "pesq": ["pesqMode", "pesqThreshold"],
+      "polqa": ["polqaMode", "polqaThreshold"],
+      "thd": ["maxTHD", "harmonicAnalysis"],
+      "speechLevel": ["targetLevel", "normalization"],
+      "clipping": ["clippingThreshold", "antiClipping"],
+      "noise": ["noiseFloor", "noiseReduction"],
+      "echo": ["echoSupression", "echoThreshold"],
+      "distortion": ["distortionLimit", "distortionMeasurement"]
+    },
+    "performance": {
+      "cpu": ["cpuLimit", "cpuAffinity", "priorityLevel"],
+      "memory": ["memoryLimit", "swapEnabled", "gcThreshold"],
+      "bandwidth": ["bandwidthLimit", "qosClass"],
+      "throughput": ["maxThroughput", "burstLimit"],
+      "threads": ["threadPoolSize", "threadPriority"],
+      "queue": ["queueSize", "queuePolicy"],
+      "cache": ["cacheSize", "cacheTTL"],
+      "io": ["ioBufferSize", "ioThreads"]
+    },
+    "custom": {
+      "state": ["stateTransitionDelay", "stateLogging"],
+      "successRate": ["successRateThreshold", "samplingWindow"],
+      "warningCount": ["maxWarnings", "warningResetInterval"],
+      "criticalCount": ["maxCriticals", "criticalAction"],
+      "totalProcessed": ["counterReset", "counterPersistence"],
+      "processingSpeed": ["speedLimit", "speedOptimization"],
+      "lastActivity": ["activityTimeout", "activityLogging"]
+    },
+    "dsp": {
+      "agc": ["agcMode", "targetLevel", "attackTime", "releaseTime", "maxGain"],
+      "aec": ["aecMode", "tailLength", "nlpEnabled", "convergenceTime"],
+      "noiseReduction": ["nrMode", "aggressiveness", "noiseFloor"],
+      "equalizer": ["eqPreset", "bandCount", "frequencyResponse"],
+      "compressor": ["threshold", "ratio", "attack", "release"],
+      "limiter": ["limitThreshold", "limitRatio"],
+      "gate": ["gateThreshold", "attack", "release", "hold"],
+      "dereverb": ["dereverbMode", "roomSize", "wetDryMix"],
+      "spatializer": ["spatialMode", "widthFactor"],
+      "enhancer": ["enhancementMode", "enhancementLevel"]
+    }
+  },
+  "fieldDefinitions": {
+    "bufferSize": {"label": "Buffer Size", "type": "number", "unit": "KB", "min": 128, "max": 2048, "default": 512, "step": 128},
+    "bufferCount": {"label": "Buffer Count", "type": "number", "unit": "", "min": 2, "max": 16, "default": 4, "step": 1},
+    "autoAdjust": {"label": "Auto Adjust", "type": "boolean", "default": true},
+    "flushThreshold": {"label": "Flush Threshold", "type": "number", "unit": "%", "min": 0, "max": 100, "default": 90, "step": 5},
+    "maxLatency": {"label": "Max Latency", "type": "number", "unit": "ms", "min": 50, "max": 500, "default": 150, "step": 10},
+    "latencyCompensation": {"label": "Latency Compensation", "type": "boolean", "default": true},
+    "adaptiveMode": {"label": "Adaptive Mode", "type": "boolean", "default": true},
+    "maxPacketLoss": {"label": "Max Packet Loss", "type": "number", "unit": "%", "min": 0, "max": 10, "default": 1, "step": 0.1},
+    "fecEnabled": {"label": "FEC Enabled", "type": "boolean", "default": true},
+    "retransmitEnabled": {"label": "Retransmit Enabled", "type": "boolean", "default": true},
+    "minSNR": {"label": "Min SNR", "type": "number", "unit": "dB", "min": 10, "max": 60, "default": 25, "step": 1},
+    "targetMOS": {"label": "Target MOS", "type": "number", "unit": "", "min": 1.0, "max": 5.0, "default": 4.0, "step": 0.1},
+    "cpuLimit": {"label": "CPU Limit", "type": "number", "unit": "%", "min": 10, "max": 100, "default": 80, "step": 5},
+    "memoryLimit": {"label": "Memory Limit", "type": "number", "unit": "MB", "min": 256, "max": 8192, "default": 2048, "step": 256},
+    "agcMode": {"label": "AGC Mode", "type": "select", "options": ["Off", "Soft", "Medium", "Aggressive"], "default": "Medium"},
+    "targetLevel": {"label": "Target Level", "type": "number", "unit": "dB", "min": -30, "max": 0, "default": -12, "step": 1},
+    "attackTime": {"label": "Attack Time", "type": "number", "unit": "ms", "min": 1, "max": 100, "default": 10, "step": 1},
+    "releaseTime": {"label": "Release Time", "type": "number", "unit": "ms", "min": 10, "max": 1000, "default": 100, "step": 10},
+    "maxGain": {"label": "Max Gain", "type": "number", "unit": "dB", "min": 0, "max": 40, "default": 20, "step": 1},
+    "aecMode": {"label": "AEC Mode", "type": "select", "options": ["Off", "Standard", "Enhanced"], "default": "Standard"},
+    "tailLength": {"label": "Tail Length", "type": "number", "unit": "ms", "min": 64, "max": 512, "default": 128, "step": 64},
+    "nlpEnabled": {"label": "NLP Enabled", "type": "boolean", "default": true},
+    "nrMode": {"label": "Noise Reduction Mode", "type": "select", "options": ["Off", "Low", "Medium", "High"], "default": "Medium"},
+    "aggressiveness": {"label": "Aggressiveness", "type": "number", "unit": "", "min": 0, "max": 4, "default": 2, "step": 1}
+  }
+}

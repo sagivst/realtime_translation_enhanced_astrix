@@ -1,0 +1,194 @@
+{
+  "category": "dsp",
+  "name": "DSP Enhancement",
+  "description": "DSP audio enhancement module metrics",
+  "totalParameters": 20,
+  "subcategories": {
+    "hpf_lpf": {
+      "name": "HPF/LPF Filters",
+      "count": 2
+    },
+    "noise_reduction": {
+      "name": "Noise Reduction",
+      "count": 2
+    },
+    "agc": {
+      "name": "Auto Gain Control",
+      "count": 3
+    },
+    "compressor": {
+      "name": "Compressor",
+      "count": 2
+    },
+    "limiter": {
+      "name": "Limiter",
+      "count": 2
+    },
+    "equalizer": {
+      "name": "Equalizer",
+      "count": 2
+    },
+    "aec": {
+      "name": "Echo Canceller",
+      "count": 3
+    },
+    "de_esser": {
+      "name": "De-Esser",
+      "count": 1
+    },
+    "declicker": {
+      "name": "De-Clicker",
+      "count": 1
+    },
+    "dereverberation": {
+      "name": "Dereverberation",
+      "count": 1
+    },
+    "speech_enhancer": {
+      "name": "Speech Enhancer",
+      "count": 1
+    }
+  },
+  "parameters": [
+    {
+      "id": "dsp.hpf.lowFreqRumble",
+      "name": "Low Freq Rumble",
+      "subcategory": "hpf_lpf",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.lpf.hfHarshness",
+      "name": "HF Harshness",
+      "subcategory": "hpf_lpf",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.nr.residualNoise",
+      "name": "Residual Noise Level",
+      "subcategory": "noise_reduction",
+      "unit": "dB",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.nr.speechIntegrityLoss",
+      "name": "Speech Integrity Loss",
+      "subcategory": "noise_reduction",
+      "unit": "%",
+      "priority": "critical"
+    },
+    {
+      "id": "dsp.agc.gainAdjustmentSpeed",
+      "name": "Gain Adjustment Speed",
+      "subcategory": "agc",
+      "unit": "dB/s",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.agc.overAmplificationEvents",
+      "name": "Over-Amplification Events",
+      "subcategory": "agc",
+      "unit": "count",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.agc.rmsDeviation",
+      "name": "RMS Deviation",
+      "subcategory": "agc",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.comp.dynRangeReduction",
+      "name": "Dynamic Range Reduction",
+      "subcategory": "compressor",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.comp.compressionEvents",
+      "name": "Compression Events",
+      "subcategory": "compressor",
+      "unit": "count",
+      "priority": "low"
+    },
+    {
+      "id": "dsp.limiter.clipPreventionRate",
+      "name": "Clip Prevention Rate",
+      "subcategory": "limiter",
+      "unit": "%",
+      "priority": "critical"
+    },
+    {
+      "id": "dsp.limiter.peakMargin",
+      "name": "Peak Margin",
+      "subcategory": "limiter",
+      "unit": "dB",
+      "priority": "critical"
+    },
+    {
+      "id": "dsp.eq.clarityBandEnergy",
+      "name": "Clarity Band Energy (1-3kHz)",
+      "subcategory": "equalizer",
+      "unit": "dB",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.eq.sibilanceEnergy",
+      "name": "Sibilance Energy (6-8kHz)",
+      "subcategory": "equalizer",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.aec.erl",
+      "name": "Echo Return Loss (ERL)",
+      "subcategory": "aec",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.aec.erle",
+      "name": "Echo Return Loss Enhancement (ERLE)",
+      "subcategory": "aec",
+      "unit": "dB",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.aec.lateEchoResidual",
+      "name": "Late Echo Residual",
+      "subcategory": "aec",
+      "unit": "dB",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.deEsser.sibilanceLevel",
+      "name": "Sibilance Level",
+      "subcategory": "de_esser",
+      "unit": "dB",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.declicker.clickCount",
+      "name": "Click Count",
+      "subcategory": "declicker",
+      "unit": "count",
+      "priority": "high"
+    },
+    {
+      "id": "dsp.dereverb.reverbLevel",
+      "name": "Reverb Level",
+      "subcategory": "dereverberation",
+      "unit": "%",
+      "priority": "medium"
+    },
+    {
+      "id": "dsp.speechEnh.intelligibilityScore",
+      "name": "Intelligibility Score",
+      "subcategory": "speech_enhancer",
+      "unit": "%",
+      "priority": "critical"
+    }
+  ]
+}

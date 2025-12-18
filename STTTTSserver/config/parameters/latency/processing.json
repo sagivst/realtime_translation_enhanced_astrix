@@ -1,0 +1,33 @@
+{
+  "id": "latency.processing",
+  "name": "Processing Latency",
+  "category": "Latency",
+  "path": "latency.processing",
+  "unit": "ms",
+  "description": "Audio processing latency",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 30
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 30,
+    "criticalLow": 0,
+    "criticalHigh": 50
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": false,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "medium",
+    "displayOrder": 16
+  }
+}

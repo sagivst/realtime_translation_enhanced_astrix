@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raw Audio Monitor</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: 2px solid #007bff;
+            background: white;
+            color: #007bff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #007bff;
+            color: white;
+        }
+        button.active {
+            background: #007bff;
+            color: white;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .visualizer {
+            width: 100%;
+            height: 100px;
+            background: #222;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        input[type="range"] {
+            flex: 1;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Raw PCM Audio Monitor</h1>
+
+        <div class="buttons">
+            <button onclick="subscribe('3333')">Extension 3333 (English)</button>
+            <button onclick="subscribe('4444')">Extension 4444 (French)</button>
+        </div>
+
+        <div class="status">
+            <div class="status-item">
+                <span>Connection:</span>
+                <span id="connectionStatus">Disconnected</span>
+            </div>
+            <div class="status-item">
+                <span>Extension:</span>
+                <span id="activeExtension">None</span>
+            </div>
+            <div class="status-item">
+                <span>Packets:</span>
+                <span id="packetCount">0</span>
+            </div>
+            <div class="status-item">
+                <span>Bytes:</span>
+                <span id="byteCount">0</span>
+            </div>
+            <div class="status-item">
+                <span>Audio Queue:</span>
+                <span id="queueSize">0</span>
+            </div>
+        </div>
+
+        <canvas class="visualizer" id="visualizer"></canvas>
+
+        <div class="volume-control">
+            <label>Volume:</label>
+            <input type="range" id="volume" min="0" max="100" value="50">
+            <span id="volumeValue">50%</span>
+            <button id="muteBtn" onclick="toggleMute()">Mute</button>
+        </div>
+
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        let audioContext = null;
+        let gainNode = null;
+        let currentExtension = null;
+        let packetCount = 0;
+        let byteCount = 0;
+        let audioQueue = [];
+        let isPlaying = false;
+        let isMuted = false;
+        let nextStartTime = 0;
+
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+            while (logDiv.children.length > 50) {
+                logDiv.removeChild(logDiv.lastChild);
+            }
+            console.log(msg);
+        }
+
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 16000  // Match the PCM sample rate
+                });
+                gainNode = audioContext.createGain();
+                gainNode.connect(audioContext.destination);
+                gainNode.gain.value = 0.5;
+                log('Audio context initialized at 16kHz');
+                setupVisualizer();
+            }
+        }
+
+        function connectSocket() {
+            socket = io('http://20.170.155.53:3020', {
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                log('Connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                log('Disconnected from server');
+            });
+
+            socket.on('audio-subscribed', (data) => {
+                log(`Subscribed to extension ${data.extensionId}`);
+            });
+
+            socket.on('audio-data', async (data) => {
+                packetCount++;
+                document.getElementById('packetCount').textContent = packetCount;
+
+                try {
+                    // Decode base64 to raw bytes
+                    const binaryString = atob(data.data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    byteCount += bytes.length;
+                    document.getElementById('byteCount').textContent = byteCount;
+
+                    // Convert PCM bytes to Float32 samples
+                    const int16Array = new Int16Array(bytes.buffer);
+                    const float32Array = new Float32Array(int16Array.length);
+
+                    for (let i = 0; i < int16Array.length; i++) {
+                        float32Array[i] = int16Array[i] / 32768.0; // Convert to -1 to 1 range
+                    }
+
+                    // Queue the audio
+                    audioQueue.push(float32Array);
+                    document.getElementById('queueSize').textContent = audioQueue.length;
+
+                    if (packetCount % 10 === 0) {
+                        log(`Received ${packetCount} packets, ${byteCount} bytes`);
+                    }
+
+                    // Play queued audio
+                    if (!isPlaying) {
+                        playQueuedAudio();
+                    }
+
+                } catch (error) {
+                    log(`Error processing audio: ${error.message}`);
+                }
+            });
+        }
+
+        async function playQueuedAudio() {
+            if (audioQueue.length === 0 || !audioContext) {
+                isPlaying = false;
+                return;
+            }
+
+            isPlaying = true;
+
+            while (audioQueue.length > 0) {
+                const samples = audioQueue.shift();
+                document.getElementById('queueSize').textContent = audioQueue.length;
+
+                // Create audio buffer
+                const audioBuffer = audioContext.createBuffer(1, samples.length, 16000);
+                audioBuffer.copyToChannel(samples, 0);
+
+                // Create and play source
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(gainNode);
+
+                // Schedule playback
+                const currentTime = audioContext.currentTime;
+                const startTime = Math.max(currentTime, nextStartTime);
+                source.start(startTime);
+
+                // Update next start time
+                nextStartTime = startTime + audioBuffer.duration;
+
+                // Wait for this buffer to finish before playing next
+                await new Promise(resolve => {
+                    source.onended = resolve;
+                });
+            }
+
+            isPlaying = false;
+        }
+
+        function subscribe(extensionId) {
+            if (!socket || !socket.connected) {
+                log('Not connected to server');
+                return;
+            }
+
+            initAudio();
+
+            // Unsubscribe from previous
+            if (currentExtension) {
+                socket.emit('unsubscribe-audio', { extensionId: currentExtension });
+            }
+
+            // Subscribe to new
+            socket.emit('subscribe-audio', { extensionId });
+            currentExtension = extensionId;
+            document.getElementById('activeExtension').textContent = extensionId;
+
+            // Update button states
+            document.querySelectorAll('button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            log(`Subscribing to extension ${extensionId}`);
+        }
+
+        function setupVisualizer() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const analyser = audioContext.createAnalyser();
+            gainNode.connect(analyser);
+            analyser.fftSize = 256;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                requestAnimationFrame(draw);
+
+                analyser.getByteFrequencyData(dataArray);
+
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    barHeight = (dataArray[i] / 255) * canvas.height;
+
+                    ctx.fillStyle = `rgb(50, ${50 + dataArray[i]}, 250)`;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+                    x += barWidth + 1;
+                }
+            }
+
+            draw();
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            if (gainNode) {
+                gainNode.gain.value = isMuted ? 0 : (document.getElementById('volume').value / 100);
+            }
+            document.getElementById('muteBtn').textContent = isMuted ? 'Unmute' : 'Mute';
+        }
+
+        // Volume control
+        document.getElementById('volume').addEventListener('input', (e) => {
+            const value = e.target.value;
+            document.getElementById('volumeValue').textContent = value + '%';
+            if (gainNode && !isMuted) {
+                gainNode.gain.value = value / 100;
+            }
+        });
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            connectSocket();
+            log('Page loaded, ready to monitor audio');
+        });
+    </script>
+</body>
+</html>

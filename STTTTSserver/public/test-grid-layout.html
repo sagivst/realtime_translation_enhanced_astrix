@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Grid Layout Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0f1419;
+      color: #e0e0e0;
+      font-family: 'Monaco', 'Consolas', monospace;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #10b981;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    #test-level1 {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 20px !important;
+      padding: 20px !important;
+      background: rgba(255,255,255,0.05);
+      border: 2px dashed #10b981;
+    }
+
+    #test-level1 > * {
+      grid-column: span 1 !important;
+      width: 100% !important;
+      background: linear-gradient(145deg, #1a2332 0%, #0d1117 100%);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      min-height: 200px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .test-box { /* This matches monitoring-box--large */
+      /* Inherits all properties from #test-level1 > * */
+    }
+  </style>
+</head>
+<body>
+  <h1>Grid Layout Test - Should Show 4 Columns</h1>
+
+  <div id="test-level1">
+    <div class="test-box">Station 1</div>
+    <div class="test-box">Station 2</div>
+    <div class="test-box">Station 3</div>
+    <div class="test-box">Station 4</div>
+    <div class="test-box">Station 5</div>
+    <div class="test-box">Station 6</div>
+    <div class="test-box">Station 7</div>
+    <div class="test-box">Station 8</div>
+    <div class="test-box">Station 9</div>
+    <div class="test-box">Station 10</div>
+    <div class="test-box">Station 11</div>
+  </div>
+
+  <p style="margin-top: 20px; color: #64748b;">
+    If you see 4 columns with stations 1-4 in row 1, stations 5-8 in row 2, and stations 9-11 in row 3,
+    then the grid CSS is working correctly.
+  </p>
+</body>
+</html>

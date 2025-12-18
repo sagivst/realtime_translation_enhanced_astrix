@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring API Test Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #4CAF50;
+        }
+
+        .status-dot.disconnected {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+            }
+        }
+
+        .api-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .api-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .api-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+        }
+
+        .api-card h3 {
+            color: #2a5298;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .method-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .method-badge.post {
+            background: #2196F3;
+        }
+
+        .api-endpoint {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        .test-button {
+            background: #2a5298;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.3s ease;
+            width: 100%;
+        }
+
+        .test-button:hover {
+            background: #1e3c72;
+        }
+
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .response-area {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            white-space: pre-wrap;
+        }
+
+        .response-area.show {
+            display: block;
+        }
+
+        .websocket-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .websocket-section h2 {
+            color: #2a5298;
+            margin-bottom: 20px;
+        }
+
+        .ws-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .ws-log {
+            background: #1e1e1e;
+            color: #4CAF50;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            height: 300px;
+            overflow-y: auto;
+        }
+
+        .ws-message {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(76, 175, 80, 0.1);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .input-group input, .input-group select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .metrics-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            color: #2a5298;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2a5298;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎛️ Monitoring API Test Dashboard</h1>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <span class="status-dot disconnected" id="apiStatus"></span>
+                <span id="apiStatusText">API Status: Checking...</span>
+            </div>
+            <div>
+                API Base URL: <strong>http://20.170.155.53:3090</strong>
+            </div>
+            <div>
+                WebSocket: <span id="wsStatus">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="api-grid">
+            <!-- Real-time Snapshot -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge">GET</span>
+                    Real-time Snapshot
+                </h3>
+                <div class="api-endpoint">/api/snapshots</div>
+                <button class="test-button" onclick="testAPI('snapshots')">Test Endpoint</button>
+                <div class="response-area" id="response-snapshots"></div>
+            </div>
+
+            <!-- Historical Data -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge">GET</span>
+                    Historical Data
+                </h3>
+                <div class="api-endpoint">/api/snapshots/history</div>
+                <div class="input-group">
+                    <select id="history-station">
+                        <option value="Station-1">Station-1</option>
+                        <option value="Station-2">Station-2</option>
+                        <option value="Station-3">Station-3</option>
+                        <option value="Station-4">Station-4</option>
+                        <option value="Station-5">Station-5</option>
+                        <option value="Station-6">Station-6</option>
+                    </select>
+                    <select id="history-ext">
+                        <option value="3333">3333 (English)</option>
+                        <option value="4444">4444 (French)</option>
+                    </select>
+                    <select id="history-range">
+                        <option value="1h">1 hour</option>
+                        <option value="6h">6 hours</option>
+                        <option value="24h">24 hours</option>
+                    </select>
+                </div>
+                <button class="test-button" onclick="testHistoricalData()">Test Endpoint</button>
+                <div class="response-area" id="response-history"></div>
+            </div>
+
+            <!-- Get Knobs -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge">GET</span>
+                    Get Knob Configuration
+                </h3>
+                <div class="api-endpoint">/api/config/knobs/:station/:ext</div>
+                <div class="input-group">
+                    <select id="knobs-station">
+                        <option value="Station-1">Station-1</option>
+                        <option value="Station-2">Station-2</option>
+                        <option value="Station-3">Station-3</option>
+                    </select>
+                    <select id="knobs-ext">
+                        <option value="3333">3333</option>
+                        <option value="4444">4444</option>
+                    </select>
+                </div>
+                <button class="test-button" onclick="testGetKnobs()">Test Endpoint</button>
+                <div class="response-area" id="response-knobs"></div>
+            </div>
+
+            <!-- Update Knobs -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge post">POST</span>
+                    Update Knob Configuration
+                </h3>
+                <div class="api-endpoint">/api/config/knobs/:station/:ext</div>
+                <div class="input-group">
+                    <input type="text" id="update-station" placeholder="Station-3" value="Station-3">
+                    <input type="text" id="update-ext" placeholder="3333" value="3333">
+                </div>
+                <textarea id="update-knobs" style="width: 100%; height: 60px; margin: 10px 0; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;">{
+  "agc_enabled": true,
+  "buffer_size": 1024
+}</textarea>
+                <button class="test-button" onclick="testUpdateKnobs()">Test Endpoint</button>
+                <div class="response-area" id="response-update-knobs"></div>
+            </div>
+
+            <!-- AI Optimization -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge post">POST</span>
+                    AI Optimization
+                </h3>
+                <div class="api-endpoint">/api/optimize</div>
+                <button class="test-button" onclick="testOptimization()">Get Recommendations</button>
+                <div class="response-area" id="response-optimize"></div>
+            </div>
+
+            <!-- Health Check -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge">GET</span>
+                    Health Check
+                </h3>
+                <div class="api-endpoint">/api/health</div>
+                <button class="test-button" onclick="testAPI('health')">Test Endpoint</button>
+                <div class="response-area" id="response-health"></div>
+            </div>
+
+            <!-- Alerts -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge">GET</span>
+                    Get Alerts
+                </h3>
+                <div class="api-endpoint">/api/alerts</div>
+                <button class="test-button" onclick="testAPI('alerts')">Test Endpoint</button>
+                <div class="response-area" id="response-alerts"></div>
+            </div>
+
+            <!-- Batch Operations -->
+            <div class="api-card">
+                <h3>
+                    <span class="method-badge post">POST</span>
+                    Batch Apply Settings
+                </h3>
+                <div class="api-endpoint">/api/batch/apply-settings</div>
+                <button class="test-button" onclick="testBatchApply()">Test Batch Apply</button>
+                <div class="response-area" id="response-batch"></div>
+            </div>
+        </div>
+
+        <!-- Real-time Metrics Display -->
+        <div class="websocket-section">
+            <h2>📊 Real-time WebSocket Monitoring</h2>
+            <div class="ws-controls">
+                <button class="test-button" onclick="connectWebSocket()" style="width: auto; padding: 10px 30px;">Connect WebSocket</button>
+                <button class="test-button" onclick="disconnectWebSocket()" style="width: auto; padding: 10px 30px;">Disconnect</button>
+                <button class="test-button" onclick="clearWSLog()" style="width: auto; padding: 10px 30px;">Clear Log</button>
+            </div>
+
+            <div class="metrics-display" id="metricsDisplay" style="display: none;">
+                <div class="metric-card">
+                    <div class="metric-label">Active Stations</div>
+                    <div class="metric-value" id="metric-stations">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Latency (ms)</div>
+                    <div class="metric-value" id="metric-latency">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Packet Loss (%)</div>
+                    <div class="metric-value" id="metric-loss">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Audio Quality</div>
+                    <div class="metric-value" id="metric-quality">0</div>
+                </div>
+            </div>
+
+            <div class="ws-log" id="wsLog">
+                <div class="ws-message">WebSocket logs will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://20.170.155.53:3090';
+        let socket = null;
+
+        // Check API health on load
+        window.onload = function() {
+            checkAPIHealth();
+        };
+
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health`);
+                const data = await response.json();
+
+                if (data.status === 'healthy') {
+                    document.getElementById('apiStatus').className = 'status-dot connected';
+                    document.getElementById('apiStatusText').textContent = `API Status: Healthy (${data.activeStations} stations active)`;
+                } else {
+                    document.getElementById('apiStatus').className = 'status-dot disconnected';
+                    document.getElementById('apiStatusText').textContent = 'API Status: Unhealthy';
+                }
+            } catch (error) {
+                document.getElementById('apiStatus').className = 'status-dot disconnected';
+                document.getElementById('apiStatusText').textContent = 'API Status: Unreachable';
+            }
+        }
+
+        async function testAPI(endpoint) {
+            const responseDiv = document.getElementById(`response-${endpoint}`);
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/${endpoint}`);
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testHistoricalData() {
+            const station = document.getElementById('history-station').value;
+            const ext = document.getElementById('history-ext').value;
+            const range = document.getElementById('history-range').value;
+            const responseDiv = document.getElementById('response-history');
+
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/snapshots/history?station=${station}&extension=${ext}&timeRange=${range}`);
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testGetKnobs() {
+            const station = document.getElementById('knobs-station').value;
+            const ext = document.getElementById('knobs-ext').value;
+            const responseDiv = document.getElementById('response-knobs');
+
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/config/knobs/${station}/${ext}`);
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testUpdateKnobs() {
+            const station = document.getElementById('update-station').value;
+            const ext = document.getElementById('update-ext').value;
+            const knobs = document.getElementById('update-knobs').value;
+            const responseDiv = document.getElementById('response-update-knobs');
+
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/config/knobs/${station}/${ext}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: knobs
+                });
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testOptimization() {
+            const responseDiv = document.getElementById('response-optimize');
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            const payload = {
+                targetMetrics: ["latency", "audioQuality"],
+                constraints: {
+                    maxLatency: 150,
+                    minQuality: 0.85
+                }
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/optimize`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function testBatchApply() {
+            const responseDiv = document.getElementById('response-batch');
+            responseDiv.className = 'response-area show';
+            responseDiv.textContent = 'Loading...';
+
+            const payload = {
+                targets: ["Station-1", "Station-2", "Station-3"],
+                extensions: ["3333", "4444"],
+                settings: {
+                    agc_enabled: true,
+                    nr_enabled: true,
+                    buffer_size: 512
+                }
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/batch/apply-settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function connectWebSocket() {
+            if (socket && socket.connected) {
+                addWSLog('Already connected');
+                return;
+            }
+
+            socket = io(API_BASE, {
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('wsStatus').textContent = 'Connected';
+                addWSLog('WebSocket connected!');
+                document.getElementById('metricsDisplay').style.display = 'grid';
+
+                // Subscribe to updates
+                socket.emit('subscribe', {
+                    stations: ['Station-1', 'Station-2', 'Station-3'],
+                    metrics: ['latency', 'packet_loss', 'audioQuality'],
+                    interval: 150
+                });
+
+                addWSLog('Subscribed to Station-1, Station-2, Station-3');
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                addWSLog('WebSocket disconnected');
+            });
+
+            socket.on('metrics-update', (data) => {
+                addWSLog(`Metrics update received: ${Object.keys(data.data).length} stations`);
+                updateMetricsDisplay(data);
+            });
+
+            socket.on('alert', (alert) => {
+                addWSLog(`ALERT: ${alert.severity} - ${alert.message} (Station: ${alert.station})`);
+            });
+
+            socket.on('knob-changed', (data) => {
+                addWSLog(`Knob changed: ${data.station}/${data.extension} - ${JSON.stringify(data.changes)}`);
+            });
+        }
+
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                document.getElementById('metricsDisplay').style.display = 'none';
+            }
+        }
+
+        function clearWSLog() {
+            document.getElementById('wsLog').innerHTML = '<div class="ws-message">WebSocket logs cleared</div>';
+        }
+
+        function addWSLog(message) {
+            const log = document.getElementById('wsLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'ws-message';
+            msgDiv.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(msgDiv);
+            log.scrollTop = log.scrollHeight;
+
+            // Keep only last 100 messages
+            while (log.children.length > 100) {
+                log.removeChild(log.firstChild);
+            }
+        }
+
+        function updateMetricsDisplay(data) {
+            let totalStations = 0;
+            let totalLatency = 0;
+            let totalLoss = 0;
+            let totalQuality = 0;
+            let count = 0;
+
+            for (const station in data.data) {
+                totalStations++;
+                for (const ext in data.data[station]) {
+                    const metrics = data.data[station][ext];
+                    if (metrics.latency) {
+                        totalLatency += metrics.latency.current_ms || 0;
+                        totalLoss += metrics.packet?.loss_rate || 0;
+                        totalQuality += metrics.audioQuality?.mos_score || 0;
+                        count++;
+                    }
+                }
+            }
+
+            if (count > 0) {
+                document.getElementById('metric-stations').textContent = totalStations;
+                document.getElementById('metric-latency').textContent = (totalLatency / count).toFixed(1);
+                document.getElementById('metric-loss').textContent = ((totalLoss / count) * 100).toFixed(2);
+                document.getElementById('metric-quality').textContent = (totalQuality / count).toFixed(2);
+            }
+        }
+
+        // Auto-refresh health check every 30 seconds
+        setInterval(checkAPIHealth, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "id": "buffer.underruns",
+  "name": "Buffer Underruns",
+  "category": "Buffer",
+  "path": "buffer.underruns",
+  "unit": "events",
+  "description": "Number of buffer underrun events",
+  "ranges": {
+    "min": 0,
+    "max": 100,
+    "recommendedMin": 0,
+    "recommendedMax": 5
+  },
+  "thresholds": {
+    "warningLow": 0,
+    "warningHigh": 5,
+    "criticalLow": 0,
+    "criticalHigh": 20
+  },
+  "alerts": {
+    "enabled": true,
+    "audioAlert": true,
+    "visualAlert": true,
+    "emailAlert": false,
+    "webhookAlert": false
+  },
+  "default": false,
+  "metadata": {
+    "updateFrequency": 1000,
+    "priority": "critical",
+    "displayOrder": 6
+  }
+}

@@ -1,7 +1,6 @@
 // Enhanced Station-3 Handler - Monitors Deepgram STT input
-// UPDATED: Sends full matrix with real values only (0 for unavailable)
+// EXPANDED: From 4 parameters to 14 parameters with audio analysis and DSP metrics
 const fs = require('fs');
-const os = require('os');
 const AudioAnalysisUtils = require('./audio-analysis-utils');
 const ConfigFactory = require('./config-factory-defaults');
 
@@ -22,17 +21,13 @@ class Station3Handler {
     this.transcriptStartTime = null;
     this.lastTranscriptTime = Date.now();
 
-    // Statistics tracking
-    this.totalTranscripts = 0;
-    this.successfulTranscripts = 0;
-
     // Initialize configuration factory
     this.configFactory = new ConfigFactory(extensionId);
 
     // Start polling for config changes
     this.startPolling();
 
-    console.log(`[STATION-3] Enhanced handler initialized for extension ${extensionId} (full matrix)`);
+    console.log(`[STATION-3] Enhanced handler initialized for extension ${extensionId} (14 parameters)`);
   }
 
   // Initialize StationAgent when available
@@ -108,7 +103,8 @@ class Station3Handler {
     }
   }
 
-  // UPDATED: Send full matrix with correct parameter names - REAL VALUES ONLY
+  // ENHANCED: Called when Deepgram returns a transcript
+  // EXPANDED from 4 to 14 parameters
   async onTranscript(data) {
     if (!this.stationAgent) return;
     console.log("[STATION-3-DEBUG] onTranscript called for extension", this.extensionId, "with data:", data.transcript || "no transcript");
@@ -119,13 +115,13 @@ class Station3Handler {
       const confidence = data.channel?.alternatives?.[0]?.confidence || 0;
       const language = data.metadata?.language || (this.extensionId === '3333' ? 'en' : 'fr');
 
-      // Track statistics
-      this.totalTranscripts++;
-      if (transcript && confidence > 0.5) {
-        this.successfulTranscripts++;
-      }
+      // === ORIGINAL 4 PARAMETERS ===
+      // 1. transcript
+      // 2. isFinal
+      // 3. confidence
+      // 4. language
 
-      // Get REAL audio metrics if available
+      // === NEW AUDIO ANALYSIS PARAMETERS (5-10) ===
       let audioMetrics = {
         snr: 0,
         rms: -60,
@@ -135,91 +131,67 @@ class Station3Handler {
         mos: 3.0
       };
 
+      // Analyze last audio buffer if available
       if (this.lastAudioBuffer && this.lastAudioBuffer.length > 0) {
         audioMetrics = AudioAnalysisUtils.analyzeAudio(this.lastAudioBuffer, 16000);
       }
 
-      // Get REAL system performance metrics
-      let cpuUsage = 0, memoryUsage = 0;
-      try {
-        const cpus = os.cpus();
-        const totalCpu = cpus.reduce((acc, cpu) => {
-          const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
-          const idle = cpu.times.idle;
-          return acc + ((total - idle) / total);
-        }, 0);
-        cpuUsage = (totalCpu / cpus.length) * 100;
-
-        const totalMem = os.totalmem();
-        const freeMem = os.freemem();
-        memoryUsage = ((totalMem - freeMem) / totalMem) * 100;
-      } catch (e) {
-        // Default to 0 if can't get metrics
-      }
-
-      // Calculate REAL processing latency
+      // === NEW PERFORMANCE PARAMETERS (11-12) ===
       const now = Date.now();
       const timeSinceLastTranscript = now - this.lastTranscriptTime;
       this.lastTranscriptTime = now;
-      const processingLatency = now - (this.transcriptStartTime || now);
+
+      // Calculate processing latency (time from audio start to transcript)
       if (!this.transcriptStartTime) {
         this.transcriptStartTime = now;
       }
+      const processingLatency = now - this.transcriptStartTime;
 
-      // Get REAL DSP settings from config
+      // === NEW DSP PARAMETERS FROM CONFIG (13-14) ===
       const activeConfig = this.configFactory.getActiveConfig();
-      const agcGain = activeConfig.agc?.enabled ? (activeConfig.agc.targetLevel || -20) : 0;
-      const noiseReductionLevel = activeConfig.noiseReduction?.enabled ? (activeConfig.noiseReduction.strength || 15) : 0;
+      const agcGain = activeConfig.agc?.enabled ? activeConfig.agc.targetLevel : 0;
+      const noiseReductionLevel = activeConfig.noiseReduction?.enabled ?
+        (activeConfig.noiseReduction.level || 'moderate') : 'off';
 
-      // Calculate REAL success rate
-      const successRate = this.totalTranscripts > 0 ? (this.successfulTranscripts / this.totalTranscripts) * 100 : 0;
-
-      // Build FULL MATRIX with ALL parameters - REAL VALUES ONLY
-      const fullMatrix = {
+      // Collect ALL 14 parameters
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
+      await this.stationAgent.collect({
         timestamp: now,
         extension: this.extensionId,
         callId: `deepgram-${this.extensionId}-${now}`,
 
-        // STATION_3 expected parameters (14 total) - ALL REAL VALUES
-        'buffer.processing': this.audioBufferQueue?.length || 0,              // REAL: buffer queue size
-        'latency.processing': processingLatency || 0,                         // REAL: actual processing time
-        'audioQuality.snr': audioMetrics.snr || 0,                           // REAL: from audio analysis
-        'audioQuality.speechLevel': audioMetrics.rms || -60,                 // REAL: RMS level
-        'audioQuality.clipping': audioMetrics.clipping || 0,                 // REAL: from audio analysis
-        'audioQuality.noise': audioMetrics.noiseFloor || -60,                // REAL: noise floor
-        'dsp.agc.currentGain': agcGain,                                      // REAL: from config
-        'dsp.noiseReduction.noiseLevel': noiseReductionLevel,                // REAL: from config
-        'performance.cpu': cpuUsage || 0,                                    // REAL: CPU usage
-        'performance.memory': memoryUsage || 0,                              // REAL: memory usage
-        'performance.bandwidth': 0,                                          // CANNOT MEASURE at Station 3 - sending 0
-        'custom.state': transcript ? 'active' : 'idle',                      // REAL: current state
-        'custom.successRate': successRate,                                   // REAL: calculated rate
-        'custom.totalProcessed': this.totalTranscripts,                      // REAL: total count
+        // Original 4 parameters
+        transcript: transcript,                    // 1
+        isFinal: isFinal,                          // 2
+        confidence: confidence,                    // 3
+        language: language,                        // 4
 
-        // Additional REAL data for backward compatibility
-        transcript: transcript,
-        isFinal: isFinal,
-        confidence: confidence,
-        language: language,
-        timeSinceLastTranscript: timeSinceLastTranscript,
+        // Audio analysis (6 new parameters)
+        snr: audioMetrics.snr,                     // 5 - Signal-to-Noise Ratio
+        rms: audioMetrics.rms,                     // 6 - RMS level in dBFS
+        clipping: audioMetrics.clipping,           // 7 - Clipping percentage
+        noiseFloor: audioMetrics.noiseFloor,       // 8 - Noise floor in dBFS
+        voiceActivity: audioMetrics.voiceActivity, // 9 - Voice activity ratio
+        mos: audioMetrics.mos,                     // 10 - Mean Opinion Score
 
-        // Full REAL knobs values
-        knobs: this.knobs || {}
-      };
+        // Performance metrics (2 new parameters)
+        processingLatency: processingLatency,      // 11 - Time from start to transcript
+        timeSinceLastTranscript: timeSinceLastTranscript, // 12 - Inter-transcript time
 
-      console.log("[STATION-3-DEBUG] About to call collect with full matrix, stationAgent exists:", !!this.stationAgent);
-      await this.stationAgent.collect(fullMatrix);
-      console.log("[STATION-3-DEBUG] collect() called successfully with full matrix");
+        // DSP metrics from config (2 new parameters)
+        agcGain: agcGain,                          // 13 - AGC target level
+        noiseReductionLevel: noiseReductionLevel   // 14 - Noise reduction setting
+      });
+      console.log("[STATION-3-DEBUG] collect() called successfully");
 
-      // Log only for final transcripts to reduce noise
+      // Log enhanced collection (only for final transcripts to reduce noise)
       if (isFinal && transcript.length > 0) {
-        console.log(`[STATION-3-${this.extensionId}] Full matrix sent (ALL REAL): ` +
+        console.log(`[STATION-3-${this.extensionId}] Collected 14 parameters: ` +
           `transcript="${transcript.substring(0, 30)}...", ` +
           `confidence=${confidence.toFixed(2)}, ` +
           `SNR=${audioMetrics.snr.toFixed(1)}dB, ` +
-          `CPU=${cpuUsage.toFixed(1)}%, ` +
-          `MEM=${memoryUsage.toFixed(1)}%, ` +
-          `successRate=${successRate.toFixed(1)}%`);
+          `MOS=${audioMetrics.mos.toFixed(1)}, ` +
+          `latency=${processingLatency}ms`);
       }
 
       // Reset transcript timer for next transcript
@@ -228,7 +200,7 @@ class Station3Handler {
       }
 
     } catch (error) {
-      console.error(`[STATION-3-${this.extensionId}] Full matrix collection error:`, error.message);
+      console.error(`[STATION-3-${this.extensionId}] Enhanced transcript collection error:`, error.message);
     }
   }
 
@@ -237,34 +209,16 @@ class Station3Handler {
     if (!this.stationAgent) return;
 
     try {
-      const fullMatrix = {
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
+      await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
         callId: `deepgram-error-${this.extensionId}-${Date.now()}`,
         error: error.message || error,
-        errorType: error.type || 'unknown',
-
-        // Send 0 for all matrix parameters on error
-        'buffer.processing': 0,
-        'latency.processing': 0,
-        'audioQuality.snr': 0,
-        'audioQuality.speechLevel': -60,
-        'audioQuality.clipping': 0,
-        'audioQuality.noise': -60,
-        'dsp.agc.currentGain': 0,
-        'dsp.noiseReduction.noiseLevel': 0,
-        'performance.cpu': 0,
-        'performance.memory': 0,
-        'performance.bandwidth': 0,
-        'custom.state': 'error',
-        'custom.successRate': 0,
-        'custom.totalProcessed': this.totalTranscripts
-      };
-
-      console.log("[STATION-3-DEBUG] About to call collect for error, stationAgent exists:", !!this.stationAgent);
-      await this.stationAgent.collect(fullMatrix);
-      console.log("[STATION-3-DEBUG] collect() called successfully for error");
-      console.log(`[STATION-3-${this.extensionId}] Error matrix sent: ${error.type || 'unknown'}`);
+        errorType: error.type || 'unknown'
+      });
+      console.log("[STATION-3-DEBUG] collect() called successfully");
+      console.log(`[STATION-3-${this.extensionId}] Error collected: ${error.type || 'unknown'}`);
     } catch (err) {
       console.error(`[STATION-3-${this.extensionId}] Error collection error:`, err.message);
     }
@@ -275,18 +229,14 @@ class Station3Handler {
     if (!this.stationAgent) return;
 
     try {
-      console.log("[STATION-3-DEBUG] About to call collect for metadata, stationAgent exists:", !!this.stationAgent);
+      console.log("[STATION-3-DEBUG] About to call collect, stationAgent exists:", !!this.stationAgent);
       await this.stationAgent.collect({
         timestamp: Date.now(),
         extension: this.extensionId,
         callId: `deepgram-metadata-${this.extensionId}-${Date.now()}`,
-        metadata: data,
-
-        // Include basic matrix parameters for metadata
-        'custom.state': 'metadata',
-        'custom.totalProcessed': this.totalTranscripts
+        metadata: data
       });
-      console.log("[STATION-3-DEBUG] collect() called successfully for metadata");
+      console.log("[STATION-3-DEBUG] collect() called successfully");
     } catch (error) {
       console.error(`[STATION-3-${this.extensionId}] Metadata collection error:`, error.message);
     }

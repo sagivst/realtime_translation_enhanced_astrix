@@ -5,7 +5,7 @@
  * Stores in database and serves to dashboard
  *
  * Port: 3001 (Socket.IO)
- * Database exposed on: Port 8080 (HTTP API)
+ * Database exposed on: Port 8081 (HTTP API)
  */
 
 const express = require('express');
@@ -24,7 +24,7 @@ const io = socketIO(server, {
 });
 
 const MONITORING_PORT = 3001;
-const DATABASE_API_PORT = 8080;
+const DATABASE_API_PORT = 8081;
 
 // Middleware
 app.use(express.json());
@@ -242,7 +242,7 @@ io.on('connection', (socket) => {
 });
 
 // ========================================================================
-// HTTP API FOR DATABASE ACCESS (Port 8080)
+// HTTP API FOR DATABASE ACCESS (Port 8081)
 // ========================================================================
 
 const apiApp = express();
@@ -541,7 +541,7 @@ apiApp.get('/database-records.html', (req, res) => {
   </div>
 
   <script>
-    const API_BASE = 'http://localhost:8080/api';
+    const API_BASE = 'http://localhost:8081/api';
 
     async function fetchStats() {
       try {

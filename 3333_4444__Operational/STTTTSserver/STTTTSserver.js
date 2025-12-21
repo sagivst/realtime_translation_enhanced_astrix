@@ -1554,6 +1554,42 @@ try {
   station9_3333.initStationAgent(StationAgent);
   station9_4444.initStationAgent(StationAgent);
   console.log("[STATION-9] Monitoring agents initialized");
+
+// ========== STATION 9 SOCKET OVERRIDE - MIRROR STATION 3 PATTERN ==========
+// Override socket3333Out.send to call Station 9 on EVERY outgoing packet
+// This mirrors how Station 3 is called on EVERY incoming packet
+
+// For Extension 3333 Outgoing
+const originalSend3333Out = socket3333Out.send.bind(socket3333Out);
+socket3333Out.send = function(msg, port, host, callback) {
+  // Call Station 9 exactly like Station 3 is called
+  console.log("[DEBUG-3333-OUT] UDP packet being sent, checking Station-9...");
+  if (station9_3333 && station9_3333.onAudioChunk) {
+    console.log("[DEBUG-3333-OUT] Calling Station-9.onTTSOutput with", msg.length, "bytes");
+    station9_3333.onAudioChunk(msg);
+  }
+  
+  // Continue with original send
+  return originalSend3333Out(msg, port, host, callback);
+};
+
+// For Extension 4444 Outgoing  
+const originalSend4444Out = socket4444Out.send.bind(socket4444Out);
+socket4444Out.send = function(msg, port, host, callback) {
+  // Call Station 9 exactly like Station 3 is called
+  console.log("[DEBUG-4444-OUT] UDP packet being sent, checking Station-9...");
+  if (station9_4444 && station9_4444.onAudioChunk) {
+    console.log("[DEBUG-4444-OUT] Calling Station-9.onTTSOutput with", msg.length, "bytes");
+    station9_4444.onAudioChunk(msg);
+  }
+  
+  // Continue with original send
+  return originalSend4444Out(msg, port, host, callback);
+};
+
+console.log("[STATION-9] Socket override installed - will monitor ALL outgoing packets");
+// ========== END STATION 9 SOCKET OVERRIDE ==========
+
 } catch (e) {
   console.log("[STATION-9] StationAgent not available, metrics disabled");
 }
@@ -3703,6 +3739,8 @@ const socket3333In = dgram.createSocket('udp4');
 const socket3333Out = dgram.createSocket('udp4');
 const socket4444In = dgram.createSocket('udp4');
 const socket4444Out = dgram.createSocket('udp4');
+// ========== END STATION 9 SOCKET OVERRIDE ==========
+
 
 // Expose UDP sockets globally for audio streaming extension
 global.udpSockets = {
@@ -4086,6 +4124,7 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
 
   // STATION-9 MONITORING: TTS output to Gateway
   const station9Handler = targetExtension === '3333' ? station9_3333 : station9_4444;
+  console.log("[STATION-9-DEBUG] station9Handler found:", !!station9Handler, "for extension:", targetExtension);
   if (station9Handler) {
     station9Handler.onTTSOutput(pcmBuffer);
   }
@@ -4095,6 +4134,12 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
     const frame = pcmBuffer.slice(i * frameSize, (i + 1) * frameSize);
 
     await new Promise((resolve, reject) => {
+      // DIRECT STATION 9 CALL - BYPASS OVERRIDE
+      if (targetExtension === "3333" && station9_3333 && station9_3333.onAudioChunk) {
+        station9_3333.onAudioChunk(frame, Date.now());
+      } else if (targetExtension === "4444" && station9_4444 && station9_4444.onAudioChunk) {
+        station9_4444.onAudioChunk(frame, Date.now());
+      }
       socket.send(frame, port, UDP_PCM_CONFIG.gatewayHost, (err) => {
         if (err) {
           reject(err);

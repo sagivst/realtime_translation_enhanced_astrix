@@ -33,6 +33,7 @@ class Station3Handler {
   // Initialize StationAgent when available
   initStationAgent(StationAgent) {
     this.stationAgent = new StationAgent('STATION_3', this.extensionId);
+    this.stationAgent.initStationAgent();
     console.log(`[STATION-3] StationAgent initialized for extension ${this.extensionId}`);
   }
 
@@ -47,7 +48,7 @@ class Station3Handler {
           this.onKnobsChanged?.(this.knobs);
         }
       } catch (e) {
-        // Silent fail - config loading is not critical
+        // config loading is not critical
       }
     }, 100);
   }
@@ -241,7 +242,94 @@ class Station3Handler {
       console.error(`[STATION-3-${this.extensionId}] Metadata collection error:`, error.message);
     }
   }
-
+// NEW METHOD: Process audio chunks directly without waiting for transcripts
+  async onAudioChunk(audioBuffer, timestamp) {
+    console.log("[STATION-3-" + this.extensionId + "] onAudioChunk called with buffer size: " + audioBuffer.length);
+    console.log("[STATION-3-" + this.extensionId + "] StationAgent available: " + (this.stationAgent ? "YES" : "NO"));
+    if (!this.stationAgent) return;
+    try {
+      const now = Date.now();
+      
+      // Calculate real audio metrics from PCM buffer (16-bit signed samples)
+      let sumSquares = 0;
+      let peak = 0;
+      let clipping = 0;
+      const samples = audioBuffer.length / 2; // 16-bit = 2 bytes per sample
+      
+      for (let i = 0; i < audioBuffer.length - 1; i += 2) {
+        const sample = audioBuffer.readInt16LE(i);
+        const absSample = Math.abs(sample);
+        sumSquares += sample * sample;
+        if (absSample > peak) peak = absSample;
+        if (absSample >= 32700) clipping++; // Near max value
+      }
+      
+      // Calculate RMS (Root Mean Square)
+      const rms = Math.sqrt(sumSquares / samples);
+      const rmsDb = 20 * Math.log10(rms / 32768 || 0.00001);
+      
+      // Calculate peak level in dB
+      const peakDb = 20 * Math.log10(peak / 32768 || 0.00001);
+      
+      // Calculate SNR approximation
+      const noiseFloor = -50; // Assumed noise floor in dB
+      const snr = Math.max(0, rmsDb - noiseFloor);
+      
+      // Update knobs based on audio characteristics (map to ±75 and ±150 ranges)
+      const knobs = {
+        // Matrix knobs (±75 range) - map audio metrics
+        matrix_1_knob: Math.round(Math.min(75, Math.max(-75, rmsDb + 40))), // RMS level
+        matrix_2_knob: Math.round(Math.min(75, Math.max(-75, peakDb + 40))), // Peak level
+        matrix_3_knob: Math.round(Math.min(75, Math.max(-75, snr - 20))), // SNR
+        matrix_4_knob: Math.round(Math.min(75, Math.max(-75, clipping * 10))), // Clipping indicator
+        matrix_5_knob: Math.round(Math.min(75, Math.max(-75, (rms / 1000) - 50))), // Energy
+        matrix_6_knob: 0, // Reserved
+        matrix_7_knob: 0, // Reserved  
+        matrix_8_knob: 0, // Reserved
+        
+        // Main control knobs (±150 range)
+        main_volume: Math.round(Math.min(150, Math.max(-150, rmsDb + 80))),
+        balance: 0,
+        treble: 0,
+        bass: 0,
+        gain: Math.round(Math.min(150, Math.max(-150, peakDb + 80))),
+        compression: Math.round(clipping > 0 ? Math.min(150, clipping * 20) : 0),
+        noise_gate: Math.round(rmsDb < -40 ? -150 : 0),
+        reverb: 0
+      };
+      
+      // Prepare metrics
+      const metrics = {
+        rms: rms,
+        rmsDb: rmsDb.toFixed(2),
+        peak: peak,
+        peakDb: peakDb.toFixed(2),
+        snr: snr.toFixed(2),
+        clipping: clipping,
+        energy: (sumSquares / samples).toFixed(2)
+      };
+      
+      console.log("[STATION-3-" + this.extensionId + "] Calling StationAgent.collect with metrics:", JSON.stringify(metrics));
+      await this.stationAgent.collect({
+        timestamp: now,
+        extension: this.extensionId,
+        callId: "audio-chunk-" + this.extensionId + "-" + now,
+        dataType: "audio_chunk",
+        chunkSize: audioBuffer.length,
+        hasTranscript: false,
+        metrics: metrics,
+        knobs: knobs
+      });
+      
+      if (!this.chunkCount) this.chunkCount = 0;
+      this.chunkCount++;
+      if (this.chunkCount % 100 === 0) {
+        console.log("[STATION-3-" + this.extensionId + "] Collected " + this.chunkCount + " audio chunks");
+      }
+    } catch (error) {
+      console.error("[STATION-3-" + this.extensionId + "] Error in onAudioChunk: " + error.message);
+    }
+  }
   // Cleanup on shutdown
   destroy() {
     if (this.collectionInterval) {

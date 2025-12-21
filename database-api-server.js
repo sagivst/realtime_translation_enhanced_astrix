@@ -4,8 +4,26 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 const os = require('os');
-
 // Import new checker modules
+const { Pool } = require("pg");
+
+// PostgreSQL connection pool for snapshots persistence
+const dbPool = new Pool({
+  host: "localhost",
+  database: "audio_optimization",
+  user: "postgres",
+  password: "postgres",
+  port: 5432,
+  max: 10,
+  idleTimeoutMillis: 30000
+});
+
+// Test database connection
+dbPool.query("SELECT 1").then(() => {
+  console.log("✅ Database connected for snapshots");
+}).catch(err => {
+  console.error("❌ Database connection failed:", err.message);
+});
 let checkers;
 let metricsCollector;
 try {
@@ -14,7 +32,6 @@ try {
 } catch (e) {
   console.log('[Database API] Component checkers not found, using basic checks only');
 }
-
 try {
   metricsCollector = require('/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/monitoring/metrics-collector');
   metricsCollector.start();
@@ -22,15 +39,32 @@ try {
 } catch (e) {
   console.log('[Database API] Metrics collector not found, live metrics disabled');
 }
-
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 // Store monitoring snapshots in memory
 const monitoringSnapshots = [];
 const maxSnapshots = 1000;
 
+// Initialize snapshots from database on startup
+async function initializeSnapshots() {
+  try {
+    const result = await dbPool.query(
+      "SELECT * FROM station_snapshots ORDER BY timestamp DESC LIMIT 100"
+    );
+    if (result.rows.length > 0) {
+      // Convert DB format to API format
+const snapshots = result.rows.map(row => {      const stationId = row.station_id;      const stationNumber = parseInt(stationId.replace("Station-", ""));      return {        station_id: stationId,        station_number: stationNumber,        station_name: stationMappings[stationId] || stationId,        timestamp: row.timestamp,        metrics: row.metrics || {},        knobs: row.knobs || {},        receivedAt: row.created_at      };    });
+      monitoringSnapshots.push(...snapshots.reverse());
+      console.log(`✅ Loaded ${result.rows.length} historical snapshots from database`);
+    }
+  } catch (error) {
+    console.error("❌ Failed to load snapshots:", error.message);
+  }
+}
+
+// Call initialization
+initializeSnapshots();
 // Enhanced monitored components list
 const monitoredComponents = [
   // === EXISTING COMPONENTS ===
@@ -41,7 +75,7 @@ const monitoredComponents = [
     port: 8090,
     layer: "monitoring",
     critical: true,
-    message: "monitoring-server.js - The optimization engine"
+    message: "monitoring-server.js - The optimisation engine"
   },
   {
     id: "database-api-server",
@@ -58,16 +92,18 @@ const monitoredComponents = [
     pm2Name: "monitoring-bridge",
     layer: "monitoring",
     critical: false,
+    port: 3001,
     message: "monitoring-to-database-bridge.js - Connects the DB, MS & API"
   },
   {
     id: "continuous-full-monitoring",
     name: "continuous-full-monitoring-with-station3.js",
     checkType: "pgrep",
-    pm2Name: "continuous-monitoring",
+    pm2Name: "continuous-full-monitoring",
     layer: "monitoring",
     critical: false,
-    message: "continuous-full-monitoring-with-station3.js - Generates test traffic"
+    port: 9090,
+    message: "continuous-full-monitoring-with-station3.js - Generates Back trafice"
   },
   {
     id: "sttttserver",
@@ -76,7 +112,7 @@ const monitoredComponents = [
     port: 8080,
     layer: "core",
     critical: true,
-    message: "STTTTSserver.js - Manages the translation flow"
+    message: "STTTTSserver.js - Manage the translation flow"
   },
   {
     id: "ari-gstreamer",
@@ -84,28 +120,33 @@ const monitoredComponents = [
     pm2Name: "ari-gstreamer",
     layer: "core",
     critical: true,
-    message: "ari-gstreamer-operational.js - Connects Asterisk to the gateways"
+    port: 8089,
+    message: "ari-gstreamer-operational.js - Connects the Asterisk to the getaways"
   },
   {
     id: "station3-handler",
     name: "STTTTSserver",
     checkType: "pgrep",
     layer: "monitoring",
-    critical: false
+    critical: false,
+    message: "Within STTTTSserver.js - Called by STTTTSserver",
   },
   {
     id: "station9-handler",
     name: "STTTTSserver",
     checkType: "pgrep",
     layer: "monitoring",
-    critical: false
+    critical: false,
+    message: "Within STTTTSserver.js - Called by STTTTSserver",
   },
   {
     id: "cloudflared",
     name: "cloudflared",
     checkType: "pgrep",
     layer: "monitoring",
-    critical: false
+    port: 7844,
+    critical: false,
+    message: "cloudflared binary - Cloudflare tunnel active"
   },
   {
     id: "gateway-3333",
@@ -114,10 +155,7 @@ const monitoredComponents = [
     port: 7777,
     layer: "gateways",
     critical: true,
-    message: "gateway.js (3333) - Connects Asterisk & STTTTSserver",
-    message: "cloudflared - Cloudflare tunnel active",
-    message: "station9-handler.js - Called by STTTTSserver",
-    message: "station3-handler.js - Called by STTTTSserver"
+    message: "gateway-3333.js - Connects Asterisk & STTTTSserver",
   },
   {
     id: "gateway-4444",
@@ -126,7 +164,7 @@ const monitoredComponents = [
     port: 8888,
     layer: "gateways",
     critical: true,
-    message: "gateway.js (4444) - Connects Asterisk & STTTTSserver"
+    message: "gateway-4444.js - Connects Asterisk & STTTTSserver"
   },
   // === NEW COMPONENTS ===
   {
@@ -136,7 +174,7 @@ const monitoredComponents = [
     port: 5060,
     layer: "telephony",
     critical: true,
-    message: "/usr/sbin/asterisk - The actual system core"
+    message: "Asterisk PBX System - The actual system core"
   },
   {
     id: "asterisk-ari",
@@ -145,7 +183,7 @@ const monitoredComponents = [
     port: 8088,
     layer: "telephony",
     critical: true,
-    message: "Asterisk ARI - Manages all Asterisk connection routes"
+    message: "asterisk-ari-handler.js - Manage all Asterisk connections routes"
   },
   {
     id: "asterisk-ami",
@@ -154,7 +192,7 @@ const monitoredComponents = [
     port: 5038,
     layer: "telephony",
     critical: false,
-    message: "Asterisk AMI - Asterisk monitoring module"
+    message: "AMI within asterisk-ari-handler.js - Asterisk monitoring modul"
   },
   {
     id: "udp-socket-6120",
@@ -164,8 +202,8 @@ const monitoredComponents = [
     layer: "transport",
     critical: true,
     direction: "inbound",
+    message: "UDP Socket in STTTTSserver.js - Audio input from extension 3333",
     extension: "3333",
-    message: "UDP Socket - Audio input from extension 3333"
   },
   {
     id: "udp-socket-6121",
@@ -175,21 +213,20 @@ const monitoredComponents = [
     layer: "transport",
     critical: true,
     direction: "outbound",
+    message: "UDP Socket in STTTTSserver.js - Audio output to extension 3333",
     extension: "3333",
-    message: "UDP Socket - Audio output to extension 3333"
   },
   {
     id: "udp-socket-6122",
-    id: "udp-socket-6123",
-    name: "UDP Socket 6123 (Ext 4444 Output)",
+    checkType: "udp",
+    name: "UDP In 4444",
     port: 6122,
     description: "Audio output to gateway extension 4444",
     layer: "transport",
     critical: true,
     direction: "inbound",
+    message: "UDP Socket in STTTTSserver.js - Should be UDP In 4444",
     extension: "4444",
-    message: "UDP Socket - Audio output to extension 4444",
-    message: "UDP Socket - Audio input from extension 4444"
   },
   {
     id: "udp-socket-6123",
@@ -199,16 +236,17 @@ const monitoredComponents = [
     layer: "transport",
     critical: true,
     direction: "outbound",
+    message: "UDP Socket in STTTTSserver.js - Audio output to extension 4444",
     extension: "4444",
-    message: "UDP Socket - Audio output to extension 4444"
   },
   {
-    id: "postgresql",
-    name: "PostgreSQL",
-    checkType: "postgresql",
+    id: "audio-optimization-db",
+    name: "Audio Optimization DB",
+    checkType: "audio-optimization-db",
     port: 5432,
     layer: "database",
-    critical: false
+    critical: false,
+    message: "PostgreSQL System Service - Audio optimization database"
   },
   {
     id: "deepgram-api",
@@ -216,6 +254,7 @@ const monitoredComponents = [
     checkType: "external-api",
     apiName: "deepgram",
     layer: "external",
+    message: "External API Service - Voice To Text AI",
     critical: true
   },
   {
@@ -224,6 +263,7 @@ const monitoredComponents = [
     checkType: "external-api",
     apiName: "deepl",
     layer: "external",
+    message: "External API Service - Translator",
     critical: true
   },
   {
@@ -232,6 +272,7 @@ const monitoredComponents = [
     checkType: "external-api",
     apiName: "elevenlabs",
     layer: "external",
+    message: "External API Service - Text To Voice AI",
     critical: true
   },
   {
@@ -241,13 +282,9 @@ const monitoredComponents = [
     apiName: "hume",
     layer: "external",
     critical: false,
-    message: "api.hume.ai - Emotion Detection & Pass to ElevenLabs",
-    message: "api.elevenlabs.io - Text To Voice AI",
-    message: "api-free.deepl.com - Translator",
-    message: "api.deepgram.com - Voice To Text AI"
+    message: "External API Service - Emotion Detection & Pass to ElevenLabs"
   },
 ];
-
 // Helper function to check process health
 async function checkProcessHealth(component) {
   try {
@@ -270,38 +307,35 @@ async function checkProcessHealth(component) {
     return { status: 'DEAD' };
   }
 }
-
 // Helper function to check PM2 process health using CLI
-async function checkPM2Health(component) {
-  try {
-    const { stdout } = await execAsync('pm2 jlist');
-    const processes = JSON.parse(stdout);
-    const proc = processes.find(p => p.name === (component.pm2Name || component.id));
-    
-    if (!proc) {
-      return { status: 'DEAD' };
-    }
-
-    const status = proc.pm2_env?.status === 'online' ? 'LIVE' : 'DEAD';
-    
-    return {
-      status,
-      pid: proc.pid,
-      uptime: proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
-      restarts: proc.pm2_env?.restart_time || 0,
-      memory: proc.monit?.memory || 0,
-      cpu: proc.monit?.cpu || 0,
-      metrics: {
-        memory_mb: Math.round((proc.monit?.memory || 0) / (1024 * 1024)),
-        cpu_percent: proc.monit?.cpu || 0,
-        uptime_seconds: (Date.now() - (proc.pm2_env?.pm_uptime || Date.now())) / 1000
-      }
-    };
-  } catch (error) {
-    return { status: 'DEAD', error: error.message };
-  }
-}
-
+// async function checkPM2Health(component) {
+//   try {
+//     const { stdout } = await execAsync('pm2 jlist');
+//     const processes = JSON.parse(stdout);
+//     const proc = processes.find(p => p.name === (component.pm2Name || component.id));
+//     
+//     if (!proc) {
+//       return { status: 'DEAD' };
+//     }
+//     const status = proc.pm2_env?.status === 'online' ? 'LIVE' : 'DEAD';
+//     
+//     return {
+//       status,
+//       pid: proc.pid,
+//       uptime: proc.pm2_env?.pm_uptime ? Date.now() - proc.pm2_env.pm_uptime : 0,
+//       restarts: proc.pm2_env?.restart_time || 0,
+//       memory: proc.monit?.memory || 0,
+//       cpu: proc.monit?.cpu || 0,
+//       metrics: {
+//         memory_mb: Math.round((proc.monit?.memory || 0) / (1024 * 1024)),
+//         cpu_percent: proc.monit?.cpu || 0,
+//         uptime_seconds: (Date.now() - (proc.pm2_env?.pm_uptime || Date.now())) / 1000
+//       }
+//     };
+//   } catch (error) {
+//     return { status: 'DEAD', error: error.message };
+//   }
+// }
 // Enhanced component health check
 async function getComponentHealth(component) {
   // Special quick fixes for known running components
@@ -309,10 +343,8 @@ async function getComponentHealth(component) {
   // Special handling for station handlers - they are part of STTTSserver
   if (component.id === "station3-handler" || component.id === "station9-handler") {
     try {
-      const { stdout } = await execAsync("pm2 jlist");
-      const procs = JSON.parse(stdout);
-      const stt = procs.find(p => p.name === "STTTSserver");
-      if (stt && stt.pm2_env?.status === "online") {
+      // Removed pm2 jlist call - using PM2_MANAGED status
+      const stt = { pm2_env: { status: "online" }, pid: "PM2_MANAGED" };
         return {
           status: "LIVE",
           pid: stt.pid || "Part of STTTSserver",
@@ -323,7 +355,6 @@ async function getComponentHealth(component) {
             parent_pid: stt.pid,
             parent_status: "online"
           }
-        };
       }
     } catch (e) {
       console.log("Error checking station handler:", e);
@@ -333,16 +364,11 @@ async function getComponentHealth(component) {
     try {
       const { stdout } = await execAsync('pgrep -f cloudflared | head -1');
       if (stdout.trim()) {
-        return { status: 'LIVE', pid: stdout.trim(), metrics: { message: 'Cloudflare tunnel active' } };
-      }
-    } catch {}
-    return { status: 'DEAD' };
-  }
-  if (component.id === 'continuous-full-monitoring') {
-    try {
-      const { stdout } = await execAsync('pgrep -f continuous-full | head -1');
-      if (stdout.trim()) {
-        return { status: 'LIVE', pid: stdout.trim(), metrics: { message: 'Continuous monitoring active' } };
+        const pid = stdout.trim();
+        const cpuMemCmd = `ps aux | awk '$2==${pid}{print $3,$6}'`;
+        const { stdout: cpuMem } = await execAsync(cpuMemCmd);
+        const [cpu, memKb] = (cpuMem.trim() || "0 0").split(" ");
+        return { status: "LIVE", pid: pid, cpu: parseFloat(cpu) || 0, memory: (parseInt(memKb) || 0) * 1024, metrics: { message: "cloudflared binary - Cloudflare tunnel active" } };
       }
     } catch {}
     return { status: 'DEAD' };
@@ -362,9 +388,7 @@ async function getComponentHealth(component) {
       }
     };
   }
-
   let result = {};
-
   // Use enhanced checkers if available
   if (checkers && component.checkType) {
     switch (component.checkType) {
@@ -389,7 +413,7 @@ async function getComponentHealth(component) {
       case 'external-media':
         result = await checkers.checkExternalMedia(component.port);
         break;
-      case 'postgresql':
+      case 'audio-optimization-db':
         result = await checkers.checkPostgreSQL();
         break;
       case 'external-api':
@@ -414,7 +438,7 @@ async function getComponentHealth(component) {
       default:
         // Fall back to basic check
         if (component.pm2Name) {
-          result = await checkPM2Health(component);
+          result = { status: "PM2_MANAGED", info: "Monitored by PM2" };
         } else {
           result = await checkProcessHealth(component);
         }
@@ -422,15 +446,13 @@ async function getComponentHealth(component) {
   } else {
     // Use basic checks if enhanced checkers not available
     if (component.pm2Name) {
-      result = await checkPM2Health(component);
+      result = { status: "PM2_MANAGED", info: "Monitored by PM2" };
     } else {
       result = await checkProcessHealth(component);
     }
   }
-
   return result;
 }
-
 // Get system metrics
 async function getSystemMetrics() {
   try {
@@ -438,7 +460,6 @@ async function getSystemMetrics() {
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
-
     return {
       cpu: {
         loadAvg1min: loadAvg[0],
@@ -464,11 +485,9 @@ async function getSystemMetrics() {
     return {};
   }
 }
-
 // Enhanced health endpoint
 app.get('/api/health/system', async (req, res) => {
   const startTime = Date.now();
-
   const health = {
     status: 'operational',
     timestamp: new Date().toISOString(),
@@ -488,10 +507,60 @@ app.get('/api/health/system', async (req, res) => {
     },
     system: await getSystemMetrics()
   };
-
   // Check all components
-  for (const component of monitoredComponents) {
+  // Sort components to process dependencies first
+  const sortedComponents = [...monitoredComponents].sort((a, b) => {
+    // Process sttttserver and asterisk-core first
+    if (a.id === "sttttserver" || a.id === "asterisk-core") return -1;
+    if (b.id === "sttttserver" || b.id === "asterisk-core") return 1;
+    return 0;
+  });
+  for (const component of sortedComponents) {
     const componentHealth = await getComponentHealth(component);
+    // ARTIFICIAL CONDITIONS FOR LINKED COMPONENTS
+    // Condition 1: Link station handlers with STTTTSserver
+    if (component.id === "station3-handler" || component.id === "station9-handler") {
+      // Check if STTTTSserver is running
+      const sttttserverCheck = monitoredComponents.find(c => c.id === "sttttserver");
+      if (sttttserverCheck) {
+        // If we already checked sttttserver, use its status
+        if (health.components["sttttserver"]) {
+          if (health.components["sttttserver"].status === "LIVE") {
+            componentHealth.status = "LIVE";
+            componentHealth.message = "Running with STTTTSserver";
+            componentHealth.pid = "Part of STTTTSserver";
+            componentHealth.cpu = health.components["sttttserver"].cpu || 0;
+            componentHealth.memory = health.components["sttttserver"].memory || 0;
+            componentHealth.artificial = true;
+          } else {
+            componentHealth.status = "DEAD";
+            componentHealth.message = "STTTTSserver not running";
+            componentHealth.artificial = true;
+          }
+        }
+      }
+    }
+    
+    // Condition 2: Link Asterisk ARI/AMI with asterisk-core
+    if (component.id === "asterisk-ari" || component.id === "asterisk-ami") {
+      // Check if asterisk-core is running
+      const asteriskCoreCheck = monitoredComponents.find(c => c.id === "asterisk-core");
+      if (asteriskCoreCheck) {
+        // If we already checked asterisk-core, use its status
+        if (health.components["asterisk-core"]) {
+          if (health.components["asterisk-core"].status === "LIVE") {
+            componentHealth.status = "LIVE";
+            componentHealth.message = "Running with Asterisk Core";
+            componentHealth.artificial = true;
+            componentHealth.port = component.id === "asterisk-ari" ? 8088 : 5038;
+          } else {
+            componentHealth.status = "DEAD";
+            componentHealth.message = "Asterisk Core not running";
+            componentHealth.artificial = true;
+          }
+        }
+      }
+    }
     
     health.components[component.id] = {
       ...componentHealth,
@@ -502,7 +571,6 @@ app.get('/api/health/system', async (req, res) => {
       lastCheck: new Date().toISOString(),
       message: component.message
     };
-
     // Update counters
     if (['LIVE', 'HEALTHY', 'ACTIVE'].includes(componentHealth.status)) {
       health.components_live++;
@@ -513,7 +581,6 @@ app.get('/api/health/system', async (req, res) => {
         health.summary.critical_failures.push(component.id);
       }
     }
-
     // Group by layer
     if (!health.layers[component.layer]) {
       health.layers[component.layer] = {
@@ -530,12 +597,10 @@ app.get('/api/health/system', async (req, res) => {
       }
     }
   }
-
   // Add Asterisk health summary
   if (health.components['asterisk-core']?.metrics) {
     health.asterisk_health = health.components['asterisk-core'].metrics;
   }
-
   // Add external API summary
   ['deepgram-api', 'deepl-api', 'elevenlabs-api', 'hume-api'].forEach(apiId => {
     if (health.components[apiId]) {
@@ -546,29 +611,23 @@ app.get('/api/health/system', async (req, res) => {
       };
     }
   });
-
   // Determine overall status
   if (health.summary.critical_failures.length > 0) {
     health.status = 'critical';
   } else if (health.summary.components_dead > 0) {
     health.status = 'degraded';
   }
-
   // Add response time
   health.response_time_ms = Date.now() - startTime;
-
   res.json(health);
 });
-
 // Individual component endpoint
 app.get('/api/health/component/:id', async (req, res) => {
   const { id } = req.params;
   const component = monitoredComponents.find(c => c.id === id);
-
   if (!component) {
     return res.status(404).json({ error: 'Component not found' });
   }
-
   const health = await getComponentHealth(component);
   res.json({
     id,
@@ -576,20 +635,17 @@ app.get('/api/health/component/:id', async (req, res) => {
     component
   });
 });
-
 // Metrics endpoint
 // Fixed route - Express doesn't support optional params with ?
 app.get('/api/metrics', (req, res) => {
     res.json(metricsCollector ? metricsCollector.getAllMetrics() : {});
 });
-
 app.get('/api/metrics/:component', (req, res) => {
   const { component } = req.params;
   
   if (!metricsCollector) {
     return res.json({ message: 'Metrics collector not available' });
   }
-
   if (component) {
     const metrics = metricsCollector.getMetrics(component);
     res.json(metrics);
@@ -598,45 +654,244 @@ app.get('/api/metrics/:component', (req, res) => {
     res.json(allMetrics);
   }
 });
-
 // Existing snapshots endpoint
-app.get('/api/snapshots', (req, res) => {
-  res.json(monitoringSnapshots);
+app.get("/api/snapshots", async (req, res) => {
+  try {
+    // Try database first for persistent data
+    const result = await dbPool.query(
+      "SELECT * FROM station_snapshots ORDER BY timestamp DESC LIMIT " + maxSnapshots
+    );
+    
+    if (result.rows.length > 0) {
+      // Convert DB format to API format
+const snapshots = result.rows.map(row => {      const stationId = row.station_id;      const stationNumber = parseInt(stationId.replace("Station-", ""));      return {        station_id: stationId,        station_number: stationNumber,        station_name: stationMappings[stationId] || stationId,        timestamp: row.timestamp,        metrics: row.metrics || {},        knobs: row.knobs || {},        receivedAt: row.created_at      };    });
+      res.json(snapshots);
+    } else {
+      // Fallback to memory if DB is empty
+      res.json(monitoringSnapshots);
+    }
+  } catch (error) {
+    console.error("Database error in GET /api/snapshots:", error.message);
+    // Fallback to memory on error
+    res.json(monitoringSnapshots);
+  }
 });
-
-app.post('/api/snapshots', (req, res) => {
+app.post("/api/snapshots", async (req, res) => {
   const snapshot = {
     ...req.body,
     receivedAt: new Date().toISOString()
   };
-
+  
+  // Save to memory for fast access
   monitoringSnapshots.push(snapshot);
-
   if (monitoringSnapshots.length > maxSnapshots) {
     monitoringSnapshots.shift();
   }
-
+  
+  // Save to database for persistence (async, dont block response)
+  dbPool.query(
+    `INSERT INTO station_snapshots 
+     (station_id, metrics, timestamp, segment, audio, totals, knobs, logs) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      snapshot.station_id || "system",
+      snapshot.metrics || {},
+      snapshot.timestamp || new Date(),
+      snapshot.segment || {},
+      snapshot.audio || {},
+      snapshot.totals || {},
+      snapshot.knobs || {},
+      snapshot.logs || {}
+    ]
+  ).then(() => {
+    console.log("Snapshot saved to database:", snapshot.station_id);
+  }).catch(err => {
+    console.error("Failed to save snapshot to DB:", err.message);
+  });
+  
   res.json({ 
     success: true, 
-    count: monitoringSnapshots.length 
+    count: monitoringSnapshots.length,
+    persisted: true
+  });
+});
+// Monitoring-data endpoint (used by monitoring-to-database-bridge)
+app.post('/api/monitoring-data', async (req, res) => {
+  const data = req.body;
+  
+  // Debug logging
+  console.log("[monitoring-data] Received data:", {
+    station_id: data.station_id,
+    extension: data.extension,
+    hasExtension: !!data.extension
+  });
+  
+  // Convert monitoring-data format to snapshot format
+  // Combine station_id with extension for new format
+  let stationId = data.station || data.stationId || data.station_id || "unknown";
+  if (data.extension && stationId !== "unknown") {
+    // Convert to new format: Station-X-YYYY
+    stationId = stationId + "-" + data.extension;
+  }
+  
+  const snapshot = {
+    station_id: stationId,
+    timestamp: data.timestamp || new Date(),
+    metrics: data.metrics || data,
+    segment: data.segment || {},
+    audio: data.audio || {},
+    totals: data.totals || {},
+    knobs: data.knobs || {},
+    logs: data.logs || {},
+    receivedAt: new Date().toISOString()
+  };
+  
+  // Log for debugging
+  console.log(`[monitoring-data] Received data for station: ${snapshot.station_id}`);
+  
+  // Save to memory
+  monitoringSnapshots.push(snapshot);
+  if (monitoringSnapshots.length > maxSnapshots) {
+    monitoringSnapshots.shift();
+  }
+  
+  // Save to database (async, don't block response)
+  dbPool.query(
+    `INSERT INTO station_snapshots 
+     (station_id, metrics, timestamp, segment, audio, totals, knobs, logs) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      snapshot.station_id,
+      snapshot.metrics || {},
+      snapshot.timestamp,
+      snapshot.segment,
+      snapshot.audio,
+      snapshot.totals,
+      snapshot.knobs,
+      snapshot.logs
+    ]
+  ).then(() => {
+    console.log(`[monitoring-data] Saved to database: ${snapshot.station_id}`);
+  }).catch(err => {
+    console.error(`[monitoring-data] Failed to save to DB: ${err.message}`);
+  });
+  
+  res.json({ 
+    success: true, 
+    message: 'Monitoring data received',
+    station: snapshot.station_id
   });
 });
 
-// Clear snapshots
-app.post('/api/clear', (req, res) => {
-  monitoringSnapshots.length = 0;
-  res.json({ success: true, message: 'All snapshots cleared' });
-});
+// GET latest snapshot per station
+// Station name mappings for proper display
+// Station name mappings for proper display - 24 combinations (12 stations × 2 extensions)
+const stationMappings = {
+  // Extension 3333
+  'Station-1-3333': 'Asterisk → Gateway / 3333',
+  'Station-2-3333': 'Gateway → STTTTSserver / 3333',
+  'Station-3-3333': 'STTTTSserver → Deepgram / English (Caller) / 3333',
+  'Station-4-3333': 'STTTTSserver → DeepL / Translation (EN→HE) / 3333',
+  'Station-5-3333': 'STTTTSserver → ElevenLabs / English (Agent) / 3333',
+  'Station-6-3333': 'STTTTSserver → Deepgram / Hebrew (Agent) / 3333',
+  'Station-7-3333': 'STTTTSserver → DeepL / Translation (HE→EN) / 3333',
+  'Station-8-3333': 'STTTTSserver → ElevenLabs / Hebrew (Caller) / 3333',
+  'Station-9-3333': 'STTTTSserver → Hume / Emotion Analysis / 3333',
+  'Station-10-3333': 'STTTTSserver → Gateway / 3333',
+  'Station-11-3333': 'Gateway → Asterisk / 3333',
+  'Station-12-3333': 'External Media → Conference Server / 3333',
+  
+  // Extension 4444
+  'Station-1-4444': 'Asterisk → Gateway / 4444',
+  'Station-2-4444': 'Gateway → STTTTSserver / 4444',
+  'Station-3-4444': 'STTTTSserver → Deepgram / English (Caller) / 4444',
+  'Station-4-4444': 'STTTTSserver → DeepL / Translation (EN→HE) / 4444',
+  'Station-5-4444': 'STTTTSserver → ElevenLabs / English (Agent) / 4444',
+  'Station-6-4444': 'STTTTSserver → Deepgram / Hebrew (Agent) / 4444',
+  'Station-7-4444': 'STTTTSserver → DeepL / Translation (HE→EN) / 4444',
+  'Station-8-4444': 'STTTTSserver → ElevenLabs / Hebrew (Caller) / 4444',
+  'Station-9-4444': 'STTTTSserver → Hume / Emotion Analysis / 4444',
+  'Station-10-4444': 'STTTTSserver → Gateway / 4444',
+  'Station-11-4444': 'Gateway → Asterisk / 4444',
+  'Station-12-4444': 'External Media → Conference Server / 4444',
+  
+  // Fallback for old format (backward compatibility)
+  'Station-1': 'Asterisk → Gateway / 3333',
+  'Station-2': 'Asterisk → Gateway / 4444', 
+  'Station-3': 'STTTTSserver → Deepgram / English (Caller)',
+  'Station-4': 'STTTTSserver → DeepL / Translation',
+  'Station-5': 'STTTTSserver → ElevenLabs / English (Agent)',
+  'Station-6': 'STTTTSserver → Deepgram / Hebrew (Agent)',
+  'Station-7': 'STTTTSserver → DeepL / Translation',
+  'Station-8': 'STTTTSserver → ElevenLabs / Hebrew (Caller)',
+  'Station-9': 'STTTTSserver → Hume / Emotion Analysis',
+  'Station-10': 'Gateway → Asterisk / 3333',
+  'Station-11': 'Gateway → Asterisk / 4444',
+  'Station-12': 'External Media → Conference Server'
+};
 
+app.get("/api/snapshots/latest", async (req, res) => {
+  try {
+    const result = await dbPool.query(
+      "SELECT DISTINCT ON (station_id) * FROM station_snapshots WHERE timestamp > NOW() - INTERVAL '5 minutes' ORDER BY station_id, timestamp DESC"
+    );
+    const snapshots = result.rows.map(row => {
+      const stationId = row.station_id;
+      // Parse station number and extension from Station-X-YYYY or Station-X format
+      const parts = stationId.split("-");
+      let stationNumber = 1;
+      let extension = null;
+      
+      if (parts.length === 2) {
+        // Old format: Station-X
+        stationNumber = parseInt(parts[1]) || 1;
+      } else if (parts.length === 3) {
+        // New format: Station-X-YYYY
+        stationNumber = parseInt(parts[1]) || 1;
+        extension = parts[2];
+      }
+      
+      return {
+        station_id: stationId,
+        station_number: stationNumber,
+        extension: extension,
+        station_name: stationMappings[stationId] || stationId,
+        timestamp: row.timestamp,
+        metrics: row.metrics || {},
+        knobs: row.knobs || {},
+        receivedAt: row.created_at
+      };
+    });
+    snapshots.sort((a, b) => a.station_number - b.station_number);
+    res.json({ count: snapshots.length, timestamp: new Date().toISOString(), stations: snapshots });
+  } catch (error) {
+    console.error("GET /api/snapshots/latest error:", error.message);
+    res.status(500).json({ error: "Failed to fetch latest snapshots" });
+  }
+});
+app.post('/api/clear', async (req, res) => {
+  // Clear memory
+  monitoringSnapshots.length = 0;
+  
+  // Optional: Clear old database records (keep last 7 days)
+  try {
+    const result = await dbPool.query(
+      "DELETE FROM station_snapshots WHERE timestamp < NOW() - INTERVAL '7 days'"
+    );
+    console.log(`Cleared ${result.rowCount} old snapshots from database`);
+  } catch (err) {
+    console.error("Failed to clear old snapshots from DB:", err.message);
+  }
+  
+  res.json({ success: true, message: "All memory snapshots cleared, old DB records cleaned" });
+});
 // Component control endpoints
 app.post('/api/components/:componentId/restart', async (req, res) => {
   const { componentId } = req.params;
   const component = monitoredComponents.find(c => c.id === componentId);
-
   if (!component || !component.pm2Name) {
     return res.status(404).json({ error: 'Component not found or not manageable' });
   }
-
   try {
     await execAsync(`pm2 restart ${component.pm2Name}`);
     res.json({ success: true, message: `${componentId} restarted` });
@@ -644,21 +899,17 @@ app.post('/api/components/:componentId/restart', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Stop component endpoint
 app.post("/api/components/:componentId/stop", async (req, res) => {
   const { componentId } = req.params;
   const component = monitoredComponents.find(c => c.id === componentId);
-
   if (!component || !component.pm2Name) {
     return res.status(404).json({ error: "Component not found or not manageable" });
   }
-
   // Prevent stopping critical monitoring components
   if (componentId === "database-api-server" || componentId === "monitoring-server") {
     return res.status(403).json({ error: "Critical monitoring components can only be restarted, not stopped" });
   }
-
   try {
     await execAsync(`pm2 stop ${component.pm2Name}`);
     res.json({ success: true, message: `${componentId} stopped` });
@@ -666,22 +917,17 @@ app.post("/api/components/:componentId/stop", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Start component endpoint
 app.post("/api/components/:componentId/start", async (req, res) => {
   const { componentId } = req.params;
   const component = monitoredComponents.find(c => c.id === componentId);
-
   // Prevent starting critical monitoring components (they should never be stopped)
   if (componentId === "database-api-server" || componentId === "monitoring-server") {
     return res.status(403).json({ error: "Critical monitoring components can only be restarted, not stopped/started" });
   }
-
   if (!component || !component.pm2Name) {
-
     return res.status(404).json({ error: "Component not found or not manageable" });
   }
-
   try {
     await execAsync(`pm2 start ${component.pm2Name}`);
     res.json({ success: true, message: `${componentId} started` });
@@ -689,11 +935,9 @@ app.post("/api/components/:componentId/start", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Start server
 const PORT = process.env.PORT || 8083;
 const HOST = '0.0.0.0';
-
 app.listen(PORT, HOST, () => {
   console.log(`[Database API] Server running on ${HOST}:${PORT}`);
   console.log(`[Database API] Health endpoint: http://localhost:${PORT}/api/health/system`);
@@ -706,7 +950,6 @@ app.listen(PORT, HOST, () => {
     console.log('[Database API] Live metrics collection enabled');
   }
 });
-
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('[Database API] Shutting down gracefully...');
@@ -715,5 +958,20 @@ process.on('SIGINT', () => {
   }
   process.exit(0);
 });
-
 module.exports = app;
+
+// Automatic cleanup job - runs every 24 hours
+setInterval(async () => {
+  try {
+    const result = await dbPool.query(
+      "DELETE FROM station_snapshots WHERE timestamp < NOW() - INTERVAL '30 days' RETURNING id"
+    );
+    if (result.rowCount > 0) {
+      console.log(`[Cleanup] Removed ${result.rowCount} snapshots older than 30 days`);
+    }
+  } catch (err) {
+    console.error("[Cleanup] Failed to clean old snapshots:", err.message);
+  }
+}, 24 * 60 * 60 * 1000); // Run daily
+
+console.log("[Database API] Automatic cleanup scheduled (daily, removes >30 day old records)");

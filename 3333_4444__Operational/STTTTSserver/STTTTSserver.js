@@ -502,9 +502,9 @@ async function createDeepgramStreamingConnection(extensionId) {
         console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
         
         // TODO Phase 4: Handle transcript and integrate with translation pipeline
-      // STATION-3 MONITORING: Record metrics
-      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-      handler.onTranscript(data);
+        // STATION-3 MONITORING: Record metrics
+        const handler = extensionId === "3333" ? station3_3333 : station3_4444;
+        handler.onTranscript(data);
       
       // Reset timer for next segment
       if (data.is_final) {
@@ -1531,6 +1531,7 @@ const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient
 const station3_3333 = new Station3Handler("3333");
 const station3_4444 = new Station3Handler("4444");
 
+console.log("[DEBUG] About to initialize StationAgent...");
 // Initialize StationAgent when available
 try {
   const StationAgent = require("./monitoring/StationAgent");
@@ -3753,6 +3754,13 @@ socket3333In.on('message', async (msg, rinfo) => {
     }
   }
 
+  // NEW: Station-3 audio quality monitoring on every chunk
+  console.log("[DEBUG-3333] UDP packet received, checking Station-3...");
+  if (station3_3333 && station3_3333.onAudioChunk) {
+    console.log("[DEBUG-3333] Calling Station-3.onAudioChunk with ", msg.length, " bytes");
+    station3_3333.onAudioChunk(msg, Date.now());
+  }
+
   if (global.io) {
     global.io.emit('audioStream', {
       extension: '3333',
@@ -3877,6 +3885,13 @@ socket4444In.on('message', async (msg, rinfo) => {
       console.log(`[UDP-4444] PCM sample check: ${sample1}, ${sample2} (expected range: -32768 to 32767)`);
     }
   }
+  console.log("[DEBUG-4444] UDP packet received, checking Station-3...");
+  // NEW: Station-3 audio quality monitoring on every chunk
+  if (station3_4444 && station3_4444.onAudioChunk) {
+    console.log("[DEBUG-4444] Calling Station-3.onAudioChunk with ", msg.length, " bytes");
+    station3_4444.onAudioChunk(msg, Date.now());
+  }
+
 
   if (global.io) {
     global.io.emit('audioStream', {

@@ -62,7 +62,7 @@ export const Station3_3333_Handler = {
 
   // Entry point - just forwards to Generic Handler
   onFrame(frame, ctx, genericHandler) {
-    // Add station-specific context
+    // Add station-specific context for port 3333 (extension A -> extension B)
     const enrichedCtx = {
       ...ctx,
       station_key: this.stationKey,
@@ -70,7 +70,9 @@ export const Station3_3333_Handler = {
       direction: this.direction,
       sample_rate: ctx.sample_rate || 16000,
       bit_depth: 16,
-      channels: 1
+      channels: 1,
+      source_extension: "3333",  // Extension A
+      target_extension: "4444"   // Extension B
     };
 
     // Let the Generic Handler do all the work

@@ -1,13 +1,13 @@
 // STTTTSserver/Monitoring_Stations/station/stations/Station3_4444_Handler.js
 // Thin adapter for Station 3 (port 4444) monitoring
-// Defines WHAT to measure for OUTGOING audio (TX to gateway), not HOW (that's done by Generic Handler)
+// Defines WHAT to measure for audio flow (extension pair B->A), not HOW (that's done by Generic Handler)
 
 export const Station3_4444_Handler = {
   stationKey: "St_3_4444",
-  stationGroup: "STTTTS_PCM_EGRESS",
-  direction: "TX",  // Transmitting to gateway
+  stationGroup: "STTTTS_PCM_INGRESS",
+  direction: "RX",  // Receiving from gateway (extension B's mic -> extension A's speaker)
 
-  // PRE metrics - measure audio before final transmission processing
+  // PRE metrics - measure raw incoming audio from extension B
   preMetrics: [
     // Core metrics (always computed)
     "pcm.rms_dbfs",
@@ -40,7 +40,7 @@ export const Station3_4444_Handler = {
     "stream.channel_count"
   ],
 
-  // POST metrics - measure after output processing and knobs
+  // POST metrics - measure after knob application
   postMetrics: [
     // Core metrics (always computed)
     "pcm.rms_dbfs",
@@ -82,7 +82,7 @@ export const Station3_4444_Handler = {
 
   // Entry point - just forwards to Generic Handler
   onFrame(frame, ctx, genericHandler) {
-    // Add station-specific context for TX/4444
+    // Add station-specific context for port 4444 (extension B -> extension A)
     const enrichedCtx = {
       ...ctx,
       station_key: this.stationKey,
@@ -91,10 +91,8 @@ export const Station3_4444_Handler = {
       sample_rate: ctx.sample_rate || 16000,
       bit_depth: 16,
       channels: 1,
-      // TX-specific context
-      is_tts_output: ctx.is_tts_output || false,
-      target_device: ctx.target_device || "gateway",
-      transmission_protocol: "websocket"
+      source_extension: "4444",  // Extension B
+      target_extension: "3333"   // Extension A
     };
 
     // Let the Generic Handler do all the work

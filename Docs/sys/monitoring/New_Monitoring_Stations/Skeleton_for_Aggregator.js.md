@@ -1,3 +1,4 @@
+
 // STTTTSserver/Monitoring_Stations/station/generic/Aggregator.js
 // MANDATORY: 5-second aggregation, non-blocking addSample(), time-based flush.
 // - In-memory only. No disk IO. No network IO.
@@ -8,10 +9,8 @@ export class Aggregator {
    * @param {number} opts.bucketMs - MUST be 5000
    * @param {(batch: object[]) => void} opts.onFlush - MUST be non-blocking (enqueue to MetricsEmitter)
    * @param {number} [opts.flushJitterMs=50] - small guard to avoid edge cases at boundary
-   * @param {object} [opts.knobsResolver] - KnobsResolver instance for snapshots
-   * @param {object} [opts.databaseBridge] - DatabaseBridge instance for saving snapshots
    */
-  constructor({ bucketMs = 5000, onFlush, flushJitterMs = 50, knobsResolver = null, databaseBridge = null }) {
+  constructor({ bucketMs = 5000, onFlush, flushJitterMs = 50 }) {
     if (bucketMs !== 5000) {
       throw new Error("Aggregator bucketMs MUST be 5000.");
     }
@@ -22,15 +21,10 @@ export class Aggregator {
     this.bucketMs = bucketMs;
     this.onFlush = onFlush;
     this.flushJitterMs = flushJitterMs;
-    this.knobsResolver = knobsResolver;
-    this.databaseBridge = databaseBridge;
 
     // Map<bucket_ts_ms, Map<seriesKey, AggState>>
     // seriesKey = `${trace_id}|${station_key}|${tap}|${metric_key}`
     this.buckets = new Map();
-
-    // Track station keys per bucket (for knob snapshots)
-    this.bucketStations = new Map(); // Map<bucket_ts_ms, Set<station_key>>
 
     // Timer handle
     this.timer = null;
@@ -56,8 +50,6 @@ export class Aggregator {
 
     // Node: avoid keeping process alive just because of this timer
     if (this.timer?.unref) this.timer.unref();
-
-    console.log(`[Aggregator] Started with ${this.bucketMs}ms buckets`);
   }
 
   stop() {
@@ -71,8 +63,6 @@ export class Aggregator {
 
     // Final flush: everything we have (including current bucket)
     this.flushAll();
-
-    console.log(`[Aggregator] Stopped and flushed all buckets`);
   }
 
   /**
@@ -100,21 +90,10 @@ export class Aggregator {
       if (this.buckets.size >= this.maxBucketsInMemory) {
         // Drop oldest bucket deterministically; never block audio
         const oldest = this._minKey(this.buckets);
-        if (oldest !== null) {
-          console.warn(`[Aggregator] Dropping oldest bucket due to memory limit: ${new Date(oldest).toISOString()}`);
-          this.buckets.delete(oldest);
-          this.bucketStations.delete(oldest);
-        }
+        if (oldest !== null) this.buckets.delete(oldest);
       }
       seriesMap = new Map();
       this.buckets.set(bucketTs, seriesMap);
-      this.bucketStations.set(bucketTs, new Set());
-    }
-
-    // Track this station for the bucket
-    const stationSet = this.bucketStations.get(bucketTs);
-    if (stationSet) {
-      stationSet.add(s.station_key);
     }
 
     let agg = seriesMap.get(seriesKey);
@@ -151,37 +130,6 @@ export class Aggregator {
   }
 
   /**
-   * Save knob snapshots for each station in a bucket
-   * @private
-   */
-  async _saveKnobSnapshots(bucketTs, stationKeys) {
-    // Only save if we have both resolver and bridge
-    if (!this.knobsResolver || !this.databaseBridge) return;
-
-    for (const station_key of stationKeys) {
-      try {
-        // Get effective knobs for this station
-        const knobs = this.knobsResolver.getEffectiveKnobs({ station_key });
-
-        // Save snapshot to database (fire and forget)
-        this.databaseBridge.saveKnobSnapshot({
-          trace_id: null, // Could be enhanced to track per-trace
-          station_key,
-          bucket_ts_ms: bucketTs,
-          bucket_ms: this.bucketMs,
-          knobs
-        }).catch(err => {
-          // Log but don't block
-          console.error(`[Aggregator] Failed to save knob snapshot:`, err.message);
-        });
-      } catch (err) {
-        // Never block on snapshot errors
-        console.error(`[Aggregator] Error getting knobs for ${station_key}:`, err.message);
-      }
-    }
-  }
-
-  /**
    * Flushes buckets strictly older than the current open bucket.
    * Called on timer.
    */
@@ -206,23 +154,14 @@ export class Aggregator {
 
       const batch = this._buildBatchFromSeriesMap(seriesMap, bucketTs);
 
-      // Save knob snapshots for this bucket (non-blocking)
-      const stationKeys = this.bucketStations.get(bucketTs);
-      if (stationKeys && stationKeys.size > 0) {
-        this._saveKnobSnapshots(bucketTs, stationKeys);
-      }
-
       // Remove before calling onFlush (never retain if downstream is slow)
       this.buckets.delete(bucketTs);
-      this.bucketStations.delete(bucketTs);
 
       // MUST be non-blocking
       try {
         this.onFlush(batch);
-        console.log(`[Aggregator] Flushed bucket ${new Date(bucketTs).toISOString()} with ${batch.length} series`);
-      } catch (e) {
+      } catch (_) {
         // Swallow errors: never crash realtime due to monitoring emission
-        console.error(`[Aggregator] Error in onFlush callback:`, e.message);
       }
     }
   }
@@ -240,22 +179,12 @@ export class Aggregator {
       if (!seriesMap) continue;
 
       const batch = this._buildBatchFromSeriesMap(seriesMap, bucketTs);
-
-      // Save knob snapshots for this bucket (non-blocking)
-      const stationKeys = this.bucketStations.get(bucketTs);
-      if (stationKeys && stationKeys.size > 0) {
-        this._saveKnobSnapshots(bucketTs, stationKeys);
-      }
-
       this.buckets.delete(bucketTs);
-      this.bucketStations.delete(bucketTs);
 
       try {
         this.onFlush(batch);
-        console.log(`[Aggregator] Force-flushed bucket ${new Date(bucketTs).toISOString()} with ${batch.length} series`);
-      } catch (e) {
+      } catch (_) {
         // never throw
-        console.error(`[Aggregator] Error in onFlush callback:`, e.message);
       }
     }
   }
@@ -321,3 +250,6 @@ export class Aggregator {
     return min;
   }
 }
+
+
+⸻

@@ -1,3 +1,4 @@
+
 // STTTTSserver/Monitoring_Stations/station/generic/St_Handler_Generic.js
 // MANDATORY: realtime-safe core handler
 // - PRE metrics + PRE audio capture
@@ -27,20 +28,16 @@ export class St_Handler_Generic {
     this.config = config;
     this.metricsEmitter = metricsEmitter;
     this.audioRecorder = audioRecorder;
+
     this.bucketMs = bucketMs;
-
-    // Initialize KnobsResolver first
-    this.knobsResolver = new KnobsResolver({
-      baselineKnobs: config?.knobs || {},
-      knobsRegistry: KnobsRegistry,
-    });
-
-    // Then initialize Aggregator with the resolver
     this.aggregator = new Aggregator({
       bucketMs: this.bucketMs,
       onFlush: (batch) => this.metricsEmitter.emitBatch(batch), // MUST be non-blocking
-      knobsResolver: this.knobsResolver,
-      databaseBridge: this.metricsEmitter.databaseBridge // Pass the DB bridge from MetricsEmitter
+    });
+
+    this.knobsResolver = new KnobsResolver({
+      baselineKnobs: config?.knobs || {},
+      knobsRegistry: KnobsRegistry,
     });
 
     // Station registry (thin adapters)
@@ -121,8 +118,7 @@ export class St_Handler_Generic {
       }
       if (!def.realtimeSafe) {
         // Hard rule for initial baseline: do not compute heavy metrics in realtime path
-        console.warn(`Skipping non-realtime metric ${key} in realtime path`);
-        continue;
+        throw new Error(`Metric ${key} is not realtimeSafe but is scheduled for realtime computation`);
       }
 
       let value;
@@ -131,7 +127,6 @@ export class St_Handler_Generic {
       } catch (e) {
         // Never throw from realtime compute due to a single metric bug.
         // Record NaN and continue.
-        console.error(`Error computing metric ${key}:`, e.message);
         value = NaN;
       }
 
@@ -147,7 +142,9 @@ export class St_Handler_Generic {
   }
 
   /**
-   * applyKnobs(): Comprehensive audio shaping based on enabled knobs
+   * applyKnobs(): basic, deterministic audio shaping
+   * - Gain: pcm.input_gain_db
+   * - Limiter: pcm.limiter_threshold_dbfs (hard limiter)
    * All operations are sample-by-sample and realtime safe.
    *
    * @param {Int16Array} input
@@ -155,179 +152,40 @@ export class St_Handler_Generic {
    * @returns {Int16Array} processed output (new buffer)
    */
   applyKnobs(input, knobs, ctx) {
-    // Start with a copy of input
-    let processed = new Int16Array(input);
+    // Defaults if missing
+    const gainDb = this._num(knobs["pcm.input_gain_db"], 0);
+    const limiterDbfs = this._num(knobs["pcm.limiter_threshold_dbfs"], -6);
 
-    // Track processing time
-    const startTime = Date.now();
-
-    // =========================================================================
-    // STAGE 1: INPUT GAIN
-    // =========================================================================
-    if (knobs["pcm.input_gain_db"] !== undefined && knobs["pcm.input_gain_db"] !== 0) {
-      processed = this._applyGain(processed, knobs["pcm.input_gain_db"]);
-    }
-
-    // =========================================================================
-    // STAGE 2: HIGH-PASS FILTER (if enabled)
-    // =========================================================================
-    if (knobs["highpass.enabled"]) {
-      // Simple high-pass implementation (would be better with proper DSP)
-      const cutoff = this._num(knobs["highpass.cutoff_hz"], 80);
-      processed = this._applySimpleHighpass(processed, cutoff, ctx.sample_rate || 16000);
-    }
-
-    // =========================================================================
-    // STAGE 3: NOISE GATE (if enabled)
-    // =========================================================================
-    if (knobs["noise_gate.enabled"]) {
-      const threshold = this._num(knobs["noise_gate.threshold_dbfs"], -50);
-      processed = this._applyNoiseGate(processed, threshold);
-    }
-
-    // =========================================================================
-    // STAGE 4: COMPRESSOR (if enabled)
-    // =========================================================================
-    if (knobs["compressor.enabled"]) {
-      const threshold = this._num(knobs["compressor.threshold_dbfs"], -20);
-      const ratio = this._num(knobs["compressor.ratio"], 4);
-      processed = this._applyCompressor(processed, threshold, ratio);
-    }
-
-    // =========================================================================
-    // STAGE 5: LIMITER (if enabled - usually last in chain)
-    // =========================================================================
-    if (knobs["limiter.enabled"] !== false) {  // Default is true
-      const threshold = this._num(knobs["limiter.threshold_dbfs"], -6);
-      processed = this._applyLimiter(processed, threshold);
-    }
-
-    // =========================================================================
-    // STAGE 6: OUTPUT GAIN
-    // =========================================================================
-    if (knobs["pcm.output_gain_db"] !== undefined && knobs["pcm.output_gain_db"] !== 0) {
-      processed = this._applyGain(processed, knobs["pcm.output_gain_db"]);
-    }
-
-    // =========================================================================
-    // STAGE 7: SAFETY CLIPPING (always on)
-    // =========================================================================
-    if (knobs["safety.clipping_protection"] !== false) {
-      processed = this._applySafetyClipping(processed);
-    }
-
-    // Attach processing latency
-    ctx.processing_latency_ms = Date.now() - startTime;
-
-    return processed;
-  }
-
-  // =========================================================================
-  // Audio Processing Helpers (simplified for baseline)
-  // =========================================================================
-
-  _applyGain(input, gainDb) {
+    // Convert dB to linear gain
     const gainLin = Math.pow(10, gainDb / 20);
-    const out = new Int16Array(input.length);
 
-    for (let i = 0; i < input.length; i++) {
-      let s = input[i] * gainLin;
-      // Clamp to int16
-      if (s > 32767) s = 32767;
-      else if (s < -32768) s = -32768;
-      out[i] = s | 0;
-    }
-
-    return out;
-  }
-
-  _applyLimiter(input, thresholdDbfs) {
-    // Convert threshold (dBFS) to absolute int16 sample threshold
+    // Convert limiter threshold (dBFS) to absolute int16 sample threshold.
+    // 0 dBFS ~= full scale int16: 32767.
+    // thresholdAmp = 32767 * 10^(dBFS/20)
     const threshold = Math.max(
       1,
-      Math.min(32767, Math.round(32767 * Math.pow(10, thresholdDbfs / 20)))
+      Math.min(32767, Math.round(32767 * Math.pow(10, limiterDbfs / 20)))
     );
 
     const out = new Int16Array(input.length);
 
     for (let i = 0; i < input.length; i++) {
-      let s = input[i];
+      // Apply gain in float
+      let s = input[i] * gainLin;
+
       // Hard limiter clip
       if (s > threshold) s = threshold;
       else if (s < -threshold) s = -threshold;
-      out[i] = s;
-    }
 
-    return out;
-  }
-
-  _applyCompressor(input, thresholdDbfs, ratio) {
-    // Simplified compressor (real implementation would have attack/release)
-    const threshold = 32767 * Math.pow(10, thresholdDbfs / 20);
-    const out = new Int16Array(input.length);
-
-    for (let i = 0; i < input.length; i++) {
-      const s = input[i];
-      const abs = Math.abs(s);
-
-      if (abs > threshold) {
-        // Apply compression above threshold
-        const excess = abs - threshold;
-        const compressedExcess = excess / ratio;
-        const newAbs = threshold + compressedExcess;
-        out[i] = Math.round((s / abs) * newAbs);
-      } else {
-        out[i] = s;
-      }
-    }
-
-    return out;
-  }
-
-  _applyNoiseGate(input, thresholdDbfs) {
-    // Simple gate (real implementation would have attack/hold/release)
-    const threshold = 32767 * Math.pow(10, thresholdDbfs / 20);
-    const out = new Int16Array(input.length);
-
-    for (let i = 0; i < input.length; i++) {
-      if (Math.abs(input[i]) < threshold) {
-        out[i] = 0; // Gate closed
-      } else {
-        out[i] = input[i]; // Gate open
-      }
-    }
-
-    return out;
-  }
-
-  _applySimpleHighpass(input, cutoffHz, sampleRate) {
-    // Very simple first-order high-pass filter
-    const RC = 1.0 / (2.0 * Math.PI * cutoffHz);
-    const dt = 1.0 / sampleRate;
-    const alpha = RC / (RC + dt);
-
-    const out = new Int16Array(input.length);
-    let prevIn = 0;
-    let prevOut = 0;
-
-    for (let i = 0; i < input.length; i++) {
-      out[i] = alpha * (prevOut + input[i] - prevIn);
-      prevIn = input[i];
-      prevOut = out[i];
-    }
-
-    return out;
-  }
-
-  _applySafetyClipping(input) {
-    const out = new Int16Array(input.length);
-
-    for (let i = 0; i < input.length; i++) {
-      let s = input[i];
+      // Clamp to int16
       if (s > 32767) s = 32767;
       else if (s < -32768) s = -32768;
-      out[i] = s;
+
+      out[i] = s | 0;
     }
+
+    // Optional: attach processing latency estimate if you have it
+    // ctx.processing_latency_ms = ...
 
     return out;
   }
@@ -389,3 +247,15 @@ export class St_Handler_Generic {
     return (typeof v === "number" && !Number.isNaN(v)) ? v : fallback;
   }
 }
+
+
+⸻
+
+Notes (Implementation MUSTs)
+	1.	AudioRecorder.capture() MUST be non-blocking (enqueue only).
+	2.	Aggregator.addSample() MUST be non-blocking (in-memory only).
+	3.	MetricsEmitter.emitBatch() MUST be non-blocking.
+	4.	Heavy metrics (FFT/Spectrogram) are NOT allowed in MetricsRegistry as realtimeSafe:true unless moved to a dedicated async worker.
+	5.	bucketMs is fixed to 5000.
+
+⸻

@@ -1,0 +1,687 @@
+/**
+ * BucketScheduler.js - Manages scheduled knob applications at bucket boundaries
+ * Part of Phase 2: Advanced Control Implementation
+ *
+ * Features:
+ * - Schedules knob updates for future 5-second buckets
+ * - Maintains priority queue of pending changes
+ * - Applies updates at exact bucket boundaries
+ * - Tracks configuration versions per trace/station
+ * - Handles idempotency and prevents duplicate applications
+ *
+ * Version: 2.0.0
+ * Date: 2026-01-04
+ */
+
+const { EventEmitter } = require("events");
+const { PersistenceLayer } = require("./PersistenceLayer");
+
+class BucketScheduler extends EventEmitter {
+  constructor(databaseBridge, knobsResolver, config = {}) {
+    super();
+
+    this.databaseBridge = databaseBridge;
+
+    // Initialize persistence layer for recovery
+    this.persistenceLayer = new PersistenceLayer(databaseBridge);
+    this.knobsResolver = knobsResolver;
+
+    // Configuration
+    this.config = {
+      bucketSize: config.bucketSize || 5000,  // 5 seconds in milliseconds
+      checkInterval: config.checkInterval || 1000,  // Check every second
+      maxScheduledUpdates: config.maxScheduledUpdates || 1000,  // Max pending updates
+      cleanupInterval: config.cleanupInterval || 60000,  // Cleanup old entries every minute
+      ...config
+    };
+
+    // State management
+    this.scheduledUpdates = new Map();  // bucket_ts_string -> Set of updates
+    this.idempotencyKeys = new Map();   // idempotency_key -> update details
+    this.configVersions = new Map();    // trace_station_key -> current version
+    this.activeTimers = new Map();      // bucket_ts_string -> timer
+
+    // Statistics
+    this.stats = {
+      scheduled: 0,
+      applied: 0,
+      failed: 0,
+      duplicate: 0,
+      expired: 0
+    };
+
+    // Start the scheduler
+    this.isRunning = false;
+    this.bucketTimer = null;
+    this.cleanupTimer = null;
+
+    this.start();
+
+    console.log('[BucketScheduler] Initialized with bucket size:', this.config.bucketSize);
+  }
+
+  /**
+   * Start the scheduler timers
+   */
+  start() {
+    if (this.isRunning) {
+      console.log('[BucketScheduler] Already running');
+      return;
+    }
+
+    this.isRunning = true;
+
+    // Main bucket check timer
+    this.bucketTimer = setInterval(() => {
+      this.checkAndProcessBuckets();
+    }, this.config.checkInterval);
+
+    // Cleanup timer for old entries
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredEntries();
+    }, this.config.cleanupInterval);
+
+    console.log('[BucketScheduler] Started');
+  }
+
+  /**
+   * Stop the scheduler
+   */
+  stop() {
+    if (!this.isRunning) {
+      return;
+    }
+
+    this.isRunning = false;
+
+    if (this.bucketTimer) {
+      clearInterval(this.bucketTimer);
+      this.bucketTimer = null;
+    }
+
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+
+    // Clear all active timers
+    for (const timer of this.activeTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.activeTimers.clear();
+
+    console.log('[BucketScheduler] Stopped');
+  }
+
+  /**
+   * Schedule a knob update for a future bucket
+   * @param {Object} params - Update parameters
+   * @returns {Promise<Object>} - Result with config version
+   */
+  async scheduleUpdate(params) {
+    const {
+      trace_id,
+      station_key,
+      apply_at_bucket_ts,
+      idempotency_key,
+      knobs,
+      source = 'api',
+      reason = ''
+    } = params;
+
+    try {
+      // 1. Check idempotency
+      if (this.idempotencyKeys.has(idempotency_key)) {
+        const existing = this.idempotencyKeys.get(idempotency_key);
+        this.stats.duplicate++;
+        console.log(`[BucketScheduler] Duplicate request: ${idempotency_key}`);
+        return {
+          success: true,
+          duplicate: true,
+          config_version: existing.config_version,
+          apply_at_bucket_ts: existing.apply_at_bucket_ts
+        };
+      }
+
+      // 2. Validate and align timestamp
+      const now = new Date();
+      const applyAt = new Date(apply_at_bucket_ts);
+      const alignedBucket = this.alignToBucket(applyAt);
+
+      if (alignedBucket <= now) {
+        throw new Error(`apply_at_bucket_ts must be in the future. Got: ${apply_at_bucket_ts}, Now: ${now.toISOString()}`);
+      }
+
+      // 3. Check capacity
+      if (this.scheduledUpdates.size >= this.config.maxScheduledUpdates) {
+        throw new Error(`Maximum scheduled updates (${this.config.maxScheduledUpdates}) reached`);
+      }
+
+      // 4. Get next config version
+      const stationKey = `${trace_id}_${station_key}`;
+      let configVersion = this.configVersions.get(stationKey) || 0;
+      configVersion++;
+
+      // 5. Create update object
+      const update = {
+        trace_id,
+        station_key,
+        apply_at_bucket_ts: alignedBucket.toISOString(),
+        idempotency_key,
+        knobs,
+        source,
+        reason,
+        config_version: configVersion,
+        scheduled_at: now.toISOString(),
+        status: 'scheduled'
+      };
+
+      // 6. Store in scheduled updates
+      const bucketKey = alignedBucket.toISOString();
+      if (!this.scheduledUpdates.has(bucketKey)) {
+        this.scheduledUpdates.set(bucketKey, new Set());
+
+        // Set a timer for this bucket if it's within 1 minute
+        const msUntilBucket = alignedBucket.getTime() - now.getTime();
+        if (msUntilBucket <= 60000) {
+          this.setTimerForBucket(alignedBucket);
+        }
+      }
+      this.scheduledUpdates.get(bucketKey).add(update);
+
+      // Persist to database for recovery
+      await this.persistUpdate(update);
+
+      // 7. Store idempotency record
+      this.idempotencyKeys.set(idempotency_key, update);
+
+      // 8. Store in database
+      await this.storeUpdateInDatabase(update);
+
+      // 9. Update version tracking
+      this.configVersions.set(stationKey, configVersion);
+
+      // Update stats
+      this.stats.scheduled++;
+
+      // Emit event
+      this.emit('update-scheduled', update);
+
+      console.log(`[BucketScheduler] Scheduled update for ${bucketKey} - Station: ${station_key}, Version: ${configVersion}`);
+
+      return {
+        success: true,
+        config_version: configVersion,
+        apply_at_bucket_ts: alignedBucket.toISOString(),
+        effective_knobs: knobs
+      };
+
+    } catch (error) {
+      console.error('[BucketScheduler] Schedule error:', error);
+      this.stats.failed++;
+      throw error;
+    }
+  }
+
+  /**
+   * Check for buckets that need processing
+   */
+  checkAndProcessBuckets() {
+    const now = new Date();
+    const currentBucket = this.alignToBucket(now);
+    const currentBucketKey = currentBucket.toISOString();
+
+    // Process any buckets that are due (current or past)
+    for (const [bucketKey, updates] of this.scheduledUpdates.entries()) {
+      const bucketTime = new Date(bucketKey);
+
+      // Process if bucket time has passed
+      if (bucketTime <= currentBucket) {
+        console.log(`[BucketScheduler] Processing bucket: ${bucketKey}`);
+        this.processBucket(bucketKey, updates);
+      }
+    }
+  }
+
+  /**
+   * Process all updates for a specific bucket
+   * @param {string} bucketKey - Bucket timestamp key
+   * @param {Set} updates - Set of updates to apply
+   */
+  async processBucket(bucketKey, updates) {
+    if (!updates || updates.size === 0) {
+      return;
+    }
+
+    console.log(`[BucketScheduler] Processing ${updates.size} updates for bucket ${bucketKey}`);
+
+    // Process each update
+    for (const update of updates) {
+      try {
+        await this.applyUpdate(update);
+        this.stats.applied++;
+      } catch (error) {
+        console.error(`[BucketScheduler] Failed to apply update:`, error);
+        this.stats.failed++;
+
+        // Mark as failed in database
+        await this.markUpdateStatus(update.idempotency_key, 'failed', error.message);
+      }
+    }
+
+    // Clean up processed bucket
+    this.scheduledUpdates.delete(bucketKey);
+
+    // Clear timer if exists
+    if (this.activeTimers.has(bucketKey)) {
+      clearTimeout(this.activeTimers.get(bucketKey));
+      this.activeTimers.delete(bucketKey);
+    }
+
+    // Emit completion event
+    this.emit('bucket-processed', {
+      bucket_ts: bucketKey,
+      updates_count: updates.size
+    });
+  }
+
+  /**
+   * Apply a single update
+   * @param {Object} update - Update to apply
+   */
+  async applyUpdate(update) {
+    const {
+      trace_id,
+      station_key,
+      knobs,
+      idempotency_key,
+      config_version,
+      source
+    } = update;
+
+    console.log(`[BucketScheduler] Applying update: Trace=${trace_id}, Station=${station_key}, Version=${config_version}`);
+
+    try {
+      // 1. Apply knobs via KnobsResolver
+      // Simplified for now - just log the application
+      const result = {
+        success: true,
+        config_version: config_version,
+        effective_knobs: knobs
+      };
+
+      // 2. Store knob event in database
+      await this.databaseBridge.storeKnobEvent({
+        trace_id,
+        station_key,
+        knobs,
+        config_version,
+        source,
+        applied_at: new Date().toISOString()
+      });
+
+      // 3. Mark as applied in database
+      await this.markUpdateStatus(idempotency_key, 'applied');
+
+      // 4. Emit success event
+      this.emit('update-applied', {
+        ...update,
+        result
+      });
+
+      console.log(`[BucketScheduler] Successfully applied update: ${idempotency_key}`);
+
+    } catch (error) {
+      console.error(`[BucketScheduler] Error applying update ${idempotency_key}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set a timer for a specific bucket
+   * @param {Date} bucketTime - Bucket timestamp
+   */
+  setTimerForBucket(bucketTime) {
+    const bucketKey = bucketTime.toISOString();
+
+    // Don't set if already exists
+    if (this.activeTimers.has(bucketKey)) {
+      return;
+    }
+
+    const now = new Date();
+    const msUntilBucket = bucketTime.getTime() - now.getTime();
+
+    if (msUntilBucket <= 0) {
+      // Already past, process immediately
+      const updates = this.scheduledUpdates.get(bucketKey);
+      if (updates) {
+        this.processBucket(bucketKey, updates);
+      }
+      return;
+    }
+
+    // Set timer
+    const timer = setTimeout(() => {
+      const updates = this.scheduledUpdates.get(bucketKey);
+      if (updates) {
+        this.processBucket(bucketKey, updates);
+      }
+    }, msUntilBucket);
+
+    this.activeTimers.set(bucketKey, timer);
+    console.log(`[BucketScheduler] Timer set for bucket ${bucketKey} (in ${msUntilBucket}ms)`);
+  }
+
+  /**
+   * Align timestamp to bucket boundary
+   * @param {Date} timestamp - Timestamp to align
+   * @returns {Date} - Aligned timestamp
+   */
+  alignToBucket(timestamp) {
+    const ms = timestamp.getTime();
+    const aligned = Math.floor(ms / this.config.bucketSize) * this.config.bucketSize;
+    return new Date(aligned);
+  }
+
+  /**
+   * Get next bucket boundary
+   * @param {Date} timestamp - Reference timestamp
+   * @returns {Date} - Next bucket timestamp
+   */
+  getNextBucket(timestamp = new Date()) {
+    const aligned = this.alignToBucket(timestamp);
+    return new Date(aligned.getTime() + this.config.bucketSize);
+  }
+
+  /**
+   * Clean up expired entries
+   */
+  cleanupExpiredEntries() {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 300000); // 5 minutes ago
+
+    let cleaned = 0;
+
+    // Clean up old scheduled updates
+    for (const [bucketKey, updates] of this.scheduledUpdates.entries()) {
+      const bucketTime = new Date(bucketKey);
+      if (bucketTime < cutoff) {
+        console.log(`[BucketScheduler] Cleaning expired bucket: ${bucketKey}`);
+        this.scheduledUpdates.delete(bucketKey);
+        this.stats.expired += updates.size;
+        cleaned += updates.size;
+
+        // Mark as expired in database
+        for (const update of updates) {
+          this.markUpdateStatus(update.idempotency_key, 'expired');
+        }
+      }
+    }
+
+    // Clean up old idempotency keys (keep for 24 hours)
+    const idempotencyCutoff = new Date(now.getTime() - 86400000);
+    for (const [key, update] of this.idempotencyKeys.entries()) {
+      const scheduledAt = new Date(update.scheduled_at);
+      if (scheduledAt < idempotencyCutoff) {
+        this.idempotencyKeys.delete(key);
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[BucketScheduler] Cleaned up ${cleaned} expired entries`);
+    }
+  }
+
+  /**
+   * Store update in database
+   * @param {Object} update - Update to store
+   */
+  async storeUpdateInDatabase(update) {
+    try {
+      const query = `
+        INSERT INTO knob_apply_requests (
+          idempotency_key,
+          trace_id,
+          station_key,
+          apply_at_bucket_ts,
+          knobs,
+          source,
+          reason,
+          config_version,
+          status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (idempotency_key) DO NOTHING
+      `;
+
+      await this.databaseBridge.pool.query(query, [
+        update.idempotency_key,
+        update.trace_id,
+        update.station_key,
+        update.apply_at_bucket_ts,
+        JSON.stringify(update.knobs),
+        update.source,
+        update.reason,
+        update.config_version,
+        update.status
+      ]);
+
+    } catch (error) {
+      console.error('[BucketScheduler] Database storage error:', error);
+      // Don't throw - continue with in-memory scheduling
+    }
+  }
+
+  /**
+   * Mark update status in database
+   * @param {string} idempotencyKey - Idempotency key
+   * @param {string} status - New status
+   * @param {string} error - Error message if failed
+   */
+  async markUpdateStatus(idempotencyKey, status, error = null) {
+    try {
+      const query = `
+        UPDATE knob_apply_requests
+        SET status = $2,
+            applied_at = CASE WHEN $2 = 'applied' THEN NOW() ELSE applied_at END,
+            error_message = $3
+        WHERE idempotency_key = $1
+      `;
+
+      await this.databaseBridge.pool.query(query, [
+        idempotencyKey,
+        status,
+        error
+      ]);
+
+    } catch (err) {
+      console.error('[BucketScheduler] Failed to update status:', err);
+    }
+  }
+
+  /**
+   * Get scheduler statistics
+   * @returns {Object} - Current statistics
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      pending: this.scheduledUpdates.size,
+      active_timers: this.activeTimers.size,
+      cached_keys: this.idempotencyKeys.size,
+      is_running: this.isRunning
+    };
+  }
+
+  /**
+   * Get pending updates for a trace
+   * @param {string} traceId - Trace ID
+   * @returns {Array} - Pending updates
+   */
+  getPendingUpdates(traceId) {
+    const pending = [];
+
+    for (const updates of this.scheduledUpdates.values()) {
+      for (const update of updates) {
+        if (update.trace_id === traceId) {
+          pending.push(update);
+        }
+      }
+    }
+
+    return pending.sort((a, b) =>
+      new Date(a.apply_at_bucket_ts) - new Date(b.apply_at_bucket_ts)
+    );
+  }
+
+  /**
+   * Cancel a scheduled update
+   * @param {string} idempotencyKey - Idempotency key
+   * @returns {boolean} - Success status
+   */
+  cancelUpdate(idempotencyKey) {
+    const update = this.idempotencyKeys.get(idempotencyKey);
+    if (!update) {
+      return false;
+    }
+
+    const bucketKey = update.apply_at_bucket_ts;
+    const updates = this.scheduledUpdates.get(bucketKey);
+
+    if (updates) {
+      updates.delete(update);
+      if (updates.size === 0) {
+        this.scheduledUpdates.delete(bucketKey);
+      }
+    }
+
+    this.idempotencyKeys.delete(idempotencyKey);
+    this.markUpdateStatus(idempotencyKey, 'cancelled');
+
+    console.log(`[BucketScheduler] Cancelled update: ${idempotencyKey}`);
+    return true;
+  }
+
+  /**
+   * Clear all scheduled updates (for emergency use)
+   */
+  clearAll() {
+    console.warn('[BucketScheduler] Clearing all scheduled updates!');
+
+    // Cancel all timers
+    for (const timer of this.activeTimers.values()) {
+      clearTimeout(timer);
+    }
+
+    // Clear all data
+    this.scheduledUpdates.clear();
+    this.idempotencyKeys.clear();
+    this.activeTimers.clear();
+
+    this.stats.scheduled = 0;
+
+  }
+
+  /**
+   * Initialize scheduler and recover pending updates
+   */
+  async initialize() {
+    console.log('[BucketScheduler] Initializing and recovering pending updates...');
+    
+    try {
+      // Mark any missed updates
+      const missedCount = await this.persistenceLayer.markMissedUpdates();
+      if (missedCount > 0) {
+        console.warn();
+      }
+
+      // Load pending future updates
+      const pendingUpdates = await this.persistenceLayer.loadPendingUpdates();
+      
+      for (const update of pendingUpdates) {
+        // Re-schedule each pending update
+        const bucketTs = new Date(update.apply_at_bucket_ts);
+        const now = new Date();
+        
+        if (bucketTs > now) {
+          // Still in the future, reschedule it
+          console.log();
+          
+          // Add to scheduled updates
+          const bucketKey = bucketTs.toISOString();
+          if (!this.scheduledUpdates.has(bucketKey)) {
+            this.scheduledUpdates.set(bucketKey, new Set());
+          }
+          this.scheduledUpdates.get(bucketKey).add(update);
+          
+          // Track idempotency
+          this.idempotencyKeys.set(update.idempotency_key, {
+            ...update,
+            config_version: this.getNextConfigVersion(update.trace_id, update.station_key)
+          });
+          
+          // Schedule timer if needed
+          this.scheduleTimer(bucketTs);
+        }
+      }
+      
+      console.log();
+      this.stats.recovered = pendingUpdates.length;
+      
+    } catch (error) {
+      console.error('[BucketScheduler] Failed to initialize:', error);
+    }
+  }
+
+  /**
+   * Save scheduled update to database
+   */
+  async persistUpdate(update) {
+    if (!this.persistenceLayer) {
+      return;
+    }
+
+    try {
+      await this.persistenceLayer.saveScheduledUpdate(update);
+      console.log();
+    } catch (error) {
+      console.error('[BucketScheduler] Failed to persist update:', error);
+    }
+  }
+
+  /**
+   * Mark update as applied in database
+   */
+  async markUpdateApplied(idempotency_key) {
+    if (!this.persistenceLayer) {
+      return;
+    }
+
+    try {
+      await this.persistenceLayer.markApplied(idempotency_key);
+      console.log();
+    } catch (error) {
+      console.error('[BucketScheduler] Failed to mark as applied:', error);
+    }
+  }
+
+  /**
+   * Clean up old records periodically
+   */
+  async cleanup() {
+    if (!this.persistenceLayer) {
+      return;
+    }
+
+    try {
+      const cleaned = await this.persistenceLayer.cleanup(7); // Keep 7 days
+      console.log();
+    } catch (error) {
+      console.error('[BucketScheduler] Cleanup failed:', error);
+    }
+
+}
+  }
+}
+
+module.exports = { BucketScheduler };

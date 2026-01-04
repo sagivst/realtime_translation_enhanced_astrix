@@ -16,6 +16,11 @@ const HumeStreamingClient = require('./hume-streaming-client');
 const Station3Handler = require('./station3-handler');
 const Station9Handler = require('./station9-handler');
 
+// NEW monitoring framework (runs alongside OLD monitoring)
+const { getMonitoringBootstrap } = require('./Monitoring_Stations/MonitoringStationsBootstrap');
+let newMonitoring = null; // Will be initialized at startup
+let globalNewMonitoring = null; // Global reference for knobs API
+
 // Import HMLCP modules
 const { UserProfile, ULOLayer, PatternExtractor } = require('./hmlcp');
 const { applyDefaultProfile } = require('./hmlcp/default-profiles');
@@ -502,9 +507,9 @@ async function createDeepgramStreamingConnection(extensionId) {
         console.log(`[WEBSOCKET] ${isFinal ? FINAL : INTERIM} transcript (${extensionId}): "${transcript}"`);
         
         // TODO Phase 4: Handle transcript and integrate with translation pipeline
-        // STATION-3 MONITORING: Record metrics
-        const handler = extensionId === "3333" ? station3_3333 : station3_4444;
-        handler.onTranscript(data);
+      // STATION-3 MONITORING: Record metrics
+      const handler = extensionId === "3333" ? station3_3333 : station3_4444;
+      handler.onTranscript(data);
       
       // Reset timer for next segment
       if (data.is_final) {
@@ -1025,8 +1030,8 @@ class ExtensionPairManager {
   registerPair(ext1, ext2) {
     this.pairs.set(ext1, ext2);
     this.pairs.set(ext2, ext1);
-    this.startTimes.set(ext1, Date.now());
-    this.startTimes.set(ext2, Date.now());
+    // REMOVED FOR TRACE_ID FIX:     this.startTimes.set(ext1, Date.now());
+    // REMOVED FOR TRACE_ID FIX:     this.startTimes.set(ext2, Date.now());
     console.log('[PairManager] Registered pair: ' + ext1 + ' ↔ ' + ext2);
   }
 
@@ -1267,7 +1272,7 @@ class DashboardTCPAPI {
     this.heartbeatInterval = null;
   }
 
-  startServer(port = 6211) {
+  startServer(port = 6212) {
     this.server = net.createServer((socket) => {
       this.handleClientConnection(socket);
     });
@@ -1471,13 +1476,19 @@ const latencyTracker = new LatencyTracker();
 const audioBufferManager = new AudioBufferManager();
 const dashboardTCPAPI = new DashboardTCPAPI();
 
+// Track last audio time for call boundary detection
+const lastAudioReceivedTime = new Map();  // extension -> timestamp
+const CALL_SILENCE_THRESHOLD_MS = 60000;   // 60 seconds of silence = new call
+const CALL_MINIMUM_DURATION_MS = 1000;    // Minimum call duration to prevent false resets
+console.log("[CallDetection] Silence-based call detection initialized (threshold: " + CALL_SILENCE_THRESHOLD_MS + "ms)");
+
 console.log('[Server] ✓ AudioBufferManager initialized (ready for Step 4)');
 
 // Auto-pair 3333 and 4444 on startup
 pairManager.registerPair('3333', '4444');
 
 // Start TCP API server
-dashboardTCPAPI.startServer(6211);
+dashboardTCPAPI.startServer(6212);
 
 // STEP 3: Extension buffer settings storage
 // Store per-extension buffer settings from dashboard
@@ -1527,11 +1538,64 @@ extensionGainFactors.set("4444", 7.5);
 console.log("[GAIN] Initialized extensions 3333/4444 with gain 1.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
 
+// NEW monitoring initialization
+async function initializeNewMonitoring() {
+  try {
+    console.log('\\n========== Initializing NEW Monitoring Framework ==========');
+    newMonitoring = getMonitoringBootstrap();
+    globalNewMonitoring = newMonitoring;  // Make available for knobs API
+
+    // Initialize with configuration
+    await newMonitoring.initialize({
+      database: {
+        host: "localhost",
+        port: 5432,
+        database: "monitoring_v2",
+        user: "monitoring_user",
+        password: "monitoring_pass"
+      }
+    });
+
+    // Start monitoring
+    await newMonitoring.start();
+    // Initialize Optimizer API module (external)
+    try {
+      const { OptimizerAPI } = require("./api/OptimizerAPI");
+const { KnobsResolverFactory } = require("./lib/KnobsResolverFactory");
+      console.log('[DEBUG] newMonitoring:', newMonitoring ? Object.keys(newMonitoring) : 'null');
+      console.log('[DEBUG] databaseBridge:', newMonitoring?.databaseBridge ? 'exists' : 'missing');
+      console.log('[DEBUG] knobsResolver:', newMonitoring?.knobsResolver ? 'exists' : 'missing');
+      const databaseBridge = newMonitoring?.components?.databaseBridge;
+      const knobsResolver = KnobsResolverFactory.createKnobsResolver({
+        monitoringComponents: newMonitoring?.components,
+        knobsRegistry: null
+      });
+      console.log('[DEBUG] Found databaseBridge:', databaseBridge ? 'yes' : 'no');
+      console.log('[DEBUG] Found knobsResolver:', knobsResolver ? 'yes' : 'no');
+      const optimizerAPI = databaseBridge ? new OptimizerAPI(app, databaseBridge, knobsResolver) : console.log('[OptimizerAPI] Skipping - no databaseBridge');
+      console.log("[OptimizerAPI] Loaded successfully from external module");
+    } catch (error) {
+      console.error("[OptimizerAPI] Failed to load:", error.message);
+      console.error("[OptimizerAPI] Stack:", error.stack);
+    }
+
+    console.log('========== NEW Monitoring Framework ACTIVE ==========\\n');
+    return true;
+  } catch (error) {
+    console.error('WARNING: NEW monitoring failed to initialize:', error.message);
+    console.error('Continuing with OLD monitoring only...');
+    newMonitoring = null;
+    return false;
+  }
+}
+
+// Start NEW monitoring initialization
+setTimeout(() => initializeNewMonitoring().catch(console.error), 100);
+
 // Station-3 monitoring handlers
 const station3_3333 = new Station3Handler("3333");
 const station3_4444 = new Station3Handler("4444");
 
-console.log("[DEBUG] About to initialize StationAgent...");
 // Initialize StationAgent when available
 try {
   const StationAgent = require("./monitoring/StationAgent");
@@ -1554,42 +1618,6 @@ try {
   station9_3333.initStationAgent(StationAgent);
   station9_4444.initStationAgent(StationAgent);
   console.log("[STATION-9] Monitoring agents initialized");
-
-// ========== STATION 9 SOCKET OVERRIDE - MIRROR STATION 3 PATTERN ==========
-// Override socket3333Out.send to call Station 9 on EVERY outgoing packet
-// This mirrors how Station 3 is called on EVERY incoming packet
-
-// For Extension 3333 Outgoing
-const originalSend3333Out = socket3333Out.send.bind(socket3333Out);
-socket3333Out.send = function(msg, port, host, callback) {
-  // Call Station 9 exactly like Station 3 is called
-  console.log("[DEBUG-3333-OUT] UDP packet being sent, checking Station-9...");
-  if (station9_3333 && station9_3333.onAudioChunk) {
-    console.log("[DEBUG-3333-OUT] Calling Station-9.onTTSOutput with", msg.length, "bytes");
-    station9_3333.onAudioChunk(msg);
-  }
-  
-  // Continue with original send
-  return originalSend3333Out(msg, port, host, callback);
-};
-
-// For Extension 4444 Outgoing  
-const originalSend4444Out = socket4444Out.send.bind(socket4444Out);
-socket4444Out.send = function(msg, port, host, callback) {
-  // Call Station 9 exactly like Station 3 is called
-  console.log("[DEBUG-4444-OUT] UDP packet being sent, checking Station-9...");
-  if (station9_4444 && station9_4444.onAudioChunk) {
-    console.log("[DEBUG-4444-OUT] Calling Station-9.onTTSOutput with", msg.length, "bytes");
-    station9_4444.onAudioChunk(msg);
-  }
-  
-  // Continue with original send
-  return originalSend4444Out(msg, port, host, callback);
-};
-
-console.log("[STATION-9] Socket override installed - will monitor ALL outgoing packets");
-// ========== END STATION 9 SOCKET OVERRIDE ==========
-
 } catch (e) {
   console.log("[STATION-9] StationAgent not available, metrics disabled");
 }
@@ -2398,11 +2426,92 @@ async function processGatewayAudio(socket, extension, audioBuffer, language) {
     latencyTracker.updateStageLatency(extension, 'audiosocket_to_asr', timing.stages.audiosocket_to_asr);
     console.log('[Timing] Stage 1 (Gateway→ASR) for ' + extension + ': ' + timing.stages.audiosocket_to_asr + 'ms');
 
+    console.log(`[DEBUG] Pipeline processing audio: extension=${extension}, buffer_length=${audioBuffer.length}, newMonitoring.isRunning=${newMonitoring?.isRunning}`);
     // Step 1: Transcribe (ASR)
     console.log(`[Pipeline] Transcribing ${audioBuffer.length} bytes from extension ${extension}...`);
     // Amplify audio to improve Deepgram transcription accuracy
     // Use per-extension gain factor if set, otherwise default to 1.2
     const gainFactor = extensionGainFactors.get(extension) || 1.2;
+    // Send audio to Station 3 handler for metrics collection
+    const handler = extension === "3333" ? station3_3333 : station3_4444;
+    handler.onAudioChunk(audioBuffer, Date.now());  // Store buffer for onTranscript to analyze
+
+    // ALSO send to NEW monitoring framework (if initialized)
+    if (newMonitoring && newMonitoring.isRunning) {
+    console.log("[DEBUG] NEW monitoring check - isRunning:", newMonitoring?.isRunning);
+      try {
+        // Create context for NEW monitoring
+        // ========== CALL BOUNDARY DETECTION ==========
+        // Detect new calls based on silence gaps between audio packets
+        const now = Date.now();
+        const lastAudioTime = lastAudioReceivedTime.get(extension) || 0;
+        const silenceGap = now - lastAudioTime;
+
+        // Check if this is a new call (silence gap exceeded threshold)
+        if (lastAudioTime > 0 && silenceGap > CALL_SILENCE_THRESHOLD_MS) {
+          console.log(`[CallDetection] NEW CALL DETECTED for extension ${extension}`);
+          console.log(`[CallDetection] Silence gap: ${silenceGap}ms (threshold: ${CALL_SILENCE_THRESHOLD_MS}ms)`);
+          
+          // Get the old trace_id for logging
+          const oldStartTime = pairManager.startTimes.get(extension);
+          if (oldStartTime) {
+            const oldTrace = "trace_" + new Date(oldStartTime).toISOString().replace(/[:.]/g, "-") + "_" + extension;
+            console.log(`[CallDetection] Ending previous trace: ${oldTrace}`);
+          }
+          
+          // Clear the old start time to force new trace_id generation
+          pairManager.startTimes.delete(extension);
+          
+          // Also clear paired extension if exists
+          const pairedExt = pairManager.getPairedExtension(extension);
+          if (pairedExt) {
+            pairManager.startTimes.delete(pairedExt);
+            lastAudioReceivedTime.delete(pairedExt);  // Clear paired extension's last audio time
+            console.log(`[CallDetection] Also cleared paired extension ${pairedExt}`);
+          }
+        }
+
+        // Update last audio received time for this extension
+        lastAudioReceivedTime.set(extension, now);
+        // ========== END CALL BOUNDARY DETECTION ==========
+
+        // Get or create stable trace_id based on call start time
+        let callStartTime = pairManager.startTimes.get(extension);
+        if (!callStartTime) {
+          // First frame of new call - set start time
+          callStartTime = Date.now();
+          pairManager.startTimes.set(extension, callStartTime);
+          const pairedExt = pairManager.getPairedExtension(extension);
+          if (pairedExt) {
+            pairManager.startTimes.set(pairedExt, callStartTime);
+          }
+        }
+
+        // Use stable trace_id for entire call
+        const traceTimestamp = new Date(callStartTime).toISOString().replace(/[:.]/g, "-");
+        const newMonitoringContext = {
+          trace_id: "trace_" + traceTimestamp + "_" + extension,
+          started_at: new Date(callStartTime),
+          src_extension: extension,
+          sample_rate: 16000,
+          channels: 1
+        };
+
+        // Log trace_id for monitoring (only log when it changes)
+        if (!pairManager.lastLoggedTraceId || pairManager.lastLoggedTraceId !== newMonitoringContext.trace_id) {
+          console.log(`[CallDetection] Using trace_id: ${newMonitoringContext.trace_id}`);
+          pairManager.lastLoggedTraceId = newMonitoringContext.trace_id;
+        }
+
+        // Process through NEW monitoring (non-blocking)
+        const stationKey = extension === "3333" ? "St_3_3333" : "St_3_4444";
+        console.log("[DEBUG] Calling NEW monitoring processFrame for", stationKey);
+        newMonitoring.processFrame(audioBuffer, newMonitoringContext, stationKey);
+      } catch (error) {
+        // NEW monitoring errors should not affect OLD monitoring or main pipeline
+        console.error('[NEW Monitoring] Error processing frame:', error.message);
+      }
+    }
     const amplifiedAudio = amplifyAudio(audioBuffer, gainFactor);
     // Add WAV header to raw PCM data for Deepgram
     const wavAudio = addWavHeader(amplifiedAudio);
@@ -3507,6 +3616,271 @@ app.get('/api/files/translations', (req, res) => {
 // HMLCP API Endpoints
 app.use(express.json());
 
+// =============================================================================
+// NEW MONITORING - DYNAMIC KNOBS API
+// =============================================================================
+
+// globalNewMonitoring is declared at the top with other global variables
+// Update global knob for all traces
+app.post('/api/knobs/update/global', (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const { key, value, source = 'api' } = req.body;
+    
+    if (!key) {
+      return res.status(400).json({ error: 'Missing required parameter: key' });
+    }
+
+    const result = globalNewMonitoring.updateKnob(key, value, source);
+    
+    console.log(`[Knobs API] Global knob updated: ${key} = ${result.oldValue} -> ${result.newValue}`);
+    
+    res.json({
+      success: true,
+      result,
+      message: `Global knob '${key}' updated successfully`
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error updating global knob:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Update knob for specific trace
+app.post('/api/knobs/update/trace/:traceId', (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const traceId = req.query.traceId;
+    const { key, value, source = 'api' } = req.body;
+    
+    if (!key) {
+      return res.status(400).json({ error: 'Missing required parameter: key' });
+    }
+
+    // Access knobsResolver through genericHandler
+    const knobsResolver = globalNewMonitoring.components?.genericHandler?.knobsResolver;
+    if (!knobsResolver) {
+      return res.status(500).json({ error: 'KnobsResolver not available' });
+    }
+
+    const result = knobsResolver.updateTraceKnob(traceId, key, value, source);
+    
+    console.log(`[Knobs API] Trace knob updated: ${traceId}/${key} = ${result.oldValue} -> ${result.newValue}`);
+    
+    res.json({
+      success: true,
+      result,
+      message: `Trace knob '${key}' updated for trace '${traceId}'`
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error updating trace knob:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Get current knobs state
+app.get('/api/knobs/current', (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const knobsResolver = globalNewMonitoring.components?.genericHandler?.knobsResolver;
+    if (!knobsResolver) {
+      return res.status(500).json({ error: 'KnobsResolver not available' });
+    }
+
+    const state = knobsResolver.getState();
+    
+    res.json({
+      success: true,
+      state,
+      isRunning: globalNewMonitoring.isRunning
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error getting knobs state:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Reset knob to default
+app.post('/api/knobs/reset/:key', (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const { key } = req.params;
+    
+    const knobsResolver = globalNewMonitoring.components?.genericHandler?.knobsResolver;
+    if (!knobsResolver) {
+      return res.status(500).json({ error: 'KnobsResolver not available' });
+    }
+
+    knobsResolver.resetKnob(key);
+    
+    console.log(`[Knobs API] Knob reset to default: ${key}`);
+    
+    res.json({
+      success: true,
+      message: `Knob '${key}' reset to default value`
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error resetting knob:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Reset all knobs to defaults
+app.post('/api/knobs/reset-all', (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const knobsResolver = globalNewMonitoring.components?.genericHandler?.knobsResolver;
+    if (!knobsResolver) {
+      return res.status(500).json({ error: 'KnobsResolver not available' });
+    }
+
+    knobsResolver.resetAllKnobs();
+    
+    console.log('[Knobs API] All knobs reset to defaults');
+    
+    res.json({
+      success: true,
+      message: 'All knobs reset to default values'
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error resetting all knobs:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// ============= KNOB RETRIEVAL ENDPOINTS (READ-ONLY) =============
+
+// Get knob change history from database
+app.get('/api/knobs/history', async (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const databaseBridge = globalNewMonitoring.components?.databaseBridge;
+    if (!databaseBridge) {
+      return res.status(500).json({ error: 'DatabaseBridge not available' });
+    }
+
+    const traceId = req.query.traceId;
+    const hours = parseInt(req.query.hours) || 72;
+
+    // Call the getKnobHistory method we added in Phase 2
+    const history = await databaseBridge.getKnobHistory(traceId || null, hours);
+    
+    console.log(`[Knobs API] Retrieved ${history.length} history entries`);
+    
+    res.json({
+      success: true,
+      count: history.length,
+      hours: hours,
+      trace_id: traceId || 'all',
+      history: history
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error getting knob history:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Get knob snapshots from database
+app.get('/api/knobs/snapshots', async (req, res) => {
+  try {
+    if (!globalNewMonitoring || !globalNewMonitoring.isRunning) {
+      return res.status(503).json({ 
+        error: 'NEW Monitoring Framework not running',
+        status: 'unavailable' 
+      });
+    }
+
+    const databaseBridge = globalNewMonitoring.components?.databaseBridge;
+    if (!databaseBridge) {
+      return res.status(500).json({ error: 'DatabaseBridge not available' });
+    }
+
+    const stationKey = req.query.stationKey;
+    const hours = parseInt(req.query.hours) || 1;
+
+    // Call the getKnobSnapshots method we added in Phase 2
+    const snapshots = await databaseBridge.getKnobSnapshots(stationKey || null, hours);
+    
+    console.log(`[Knobs API] Retrieved ${snapshots.length} snapshots`);
+    
+    res.json({
+      success: true,
+      count: snapshots.length,
+      hours: hours,
+      station_key: stationKey || 'all',
+      snapshots: snapshots
+    });
+  } catch (error) {
+    console.error('[Knobs API] Error getting knob snapshots:', error);
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// ============= END KNOB RETRIEVAL ENDPOINTS =============
+
+
+// =============================================================================
+// END OF KNOBS API
+// =============================================================================
+
+
 // Get user profile stats
 app.get('/api/hmlcp/profile/:userId/:language', async (req, res) => {
   try {
@@ -3739,8 +4113,6 @@ const socket3333In = dgram.createSocket('udp4');
 const socket3333Out = dgram.createSocket('udp4');
 const socket4444In = dgram.createSocket('udp4');
 const socket4444Out = dgram.createSocket('udp4');
-// ========== END STATION 9 SOCKET OVERRIDE ==========
-
 
 // Expose UDP sockets globally for audio streaming extension
 global.udpSockets = {
@@ -3790,13 +4162,6 @@ socket3333In.on('message', async (msg, rinfo) => {
       const sample2 = msg.readInt16LE(80);
       console.log(`[UDP-3333] PCM sample check: ${sample1}, ${sample2} (expected range: -32768 to 32767)`);
     }
-  }
-
-  // NEW: Station-3 audio quality monitoring on every chunk
-  console.log("[DEBUG-3333] UDP packet received, checking Station-3...");
-  if (station3_3333 && station3_3333.onAudioChunk) {
-    console.log("[DEBUG-3333] Calling Station-3.onAudioChunk with ", msg.length, " bytes");
-    station3_3333.onAudioChunk(msg, Date.now());
   }
 
   if (global.io) {
@@ -3923,13 +4288,6 @@ socket4444In.on('message', async (msg, rinfo) => {
       console.log(`[UDP-4444] PCM sample check: ${sample1}, ${sample2} (expected range: -32768 to 32767)`);
     }
   }
-  console.log("[DEBUG-4444] UDP packet received, checking Station-3...");
-  // NEW: Station-3 audio quality monitoring on every chunk
-  if (station3_4444 && station3_4444.onAudioChunk) {
-    console.log("[DEBUG-4444] Calling Station-3.onAudioChunk with ", msg.length, " bytes");
-    station3_4444.onAudioChunk(msg, Date.now());
-  }
-
 
   if (global.io) {
     global.io.emit('audioStream', {
@@ -4124,7 +4482,6 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
 
   // STATION-9 MONITORING: TTS output to Gateway
   const station9Handler = targetExtension === '3333' ? station9_3333 : station9_4444;
-  console.log("[STATION-9-DEBUG] station9Handler found:", !!station9Handler, "for extension:", targetExtension);
   if (station9Handler) {
     station9Handler.onTTSOutput(pcmBuffer);
   }
@@ -4134,12 +4491,6 @@ async function sendUdpPcmAudio(targetExtension, pcmBuffer) {
     const frame = pcmBuffer.slice(i * frameSize, (i + 1) * frameSize);
 
     await new Promise((resolve, reject) => {
-      // DIRECT STATION 9 CALL - BYPASS OVERRIDE
-      if (targetExtension === "3333" && station9_3333 && station9_3333.onAudioChunk) {
-        station9_3333.onAudioChunk(frame, Date.now());
-      } else if (targetExtension === "4444" && station9_4444 && station9_4444.onAudioChunk) {
-        station9_4444.onAudioChunk(frame, Date.now());
-      }
       socket.send(frame, port, UDP_PCM_CONFIG.gatewayHost, (err) => {
         if (err) {
           reject(err);

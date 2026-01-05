@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>POST Endpoint Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+        #result { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>POST Endpoint Tester</h1>
+    <p>Test the component control endpoints:</p>
+
+    <h3>Non-Critical Components:</h3>
+    <button onclick="testEndpoint('continuous-full-monitoring', 'stop')">Stop Continuous Monitoring</button>
+    <button onclick="testEndpoint('continuous-full-monitoring', 'start')">Start Continuous Monitoring</button>
+    <button onclick="testEndpoint('continuous-full-monitoring', 'restart')">Restart Continuous Monitoring</button>
+    <br>
+    <button onclick="testEndpoint('gateway-3333', 'restart')">Restart Gateway 3333</button>
+    <button onclick="testEndpoint('gateway-4444', 'restart')">Restart Gateway 4444</button>
+    <button onclick="testEndpoint('monitoring-bridge', 'restart')">Restart Monitoring Bridge</button>
+
+    <h3>Critical Components (only restart allowed):</h3>
+    <button onclick="testEndpoint('monitoring-server', 'restart')">Restart Monitoring Server</button>
+    <button onclick="testEndpoint('database-api-server', 'stop')">Try to Stop Database API (should fail)</button>
+
+    <div id="result"></div>
+
+    <script>
+        async function testEndpoint(componentId, action) {
+            const resultDiv = document.getElementById('result');
+            const url = `https://tun.monitoringavailable.uk/api/components/${componentId}/${action}`;
+
+            resultDiv.innerHTML = `<p>Calling: POST ${url}</p><p>Please wait (1 second delay)...</p>`;
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ SUCCESS</p>
+                        <p>Response: ${JSON.stringify(data, null, 2)}</p>
+                        <p>Time taken: ${elapsed} seconds</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ ERROR (${response.status})</p>
+                        <p>Response: ${JSON.stringify(data, null, 2)}</p>
+                        <p>Time taken: ${elapsed} seconds</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">✗ Network Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

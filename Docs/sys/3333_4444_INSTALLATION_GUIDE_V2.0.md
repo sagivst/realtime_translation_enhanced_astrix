@@ -9,8 +9,6 @@ Real-time translation system with extensions 3333/4444, including full monitorin
 ├── gateway-3333.js                      ✅ REQUIRED
 ├── gateway-4444.js                      ✅ REQUIRED
 ├── ari-gstreamer-operational.js         ✅ REQUIRED
-├── conference-server.js                 ✅ REQUIRED (running)
-├── hepgen.js                           ✅ REQUIRED (running)
 ├── STTTTSserver/
 │   ├── STTTTSserver.js                 ✅ REQUIRED
 │   ├── .env.externalmedia              ✅ REQUIRED
@@ -19,32 +17,9 @@ Real-time translation system with extensions 3333/4444, including full monitorin
 │   ├── audio-buffer-config.json        ✅ REQUIRED
 │   ├── elevenlabs-tts-service.js       ✅ REQUIRED
 │   ├── hume-streaming-client.js        ✅ REQUIRED
-│   ├── timing-client.js                ✅ REQUIRED (loaded but partially unused)
-│   ├── hmlcp/
-│   │   ├── index.js                    ✅ REQUIRED
-│   │   ├── default-profiles.js         ✅ REQUIRED
-│   │   ├── pattern-extractor.js        ✅ REQUIRED
-│   │   ├── ulo-layer.js                ✅ REQUIRED
-│   │   └── user-profile.js             ✅ REQUIRED
-│   ├── monitoring/
-│   │   ├── StationAgent.js             ✅ REQUIRED (Socket.IO integration)
-│   │   ├── UniversalCollector.js       ✅ REQUIRED
-│   │   └── config/
-│   │       └── station-parameter-map.js ✅ REQUIRED
 │   └── public/
 │       ├── dashboard.html              📊 Split-screen (3333 & 4444)
 │       ├── dashboard-single.html       📊 v2.1 Monitoring
-│       ├── station3-monitor.html       📊 Real-time metrics
-│       └── monitoring-tree-dashboard.html 📊 3-level system view
-└── Gateway/
-    ├── Multiple gateway versions       📁 Legacy/testing files
-
-/home/azureuser/translation-app/
-├── monitoring-server.js                ✅ REQUIRED (port 3001)
-├── simplified-database-server.js       ✅ REQUIRED (port 8083)
-├── proxy-dashboard-server.js           ✅ REQUIRED (port 8080)
-└── qryn.mjs                           ✅ REQUIRED (port 3000)
-```
 
 ---
 
@@ -72,40 +47,7 @@ curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-### 4. PostgreSQL Database
-```bash
-# Install PostgreSQL 14+
-sudo apt-get install -y postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
 
-# Create database
-sudo -u postgres psql <<EOF
-CREATE DATABASE audio_optimization;
-CREATE USER postgres WITH PASSWORD 'postgres';
-GRANT ALL ON DATABASE audio_optimization TO postgres;
-EOF
-
-# Create tables
-psql -U postgres -d audio_optimization <<EOF
-CREATE TABLE IF NOT EXISTS station_snapshots (
-    id VARCHAR(255) PRIMARY KEY,
-    station_id VARCHAR(100) NOT NULL,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    metrics JSONB,
-    knobs JSONB,
-    knobs_effective JSONB,
-    constraints JSONB,
-    targets JSONB,
-    segment JSONB,
-    audio JSONB,
-    totals JSONB,
-    call_id VARCHAR(255),
-    channel VARCHAR(50)
-);
-CREATE INDEX idx_station_timestamp ON station_snapshots(station_id, timestamp);
-EOF
-```
 
 ### 5. Asterisk Installation
 ```bash
@@ -321,10 +263,6 @@ sudo asterisk -rx "module reload res_ari"
 cd /home/azureuser/translation-app
 nohup node simplified-database-server.js > /tmp/simple-database.log 2>&1 &
 
-# Monitoring Server
-cd /home/azureuser/translation-app
-nohup node monitoring-server.js > /tmp/monitoring.log 2>&1 &
-
 # Proxy Dashboard Server
 cd /home/azureuser
 nohup node proxy-dashboard-server.js > /tmp/proxy-dashboard.log 2>&1 &
@@ -389,19 +327,6 @@ tail -f /tmp/ari-gstreamer-operational.log
 #### Primary Dashboards:
 - **http://20.170.155.53:3020/dashboard.html** - Split-screen dashboard (3333 & 4444)
 - **http://20.170.155.53:3020/dashboard-single.html** - v2.1 Monitoring Dashboard
-- **http://20.170.155.53:3020/station3-monitor.html** - Real-time Station 3 metrics
-- **http://20.170.155.53:3020/monitoring-tree-dashboard.html** - 3-level system view
-
-#### Database Dashboard:
-- **http://20.170.155.53:8080/database-records.html** - Database metrics viewer (NOTE: This is dashboard-simple.html served via proxy)
-  - Shows real-time data from PostgreSQL
-  - Confirms database population is working
-
-#### Additional Dashboards (STTTTSserver):
-- **http://20.170.155.53:3020/audio-quality-dashboard.html** - Audio quality monitoring
-- **http://20.170.155.53:3020/calibration-dashboard.html** - System calibration
-- **http://20.170.155.53:3020/conference.html** - Conference room viewer
-- **http://20.170.155.53:3020/live-transcription-monitor.html** - Live transcription
 
 ---
 

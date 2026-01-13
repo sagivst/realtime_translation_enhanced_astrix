@@ -1,0 +1,65 @@
+ Describing process with id 8 - name STTTTSserver 
+┌───────────────────┬─────────────────────────────────────────────────────────────────────────────────────┐
+│ status            │ online                                                                              │
+│ name              │ STTTTSserver                                                                        │
+│ namespace         │ default                                                                             │
+│ version           │ 1.0.0                                                                               │
+│ restarts          │ 8                                                                                   │
+│ uptime            │ 13h                                                                                 │
+│ script path       │ /home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/STTTTSserver.js │
+│ script args       │ N/A                                                                                 │
+│ error log path    │ /home/azureuser/.pm2/logs/STTTTSserver-error.log                                    │
+│ out log path      │ /home/azureuser/.pm2/logs/STTTTSserver-out.log                                      │
+│ pid path          │ /home/azureuser/.pm2/pids/STTTTSserver-8.pid                                        │
+│ interpreter       │ node                                                                                │
+│ interpreter args  │ N/A                                                                                 │
+│ script id         │ 8                                                                                   │
+│ exec cwd          │ /home/azureuser/translation-app/3333_4444__Operational/STTTTSserver                 │
+│ exec mode         │ fork_mode                                                                           │
+│ node.js version   │ 20.19.6                                                                             │
+│ node env          │ N/A                                                                                 │
+│ watch & reload    │ ✘                                                                                   │
+│ unstable restarts │ 0                                                                                   │
+│ created at        │ 2026-01-12T21:04:45.060Z                                                            │
+└───────────────────┴─────────────────────────────────────────────────────────────────────────────────────┘
+Process configuration
+┌──────────────┬───────┐
+│ PORT         │ 3020  │
+│ max_restarts │ 0     │
+│ autorestart  │ false │
+└──────────────┴───────┘
+ Actions available 
+┌────────────────────────┐
+│ km:heapdump            │
+│ km:cpu:profiling:start │
+│ km:cpu:profiling:stop  │
+│ km:heap:sampling:start │
+│ km:heap:sampling:stop  │
+└────────────────────────┘
+ Trigger via: pm2 trigger STTTTSserver <action_name>
+
+ Code metrics value 
+┌────────────────────────┬─────────────┐
+│ Used Heap Size         │ 26.53 MiB   │
+│ Heap Usage             │ 38.97 %     │
+│ Heap Size              │ 68.09 MiB   │
+│ Event Loop Latency p95 │ 1.01 ms     │
+│ Event Loop Latency     │ 0.17 ms     │
+│ Active handles         │ 12          │
+│ Active requests        │ 0           │
+│ HTTP                   │ 0.2 req/min │
+│ HTTP P95 Latency       │ 2 ms        │
+│ HTTP Mean Latency      │ 1 ms        │
+└────────────────────────┴─────────────┘
+ Divergent env variables from local env 
+┌────────────────┬─────────────────────────────────┐
+│ SSH_CONNECTION │ 31.187.78.210 24108 10.0.0.7 22 │
+│ SHLVL          │ 0                               │
+│ XDG_SESSION_ID │ 258                             │
+│ SSH_CLIENT     │ 31.187.78.210 24108 22          │
+└────────────────┴─────────────────────────────────┘
+
+ Add your own code metrics: http://bit.ly/code-metrics
+ Use `pm2 logs STTTTSserver [--lines 1000]` to display logs
+ Use `pm2 env 8` to display environment variables
+ Use `pm2 monit` to monitor CPU and Memory usage STTTTSserver

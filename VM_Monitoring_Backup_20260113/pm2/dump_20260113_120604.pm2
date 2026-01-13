@@ -1,0 +1,1748 @@
+[
+  {
+    "exit_code": 0,
+    "node_version": "20.19.6",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 1,
+    "created_at": 1768228266929,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "proxy-dashboard",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "14.73",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 90.8,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "16.23",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.32",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.32",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 13,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1768228266929,
+    "status": "online",
+    "unique_id": "958ef4b3-2ab8-4f8f-a8a6-c38935df1248",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/bin/pm2",
+    "OLDPWD": "/home/azureuser/translation-app",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "LC_ALL": "en_US.UTF-8",
+    "SSH_CLIENT": "31.187.78.200 33764 22",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SESSION_ID": "8",
+    "SHLVL": "1",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "USER": "azureuser",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "31.187.78.200 33764 10.0.0.7 22",
+    "LC_TERMINAL": "iTerm2",
+    "LANG": "C.UTF-8",
+    "HOME": "/home/azureuser",
+    "MOTD_SHOWN": "pam",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "azureuser",
+    "PWD": "/home/azureuser",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/home/azureuser/.pm2/pids/proxy-dashboard-0.pid",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/proxy-dashboard-error.log",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/proxy-dashboard-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/home/azureuser",
+    "pm_exec_path": "/home/azureuser/proxy-dashboard-server.js",
+    "node_args": [],
+    "name": "proxy-dashboard",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "958ef4b3-2ab8-4f8f-a8a6-c38935df1248",
+      "proxy-dashboard": {},
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/bin/pm2",
+      "OLDPWD": "/home/azureuser/translation-app",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "LC_ALL": "en_US.UTF-8",
+      "SSH_CLIENT": "31.187.78.200 33764 22",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "XDG_SESSION_ID": "8",
+      "SHLVL": "1",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "USER": "azureuser",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "31.187.78.200 33764 10.0.0.7 22",
+      "LC_TERMINAL": "iTerm2",
+      "LANG": "C.UTF-8",
+      "HOME": "/home/azureuser",
+      "MOTD_SHOWN": "pam",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "azureuser",
+      "PWD": "/home/azureuser",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "azureuser",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "azureuser",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": "false",
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+      "LOGNAME": "azureuser",
+      "XDG_SESSION_TYPE": "tty",
+      "MOTD_SHOWN": "pam",
+      "HOME": "/home/azureuser",
+      "LANG": "C.UTF-8",
+      "LC_TERMINAL": "iTerm2",
+      "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "azureuser",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "SHLVL": "1",
+      "XDG_SESSION_ID": "10",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "SSH_CLIENT": "31.187.78.200 24497 22",
+      "LC_ALL": "en_US.UTF-8",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+      "_": "/usr/bin/pm2",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "max_restarts": "0",
+      "autorestart": "false",
+      "gateway-3333": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+      "unique_id": "5e2a7b29-f93e-458f-9ca2-489e6bb927ab"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "gateway-3333",
+    "node_args": [],
+    "pm_exec_path": "/home/azureuser/translation-app/3333_4444__Operational/gateway-3333.js",
+    "pm_cwd": "/home/azureuser/translation-app/3333_4444__Operational",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/gateway-3333-out.log",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/gateway-3333-error.log",
+    "pm_pid_path": "/home/azureuser/.pm2/pids/gateway-1.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+    "LOGNAME": "azureuser",
+    "XDG_SESSION_TYPE": "tty",
+    "MOTD_SHOWN": "pam",
+    "HOME": "/home/azureuser",
+    "LANG": "C.UTF-8",
+    "LC_TERMINAL": "iTerm2",
+    "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "azureuser",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "SHLVL": "1",
+    "XDG_SESSION_ID": "10",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "SSH_CLIENT": "31.187.78.200 24497 22",
+    "LC_ALL": "en_US.UTF-8",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+    "_": "/usr/bin/pm2",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "max_restarts": "0",
+    "gateway-3333": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+    "unique_id": "5e2a7b29-f93e-458f-9ca2-489e6bb927ab",
+    "status": "online",
+    "pm_uptime": 1768228276919,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "9.99",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 70.25,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "14.23",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.29",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.28",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 14,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {
+        "max_restarts": 0,
+        "autorestart": false
+      },
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "gateway-3333",
+      "module_version": "6.0.14",
+      "autorestart": false,
+      "max_restarts": 0
+    },
+    "axm_dynamic": {},
+    "created_at": 1768228276919,
+    "restart_time": 1,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.19.6",
+    "exit_code": 0
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.19.6",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 1,
+    "created_at": 1768228277134,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {
+        "max_restarts": 0,
+        "autorestart": false
+      },
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "gateway-4444",
+      "module_version": "6.0.14",
+      "autorestart": false,
+      "max_restarts": 0
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "10.16",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 71.4,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "14.23",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.36",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.38",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 14,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1768228277134,
+    "status": "online",
+    "unique_id": "aa62ebff-8bb9-4123-8224-28506c857d3f",
+    "gateway-4444": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+    "max_restarts": "0",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/bin/pm2",
+    "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "LC_ALL": "en_US.UTF-8",
+    "SSH_CLIENT": "31.187.78.200 24497 22",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SESSION_ID": "10",
+    "SHLVL": "1",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "USER": "azureuser",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+    "LC_TERMINAL": "iTerm2",
+    "LANG": "C.UTF-8",
+    "HOME": "/home/azureuser",
+    "MOTD_SHOWN": "pam",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "azureuser",
+    "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/home/azureuser/.pm2/pids/gateway-2.pid",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/gateway-4444-error.log",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/gateway-4444-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/home/azureuser/translation-app/3333_4444__Operational",
+    "pm_exec_path": "/home/azureuser/translation-app/3333_4444__Operational/gateway-4444.js",
+    "node_args": [],
+    "name": "gateway-4444",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "aa62ebff-8bb9-4123-8224-28506c857d3f",
+      "gateway-4444": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+      "autorestart": "false",
+      "max_restarts": "0",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/bin/pm2",
+      "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "LC_ALL": "en_US.UTF-8",
+      "SSH_CLIENT": "31.187.78.200 24497 22",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "XDG_SESSION_ID": "10",
+      "SHLVL": "1",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "USER": "azureuser",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+      "LC_TERMINAL": "iTerm2",
+      "LANG": "C.UTF-8",
+      "HOME": "/home/azureuser",
+      "MOTD_SHOWN": "pam",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "azureuser",
+      "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": "false",
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "azureuser",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "azureuser",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+      "LOGNAME": "azureuser",
+      "XDG_SESSION_TYPE": "tty",
+      "MOTD_SHOWN": "pam",
+      "HOME": "/home/azureuser",
+      "LANG": "C.UTF-8",
+      "LC_TERMINAL": "iTerm2",
+      "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "azureuser",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "SHLVL": "1",
+      "XDG_SESSION_ID": "10",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "SSH_CLIENT": "31.187.78.200 24497 22",
+      "LC_ALL": "en_US.UTF-8",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+      "_": "/usr/bin/pm2",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "ari-handler": {},
+      "unique_id": "1f20bf16-a491-4c4a-83c1-37bfc471d07e"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "ari-handler",
+    "node_args": [],
+    "pm_exec_path": "/home/azureuser/translation-app/3333_4444__Operational/ari-gstreamer-operational.js",
+    "pm_cwd": "/home/azureuser/translation-app/3333_4444__Operational",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/ari-handler-out.log",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/ari-handler-error.log",
+    "pm_pid_path": "/home/azureuser/.pm2/pids/ari-handler-3.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/home/azureuser/translation-app/3333_4444__Operational",
+    "LOGNAME": "azureuser",
+    "XDG_SESSION_TYPE": "tty",
+    "MOTD_SHOWN": "pam",
+    "HOME": "/home/azureuser",
+    "LANG": "C.UTF-8",
+    "LC_TERMINAL": "iTerm2",
+    "SSH_CONNECTION": "31.187.78.200 24497 10.0.0.7 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "azureuser",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "SHLVL": "1",
+    "XDG_SESSION_ID": "10",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "SSH_CLIENT": "31.187.78.200 24497 22",
+    "LC_ALL": "en_US.UTF-8",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "OLDPWD": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+    "_": "/usr/bin/pm2",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "unique_id": "1f20bf16-a491-4c4a-83c1-37bfc471d07e",
+    "status": "online",
+    "pm_uptime": 1768228277377,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "15.09",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 71.36,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "21.15",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.35",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.38",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "ari-handler",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1768228277377,
+    "restart_time": 1,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.19.6",
+    "exit_code": 0
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "azureuser",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/home/azureuser",
+      "LOGNAME": "azureuser",
+      "XDG_SESSION_TYPE": "tty",
+      "MOTD_SHOWN": "pam",
+      "HOME": "/home/azureuser",
+      "LANG": "C.UTF-8",
+      "LC_TERMINAL": "iTerm2",
+      "SSH_CONNECTION": "31.187.78.200 62457 10.0.0.7 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "azureuser",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "SHLVL": "0",
+      "XDG_SESSION_ID": "189",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "SSH_CLIENT": "31.187.78.200 62457 22",
+      "LC_ALL": "en_US.UTF-8",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "_": "/usr/bin/pm2",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "bucket-scheduler": {},
+      "unique_id": "47849429-e410-4779-bb54-d5acfa2d9a85"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "bucket-scheduler",
+    "node_args": [],
+    "pm_exec_path": "/home/azureuser/bucket-scheduler-service.js",
+    "pm_cwd": "/home/azureuser",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/bucket-scheduler-out.log",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/bucket-scheduler-error.log",
+    "pm_pid_path": "/home/azureuser/.pm2/pids/bucket-scheduler-4.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/home/azureuser",
+    "LOGNAME": "azureuser",
+    "XDG_SESSION_TYPE": "tty",
+    "MOTD_SHOWN": "pam",
+    "HOME": "/home/azureuser",
+    "LANG": "C.UTF-8",
+    "LC_TERMINAL": "iTerm2",
+    "SSH_CONNECTION": "31.187.78.200 62457 10.0.0.7 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "azureuser",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "SHLVL": "0",
+    "XDG_SESSION_ID": "189",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "SSH_CLIENT": "31.187.78.200 62457 22",
+    "LC_ALL": "en_US.UTF-8",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "_": "/usr/bin/pm2",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "unique_id": "47849429-e410-4779-bb54-d5acfa2d9a85",
+    "status": "online",
+    "pm_uptime": 1768228266693,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "10.94",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 73.55,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "14.88",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.55",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.55",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "bucket-scheduler",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1768228266693,
+    "restart_time": 3,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.19.6",
+    "exit_code": 0
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "azureuser",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/home/azureuser/ai-service",
+      "LOGNAME": "azureuser",
+      "XDG_SESSION_TYPE": "tty",
+      "MOTD_SHOWN": "pam",
+      "HOME": "/home/azureuser",
+      "LANG": "C.UTF-8",
+      "LC_TERMINAL": "iTerm2",
+      "SSH_CONNECTION": "31.187.78.210 21828 10.0.0.7 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "azureuser",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "SHLVL": "1",
+      "XDG_SESSION_ID": "832",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "SSH_CLIENT": "31.187.78.210 21828 22",
+      "LC_ALL": "en_US.UTF-8",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "OLDPWD": "/home/azureuser",
+      "_": "/usr/bin/pm2",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "ai-optimizer": {},
+      "unique_id": "a073da1a-32bf-4867-a99e-8868e4bef00c"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "ai-optimizer",
+    "node_args": [],
+    "pm_exec_path": "/home/azureuser/ai-service/server.cjs",
+    "pm_cwd": "/home/azureuser/ai-service",
+    "exec_interpreter": "/usr/bin/node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/ai-optimizer-out.log",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/ai-optimizer-error.log",
+    "pm_pid_path": "/home/azureuser/.pm2/pids/ai-optimizer-5.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/home/azureuser/ai-service",
+    "LOGNAME": "azureuser",
+    "XDG_SESSION_TYPE": "tty",
+    "MOTD_SHOWN": "pam",
+    "HOME": "/home/azureuser",
+    "LANG": "C.UTF-8",
+    "LC_TERMINAL": "iTerm2",
+    "SSH_CONNECTION": "31.187.78.210 21828 10.0.0.7 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "azureuser",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "SHLVL": "1",
+    "XDG_SESSION_ID": "832",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "SSH_CLIENT": "31.187.78.210 21828 22",
+    "LC_ALL": "en_US.UTF-8",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "OLDPWD": "/home/azureuser",
+    "_": "/usr/bin/pm2",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "unique_id": "a073da1a-32bf-4867-a99e-8868e4bef00c",
+    "status": "online",
+    "pm_uptime": 1768228302405,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "15.29",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 92.49,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "16.54",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.42",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.41",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 4378.2,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1885,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "ai-optimizer",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1768228302404,
+    "restart_time": 1,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.19.6",
+    "exit_code": 0
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.19.6",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 1,
+    "created_at": 1768228302672,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "optimizer-agent",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "14.16",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 75.05,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "18.88",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.38",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.38",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 3,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1768228302672,
+    "status": "online",
+    "unique_id": "822e9a38-92fa-4d61-8065-b59227ba6529",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/bin/pm2",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "LC_ALL": "en_US.UTF-8",
+    "SSH_CLIENT": "31.187.78.210 25322 22",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SESSION_ID": "1803",
+    "SHLVL": "0",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "USER": "azureuser",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "31.187.78.210 25322 10.0.0.7 22",
+    "LC_TERMINAL": "iTerm2",
+    "LANG": "C.UTF-8",
+    "HOME": "/home/azureuser",
+    "MOTD_SHOWN": "pam",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "azureuser",
+    "PWD": "/home/azureuser",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/home/azureuser/.pm2/pids/optimizer-agent-6.pid",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/optimizer-agent-error.log",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/optimizer-agent-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/home/azureuser",
+    "pm_exec_path": "/home/azureuser/optimizer-agent.js",
+    "node_args": [],
+    "name": "optimizer-agent",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "822e9a38-92fa-4d61-8065-b59227ba6529",
+      "optimizer-agent": {},
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/bin/pm2",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "LC_ALL": "en_US.UTF-8",
+      "SSH_CLIENT": "31.187.78.210 25322 22",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "XDG_SESSION_ID": "1803",
+      "SHLVL": "0",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "USER": "azureuser",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "31.187.78.210 25322 10.0.0.7 22",
+      "LC_TERMINAL": "iTerm2",
+      "LANG": "C.UTF-8",
+      "HOME": "/home/azureuser",
+      "MOTD_SHOWN": "pam",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "azureuser",
+      "PWD": "/home/azureuser",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "azureuser",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.19.6",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 1,
+    "created_at": 1768228266500,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {
+        "max_restarts": 0,
+        "autorestart": false
+      },
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "database-api-server",
+      "module_version": "6.0.14",
+      "autorestart": false,
+      "max_restarts": 0
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "18.40",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 88.65,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "20.76",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.33",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.34",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 18,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1768228266500,
+    "status": "online",
+    "unique_id": "91d8e5e8-1ed7-4712-8b9c-1d5740437364",
+    "database-api-server": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+    "max_restarts": "0",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/bin/pm2",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "LC_ALL": "en_US.UTF-8",
+    "SSH_CLIENT": "31.187.78.209 1263 22",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SESSION_ID": "2930",
+    "SHLVL": "0",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "USER": "azureuser",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "31.187.78.209 1263 10.0.0.7 22",
+    "LC_TERMINAL": "iTerm2",
+    "LANG": "C.UTF-8",
+    "HOME": "/home/azureuser",
+    "MOTD_SHOWN": "pam",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "azureuser",
+    "PWD": "/home/azureuser",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/home/azureuser/.pm2/pids/database-api-server-7.pid",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/database-api-server-error.log",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/database-api-server-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/home/azureuser",
+    "pm_exec_path": "/home/azureuser/translation-app/database-api-server.js",
+    "node_args": [],
+    "name": "database-api-server",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "91d8e5e8-1ed7-4712-8b9c-1d5740437364",
+      "database-api-server": "{\"autorestart\":\"false\",\"max_restarts\":\"0\"}",
+      "autorestart": "false",
+      "max_restarts": "0",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/bin/pm2",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "LC_ALL": "en_US.UTF-8",
+      "SSH_CLIENT": "31.187.78.209 1263 22",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "XDG_SESSION_ID": "2930",
+      "SHLVL": "0",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "USER": "azureuser",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "31.187.78.209 1263 10.0.0.7 22",
+      "LC_TERMINAL": "iTerm2",
+      "LANG": "C.UTF-8",
+      "HOME": "/home/azureuser",
+      "MOTD_SHOWN": "pam",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "azureuser",
+      "PWD": "/home/azureuser",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": "false",
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "azureuser",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.19.6",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 8,
+    "created_at": 1768251885060,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {
+        "PORT": 3020,
+        "max_restarts": 0,
+        "autorestart": false
+      },
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "STTTTSserver",
+      "module_version": "6.0.14",
+      "autorestart": false,
+      "max_restarts": 0,
+      "PORT": 3020
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "26.53",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 38.97,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "68.09",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.01",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.17",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 12,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0.2,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 2,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1768251885060,
+    "status": "online",
+    "unique_id": "5b4ff17b-d45a-4ecb-8f2a-316818849215",
+    "STTTTSserver": "{\"autorestart\":\"false\",\"max_restarts\":\"0\",\"PORT\":\"3020\"}",
+    "max_restarts": "0",
+    "PM2_HOME": "/home/azureuser/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/bin/pm2",
+    "OLDPWD": "/home/azureuser",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "LC_ALL": "en_US.UTF-8",
+    "SSH_CLIENT": "31.187.78.210 24108 22",
+    "XDG_RUNTIME_DIR": "/run/user/1000",
+    "XDG_SESSION_ID": "258",
+    "SHLVL": "0",
+    "LC_TERMINAL_VERSION": "3.6.6",
+    "USER": "azureuser",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "31.187.78.210 24108 10.0.0.7 22",
+    "LC_TERMINAL": "iTerm2",
+    "LANG": "C.UTF-8",
+    "HOME": "/home/azureuser",
+    "MOTD_SHOWN": "pam",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "azureuser",
+    "PWD": "/home/azureuser",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/home/azureuser/.pm2/pids/STTTTSserver-8.pid",
+    "pm_err_log_path": "/home/azureuser/.pm2/logs/STTTTSserver-error.log",
+    "pm_out_log_path": "/home/azureuser/.pm2/logs/STTTTSserver-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver",
+    "pm_exec_path": "/home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/STTTTSserver.js",
+    "node_args": [],
+    "name": "STTTTSserver",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "PORT": "3020",
+      "PM2_PROGRAMMATIC": "true",
+      "unique_id": "5b4ff17b-d45a-4ecb-8f2a-316818849215",
+      "STTTTSserver": "{\"autorestart\":\"false\",\"max_restarts\":\"0\",\"PORT\":\"3020\"}",
+      "autorestart": "false",
+      "max_restarts": "0",
+      "PM2_HOME": "/home/azureuser/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/bin/pm2",
+      "OLDPWD": "/home/azureuser",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "LC_ALL": "en_US.UTF-8",
+      "SSH_CLIENT": "31.187.78.210 24108 22",
+      "XDG_RUNTIME_DIR": "/run/user/1000",
+      "XDG_SESSION_ID": "258",
+      "SHLVL": "0",
+      "LC_TERMINAL_VERSION": "3.6.6",
+      "USER": "azureuser",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "31.187.78.210 24108 10.0.0.7 22",
+      "LC_TERMINAL": "iTerm2",
+      "LANG": "C.UTF-8",
+      "HOME": "/home/azureuser",
+      "MOTD_SHOWN": "pam",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "azureuser",
+      "PWD": "/home/azureuser",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": "false",
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "azureuser",
+    "windowsHide": true,
+    "kill_retry_time": 100,
+    "PORT": "3020",
+    "PM2_PROGRAMMATIC": "true"
+  }
+]

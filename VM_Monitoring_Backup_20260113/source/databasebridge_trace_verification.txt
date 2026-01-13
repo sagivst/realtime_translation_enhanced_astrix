@@ -1,0 +1,2 @@
+83:      INSERT INTO traces (trace_id, started_at, ended_at, src_extension, dst_extension, call_id, notes)
+149:        INSERT INTO traces (

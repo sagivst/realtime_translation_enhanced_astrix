@@ -1,0 +1,16 @@
+{
+  "name": "gateway-7777-8888-stack",
+  "version": "1.0.0",
+  "description": "ExternalMedia Gateway with WebSocket Translation for extensions 7777/8888",
+  "main": "gateway-7777-8888.js",
+  "dependencies": {
+    "@deepgram/sdk": "^4.11.2",
+    "@elevenlabs/elevenlabs-js": "^2.25.0",
+    "ari-client": "^2.2.0",
+    "aws-sdk": "^2.1692.0",
+    "hume": "^0.15.6",
+    "pg": "^8.16.3",
+    "socket.io-client": "^4.8.1",
+    "uuid": "^13.0.0"
+  }
+}

@@ -1,0 +1,56 @@
+ Describing process with id 4 - name bucket-scheduler 
+┌───────────────────┬──────────────────────────────────────────────────────┐
+│ status            │ online                                               │
+│ name              │ bucket-scheduler                                     │
+│ namespace         │ default                                              │
+│ version           │ 1.0.0                                                │
+│ restarts          │ 3                                                    │
+│ uptime            │ 19h                                                  │
+│ script path       │ /home/azureuser/bucket-scheduler-service.js          │
+│ script args       │ N/A                                                  │
+│ error log path    │ /home/azureuser/.pm2/logs/bucket-scheduler-error.log │
+│ out log path      │ /home/azureuser/.pm2/logs/bucket-scheduler-out.log   │
+│ pid path          │ /home/azureuser/.pm2/pids/bucket-scheduler-4.pid     │
+│ interpreter       │ node                                                 │
+│ interpreter args  │ N/A                                                  │
+│ script id         │ 4                                                    │
+│ exec cwd          │ /home/azureuser                                      │
+│ exec mode         │ fork_mode                                            │
+│ node.js version   │ 20.19.6                                              │
+│ node env          │ N/A                                                  │
+│ watch & reload    │ ✘                                                    │
+│ unstable restarts │ 0                                                    │
+│ created at        │ 2026-01-12T14:31:06.693Z                             │
+└───────────────────┴──────────────────────────────────────────────────────┘
+ Actions available 
+┌────────────────────────┐
+│ km:heapdump            │
+│ km:cpu:profiling:start │
+│ km:cpu:profiling:stop  │
+│ km:heap:sampling:start │
+│ km:heap:sampling:stop  │
+└────────────────────────┘
+ Trigger via: pm2 trigger bucket-scheduler <action_name>
+
+ Code metrics value 
+┌────────────────────────┬───────────┐
+│ Used Heap Size         │ 10.94 MiB │
+│ Heap Usage             │ 73.55 %   │
+│ Heap Size              │ 14.88 MiB │
+│ Event Loop Latency p95 │ 1.55 ms   │
+│ Event Loop Latency     │ 0.55 ms   │
+│ Active handles         │ 4         │
+│ Active requests        │ 0         │
+└────────────────────────┴───────────┘
+ Divergent env variables from local env 
+┌────────────────┬─────────────────────────────────┐
+│ SSH_CONNECTION │ 31.187.78.200 62457 10.0.0.7 22 │
+│ SHLVL          │ 0                               │
+│ XDG_SESSION_ID │ 189                             │
+│ SSH_CLIENT     │ 31.187.78.200 62457 22          │
+└────────────────┴─────────────────────────────────┘
+
+ Add your own code metrics: http://bit.ly/code-metrics
+ Use `pm2 logs bucket-scheduler [--lines 1000]` to display logs
+ Use `pm2 env 4` to display environment variables
+ Use `pm2 monit` to monitor CPU and Memory usage bucket-scheduler

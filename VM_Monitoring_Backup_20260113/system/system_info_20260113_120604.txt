@@ -1,0 +1,13 @@
+Linux asterisk-translation-vm 6.8.0-1044-azure #50~22.04.1-Ubuntu SMP Wed Dec  3 15:13:22 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       993G  249G  744G  26% /
+tmpfs           1.9G   28K  1.9G   1% /dev/shm
+tmpfs           774M  1.9M  772M   1% /run
+tmpfs           5.0M     0  5.0M   0% /run/lock
+efivarfs        128K   40K   84K  32% /sys/firmware/efi/efivars
+/dev/sda15      105M  6.1M   99M   6% /boot/efi
+/dev/sdb1       7.8G   28K  7.4G   1% /mnt
+tmpfs           387M   40K  387M   1% /run/user/1000
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       2.9Gi       130Mi        81Mi       802Mi       625Mi
+Swap:             0B          0B          0B

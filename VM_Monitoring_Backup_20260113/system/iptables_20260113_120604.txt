@@ -1,0 +1,55 @@
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+63028   17M ACCEPT     udp  --  *      *       0.0.0.0/0            0.0.0.0/0            multiport dports 4001,5353
+ 4389  303K ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:4000
+
+Chain FORWARD (policy DROP 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+   39  3183 DOCKER-USER  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+   39  3183 DOCKER-FORWARD  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+ pkts bytes target     prot opt in     out     source               destination         
+
+Chain DOCKER (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.2           tcp dpt:3100
+    0     0 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.5           tcp dpt:9000
+    0     0 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.5           tcp dpt:8123
+    6   312 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.3           tcp dpt:9096
+    0     0 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.3           tcp dpt:9061
+    0     0 ACCEPT     udp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.3           udp dpt:9060
+    0     0 ACCEPT     tcp  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            172.18.0.3           tcp dpt:9060
+    0     0 DROP       all  --  !br-9e0e15d09119 br-9e0e15d09119  0.0.0.0/0            0.0.0.0/0           
+    0     0 DROP       all  --  !docker0 docker0  0.0.0.0/0            0.0.0.0/0           
+
+Chain DOCKER-BRIDGE (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    6   312 DOCKER     all  --  *      br-9e0e15d09119  0.0.0.0/0            0.0.0.0/0           
+    0     0 DOCKER     all  --  *      docker0  0.0.0.0/0            0.0.0.0/0           
+
+Chain DOCKER-CT (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+   18  1563 ACCEPT     all  --  *      br-9e0e15d09119  0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+    0     0 ACCEPT     all  --  *      docker0  0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+
+Chain DOCKER-FORWARD (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+   39  3183 DOCKER-CT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+   21  1620 DOCKER-ISOLATION-STAGE-1  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+   21  1620 DOCKER-BRIDGE  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+   15  1308 ACCEPT     all  --  br-9e0e15d09119 *       0.0.0.0/0            0.0.0.0/0           
+    0     0 ACCEPT     all  --  docker0 *       0.0.0.0/0            0.0.0.0/0           
+
+Chain DOCKER-ISOLATION-STAGE-1 (1 references)
+ pkts bytes target     prot opt in     out     source               destination         
+   15  1308 DOCKER-ISOLATION-STAGE-2  all  --  br-9e0e15d09119 !br-9e0e15d09119  0.0.0.0/0            0.0.0.0/0           
+    0     0 DOCKER-ISOLATION-STAGE-2  all  --  docker0 !docker0  0.0.0.0/0            0.0.0.0/0           
+
+Chain DOCKER-ISOLATION-STAGE-2 (2 references)
+ pkts bytes target     prot opt in     out     source               destination         
+    0     0 DROP       all  --  *      docker0  0.0.0.0/0            0.0.0.0/0           
+    0     0 DROP       all  --  *      br-9e0e15d09119  0.0.0.0/0            0.0.0.0/0           
+
+Chain DOCKER-USER (1 references)
+ pkts bytes target     prot opt in     out     source               destination         

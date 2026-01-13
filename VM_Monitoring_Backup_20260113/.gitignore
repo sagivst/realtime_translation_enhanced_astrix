@@ -1,0 +1,7 @@
+# Large backup files (exceed GitHub's 100MB limit)
+COMPLETE_VM_BACKUP_*.tar.gz
+audio_recent_*.tar.gz
+
+# Note: These files are available separately and can be downloaded from:
+# - The Azure VM directly
+# - Or recreated using the backup scripts included

@@ -1,0 +1,9 @@
+import type * as Hume from "../../../../../index.js";
+export interface ModelsPredictions {
+    face?: Hume.expressionMeasurement.batch.PredictionsOptionalNullFacePrediction;
+    burst?: Hume.expressionMeasurement.batch.PredictionsOptionalNullBurstPrediction;
+    prosody?: Hume.expressionMeasurement.batch.PredictionsOptionalTranscriptionMetadataProsodyPrediction;
+    language?: Hume.expressionMeasurement.batch.PredictionsOptionalTranscriptionMetadataLanguagePrediction;
+    ner?: Hume.expressionMeasurement.batch.PredictionsOptionalTranscriptionMetadataNerPrediction;
+    facemesh?: Hume.expressionMeasurement.batch.PredictionsOptionalNullFacemeshPrediction;
+}

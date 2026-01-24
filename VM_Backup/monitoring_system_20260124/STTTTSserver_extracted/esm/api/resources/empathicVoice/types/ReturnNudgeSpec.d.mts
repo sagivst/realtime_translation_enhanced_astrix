@@ -1,0 +1,9 @@
+/**
+ * A specific nudge configuration returned from the server
+ */
+export interface ReturnNudgeSpec {
+    /** EVI will nudge user after inactivity */
+    enabled: boolean;
+    /** Time interval in seconds after which the nudge will be sent. */
+    intervalSecs?: number;
+}

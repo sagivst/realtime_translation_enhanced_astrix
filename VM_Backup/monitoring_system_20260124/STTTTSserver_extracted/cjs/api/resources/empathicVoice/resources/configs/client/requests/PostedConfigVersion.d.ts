@@ -1,0 +1,68 @@
+import type * as Hume from "../../../../../../index.js";
+/**
+ * @example
+ *     {
+ *         versionDescription: "This is an updated version of the Weather Assistant Config.",
+ *         eviVersion: "3",
+ *         prompt: {
+ *             id: "af699d45-2985-42cc-91b9-af9e5da3bac5",
+ *             version: 0
+ *         },
+ *         voice: {
+ *             provider: "HUME_AI",
+ *             name: "Ava Song"
+ *         },
+ *         languageModel: {
+ *             modelProvider: "ANTHROPIC",
+ *             modelResource: "claude-3-7-sonnet-latest",
+ *             temperature: 1
+ *         },
+ *         ellmModel: {
+ *             allowShortResponses: true
+ *         },
+ *         eventMessages: {
+ *             onNewChat: {
+ *                 enabled: false,
+ *                 text: ""
+ *             },
+ *             onInactivityTimeout: {
+ *                 enabled: false,
+ *                 text: ""
+ *             },
+ *             onMaxDurationTimeout: {
+ *                 enabled: false,
+ *                 text: ""
+ *             }
+ *         }
+ *     }
+ */
+export interface PostedConfigVersion {
+    /** List of built-in tools associated with this Config version. */
+    builtinTools?: (Hume.empathicVoice.PostedBuiltinTool | undefined)[];
+    /**
+     * The eLLM setup associated with this Config version.
+     *
+     * Hume's eLLM (empathic Large Language Model) is a multimodal language model that takes into account both expression measures and language. The eLLM generates short, empathic language responses and guides text-to-speech (TTS) prosody.
+     */
+    ellmModel?: Hume.empathicVoice.PostedEllmModel;
+    eventMessages?: Hume.empathicVoice.PostedEventMessageSpecs;
+    /** The version of the EVI used with this config. */
+    eviVersion: string;
+    /**
+     * The supplemental language model associated with this Config version.
+     *
+     * This model is used to generate longer, more detailed responses from EVI. Choosing an appropriate supplemental language model for your use case is crucial for generating fast, high-quality responses from EVI.
+     */
+    languageModel?: Hume.empathicVoice.PostedLanguageModel;
+    nudges?: Hume.empathicVoice.PostedNudgeSpec;
+    prompt?: Hume.empathicVoice.PostedConfigPromptSpec;
+    timeouts?: Hume.empathicVoice.PostedTimeoutSpecs;
+    /** List of user-defined tools associated with this Config version. */
+    tools?: (Hume.empathicVoice.PostedUserDefinedToolSpec | undefined)[];
+    /** An optional description of the Config version. */
+    versionDescription?: string;
+    /** A voice specification associated with this Config version. */
+    voice?: Hume.empathicVoice.VoiceRef;
+    /** Webhook config specifications for each subscriber. */
+    webhooks?: (Hume.empathicVoice.PostedWebhookSpec | undefined)[];
+}

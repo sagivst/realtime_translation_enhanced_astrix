@@ -1,0 +1,13 @@
+┌────┬────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name                   │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 14 │ STTTTSserver           │ default     │ 1.0.0   │ fork    │ 55326    │ 19m    │ 0    │ online    │ 0%       │ 89.6mb   │ azureus… │ disabled │
+│ 5  │ ai-optimizer           │ default     │ 1.0.0   │ fork    │ 1429505  │ 47h    │ 0    │ online    │ 0%       │ 51.8mb   │ azureus… │ disabled │
+│ 3  │ ari-handler            │ default     │ 1.0.0   │ fork    │ 1429491  │ 47h    │ 0    │ online    │ 0%       │ 41.6mb   │ azureus… │ disabled │
+│ 4  │ bucket-scheduler       │ default     │ 1.0.0   │ fork    │ 1429503  │ 47h    │ 0    │ online    │ 0%       │ 34.5mb   │ azureus… │ disabled │
+│ 7  │ database-api-server    │ default     │ 1.0.0   │ fork    │ 1429518  │ 47h    │ 0    │ online    │ 0%       │ 37.3mb   │ azureus… │ disabled │
+│ 1  │ gateway-3333           │ default     │ 1.0.0   │ fork    │ 1429484  │ 47h    │ 0    │ online    │ 0%       │ 28.9mb   │ azureus… │ disabled │
+│ 2  │ gateway-4444           │ default     │ 1.0.0   │ fork    │ 1429490  │ 47h    │ 0    │ online    │ 0%       │ 29.6mb   │ azureus… │ disabled │
+│ 6  │ optimizer-agent        │ default     │ 1.0.0   │ fork    │ 1429513  │ 47h    │ 0    │ online    │ 0%       │ 40.0mb   │ azureus… │ disabled │
+│ 0  │ proxy-dashboard        │ default     │ 1.0.0   │ fork    │ 1429477  │ 47h    │ 0    │ online    │ 0%       │ 32.1mb   │ azureus… │ disabled │
+└────┴────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘

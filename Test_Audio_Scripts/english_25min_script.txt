@@ -1,0 +1,58 @@
+# English Audio Script - 25 Minutes
+# For Extension 3333
+# Convert to audio using TTS or record naturally
+
+## Minutes 0-5: News-style content
+Good morning, this is the automated news service. Today's date is January 5th, 2026.
+
+In technology news, artificial intelligence continues to revolutionize audio processing systems. Recent developments in real-time optimization have shown remarkable improvements in call quality metrics. Engineers report that adaptive gain control and noise reduction algorithms are achieving unprecedented levels of clarity.
+
+The weather forecast for today indicates partly cloudy conditions with temperatures ranging from 15 to 22 degrees Celsius. Wind speeds are expected to remain moderate throughout the day, with a slight chance of afternoon showers in coastal regions.
+
+In financial markets, trading opened steady this morning with major indices showing modest gains. The technology sector continues to lead growth, driven by innovations in cloud computing and artificial intelligence applications.
+
+## Minutes 5-10: Technical documentation reading
+Chapter One: Understanding Audio Signal Processing.
+
+Audio signal processing involves the manipulation of audio signals to improve quality, reduce noise, or extract specific features. The fundamental concepts include sampling rate, bit depth, and frequency response.
+
+Digital signal processing, or DSP, has revolutionized how we handle audio in modern communication systems. Key parameters such as RMS levels, measured in decibels relative to full scale, provide critical metrics for optimization.
+
+The human voice typically operates in a frequency range of 85 Hz to 255 Hz for fundamental frequencies, with harmonics extending much higher. Telephony systems traditionally limit bandwidth to approximately 300 Hz to 3400 Hz, which adequately captures speech intelligibility while minimizing bandwidth requirements.
+
+Automatic gain control, commonly abbreviated as AGC, dynamically adjusts signal amplitude to maintain consistent output levels. This process involves attack and release times, threshold settings, and ratio controls.
+
+## Minutes 10-15: Literature passage
+From the works of classical literature, we present this passage for your listening pleasure.
+
+The sun rose steadily over the horizon, casting long shadows across the landscape. Birds began their morning chorus, a symphony of natural sounds that has inspired composers and poets throughout history. The gentle rustling of leaves in the morning breeze created a peaceful ambiance.
+
+In the distance, the city began to wake. The sounds of daily life gradually increased - footsteps on pavement, doors opening and closing, the distant hum of traffic beginning to build. Each sound contributed to the complex acoustic environment that surrounds us every day.
+
+Communication technology has transformed how we experience these sounds. From the earliest telephone systems to modern digital networks, the goal has remained constant: to faithfully reproduce human speech across any distance.
+
+## Minutes 15-20: Educational content
+Welcome to our educational segment on telecommunications history.
+
+Alexander Graham Bell's invention of the telephone in 1876 marked the beginning of a revolution in human communication. The first words transmitted were "Mr. Watson, come here, I want to see you."
+
+Early telephone systems used analog signals transmitted over copper wires. The quality was often poor, with significant noise and distortion. Engineers worked tirelessly to improve these systems, developing new techniques for signal amplification and noise reduction.
+
+The transition to digital telephony in the latter part of the 20th century brought dramatic improvements in call quality. Pulse-code modulation, or PCM, became the standard for encoding analog signals into digital format.
+
+Modern Voice over IP systems build upon these foundations, using packet-switched networks to transmit voice data. Quality of Service mechanisms ensure that voice packets receive priority handling to minimize latency and jitter.
+
+## Minutes 20-25: Continuous prose
+As we approach the conclusion of this audio test, let's reflect on the importance of clear communication in our interconnected world.
+
+The ability to convey ideas, emotions, and information through voice remains one of humanity's most powerful tools. Whether conducting business negotiations, sharing personal moments with loved ones, or coordinating emergency responses, voice communication plays a vital role.
+
+Audio quality directly impacts the effectiveness of these communications. Factors such as clarity, volume consistency, and background noise reduction all contribute to the listener's ability to understand and engage with the speaker.
+
+Modern optimization systems continuously monitor these parameters, making real-time adjustments to enhance the communication experience. Machine learning algorithms analyze patterns in speech and ambient noise, predicting and preventing quality issues before they become noticeable.
+
+The future of voice communication promises even greater advances. Spatial audio, emotion recognition, and real-time translation are just a few of the technologies that will shape how we communicate in the years to come.
+
+As this test concludes, we thank you for your participation in advancing the state of communication technology. Every data point collected contributes to the development of better, more reliable systems for everyone.
+
+[Loop back to beginning if needed to reach exactly 25 minutes]

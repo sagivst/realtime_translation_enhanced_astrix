@@ -1,0 +1,24 @@
+MONITORING SYSTEM BACKUP
+========================
+Date: Sat Jan 24 11:00:40 PM UTC 2026
+VM: 20.170.155.53
+Directory: /home/azureuser/translation-app/3333_4444__Operational/STTTTSserver/
+
+Contents:
+- STTTTSserver_full.tar.gz - Complete STTTTSserver directory (44MB)
+- Monitoring_Stations.tar.gz - Monitoring framework only (114KB)
+- .env* files - Environment variables and API keys
+- pm2_dump.json - PM2 process configuration
+- pm2_process_list.txt - Current PM2 status
+- pm2_sttttsserver_info.txt - STTTTSserver PM2 details
+- monitoring_v2_schema.sql - Database schema
+- monitoring_v2_recent_data.sql - Recent data sample (18MB)
+- monitoring_v2_full.dump - Complete database backup (3.5MB)
+- restore_monitoring.sh - Restoration script
+
+System State at Backup:
+- STTTTSserver: RUNNING (uptime: 11m)
+- Monitoring: ACTIVE
+- Database: monitoring_v2
+- Recent metrics: 16,168 records (24h)
+- PM2 processes: Active

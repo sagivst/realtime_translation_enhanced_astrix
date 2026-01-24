@@ -1,0 +1,9 @@
+import type * as Hume from "../../../../api/index.js";
+import * as core from "../../../../core/index.js";
+import type * as serializers from "../../../index.js";
+import { PostedUtteranceVoiceWithId } from "./PostedUtteranceVoiceWithId.js";
+import { PostedUtteranceVoiceWithName } from "./PostedUtteranceVoiceWithName.js";
+export declare const PostedUtteranceVoice: core.serialization.Schema<serializers.tts.PostedUtteranceVoice.Raw, Hume.tts.PostedUtteranceVoice>;
+export declare namespace PostedUtteranceVoice {
+    type Raw = PostedUtteranceVoiceWithId.Raw | PostedUtteranceVoiceWithName.Raw;
+}

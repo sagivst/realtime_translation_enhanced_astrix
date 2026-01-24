@@ -1,0 +1,21 @@
+/**
+ * A specific prompt version returned from the server
+ */
+export interface ReturnPrompt {
+    /** The timestamp when the first version of this prompt was created. */
+    createdOn: number;
+    /** Identifier for a Prompt. Formatted as a UUID. */
+    id: string;
+    /** The timestamp when this version of the prompt was created. */
+    modifiedOn: number;
+    /** Name applied to all versions of a particular Prompt. */
+    name: string;
+    /** Text used for this version of the Prompt. */
+    text: string;
+    /** Version number for a Prompt. Version numbers should be integers. The combination of configId and version number is unique. */
+    version: number;
+    /** Description that is appended to a specific version of a Prompt. */
+    versionDescription?: string;
+    /** Indicates whether this prompt is using a fixed version number or auto-updating to the latest version. Values from the VersionType enum. */
+    versionType: string;
+}

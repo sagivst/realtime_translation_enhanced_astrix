@@ -1,0 +1,31 @@
+import type * as Hume from "../../../../../../../api/index.js";
+import * as core from "../../../../../../../core/index.js";
+import type * as serializers from "../../../../../../index.js";
+import { PostedBuiltinTool } from "../../../../types/PostedBuiltinTool.js";
+import { PostedConfigPromptSpec } from "../../../../types/PostedConfigPromptSpec.js";
+import { PostedEllmModel } from "../../../../types/PostedEllmModel.js";
+import { PostedEventMessageSpecs } from "../../../../types/PostedEventMessageSpecs.js";
+import { PostedLanguageModel } from "../../../../types/PostedLanguageModel.js";
+import { PostedNudgeSpec } from "../../../../types/PostedNudgeSpec.js";
+import { PostedTimeoutSpecs } from "../../../../types/PostedTimeoutSpecs.js";
+import { PostedUserDefinedToolSpec } from "../../../../types/PostedUserDefinedToolSpec.js";
+import { PostedWebhookSpec } from "../../../../types/PostedWebhookSpec.js";
+import { VoiceRef } from "../../../../types/VoiceRef.js";
+export declare const PostedConfig: core.serialization.Schema<serializers.empathicVoice.PostedConfig.Raw, Hume.empathicVoice.PostedConfig>;
+export declare namespace PostedConfig {
+    interface Raw {
+        builtin_tools?: (PostedBuiltinTool.Raw | null | undefined)[] | null;
+        ellm_model?: PostedEllmModel.Raw | null;
+        event_messages?: PostedEventMessageSpecs.Raw | null;
+        evi_version: string;
+        language_model?: PostedLanguageModel.Raw | null;
+        name: string;
+        nudges?: PostedNudgeSpec.Raw | null;
+        prompt?: PostedConfigPromptSpec.Raw | null;
+        timeouts?: PostedTimeoutSpecs.Raw | null;
+        tools?: (PostedUserDefinedToolSpec.Raw | null | undefined)[] | null;
+        version_description?: string | null;
+        voice?: VoiceRef.Raw | null;
+        webhooks?: (PostedWebhookSpec.Raw | null | undefined)[] | null;
+    }
+}

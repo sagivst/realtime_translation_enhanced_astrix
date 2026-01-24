@@ -17,7 +17,7 @@ const Station3Handler = require('./station3-handler');
 const Station9Handler = require('./station9-handler');
 
 // NEW monitoring framework (runs alongside OLD monitoring)
-const { getMonitoringBootstrap } = require('./Monitoring_Stations/MonitoringStationsBootstrap');
+// const { getMonitoringBootstrap } = require('./Monitoring_Stations/MonitoringStationsBootstrap'); // Commented out - using dynamic import instead
 let newMonitoring = null; // Will be initialized at startup
 let globalNewMonitoring = null; // Global reference for knobs API
 
@@ -1538,10 +1538,15 @@ extensionGainFactors.set("4444", 7.5);
 console.log("[GAIN] Initialized extensions 3333/4444 with gain 1.0");
 const humeConnections = new Map(); // key: socket.id, value: HumeStreamingClient instance
 
+// Track active call traces for NEW monitoring
+const activeCallTraces = new Map(); // key: extension (3333/4444), value: { traceId, startTime, packetCount }
+
 // NEW monitoring initialization
 async function initializeNewMonitoring() {
   try {
     console.log('\\n========== Initializing NEW Monitoring Framework ==========');
+    // Use dynamic import for ES6 module
+    const { getMonitoringBootstrap } = await import('./Monitoring_Stations/MonitoringStationsBootstrap.js');
     newMonitoring = getMonitoringBootstrap();
     globalNewMonitoring = newMonitoring;  // Make available for knobs API
 
@@ -1591,6 +1596,44 @@ const { KnobsResolverFactory } = require("./lib/KnobsResolverFactory");
 
 // Start NEW monitoring initialization
 setTimeout(() => initializeNewMonitoring().catch(console.error), 100);
+
+// Function to detect call end and cleanup traces
+function checkForCallEnd() {
+  const now = Date.now();
+  const CALL_END_TIMEOUT = 30000; // 30 seconds without packets = call ended
+
+  for (const [extension, callInfo] of activeCallTraces.entries()) {
+    const lastPacketTime = extension === "3333"
+      ? udpPcmStats.from3333LastTime
+      : udpPcmStats.from4444LastTime;
+
+    if (lastPacketTime && (now - lastPacketTime) > CALL_END_TIMEOUT) {
+      console.log(`[NEW-MONITORING] Call ended on extension ${extension}, trace: ${callInfo.traceId}`);
+
+      // End the trace in monitoring system
+      if (newMonitoring) {
+        try {
+          newMonitoring.endTrace(callInfo.traceId);
+        } catch (err) {
+          console.error(`[NEW-MONITORING] Failed to end trace ${callInfo.traceId}:`, err.message);
+        }
+      }
+
+      // Remove from active calls
+      activeCallTraces.delete(extension);
+
+      // Reset packet counter for next call
+      if (extension === "3333") {
+        udpPcmStats.from3333Packets = 0;
+      } else {
+        udpPcmStats.from4444Packets = 0;
+      }
+    }
+  }
+}
+
+// Check for call ends every 5 seconds
+setInterval(checkForCallEnd, 5000);
 
 // Station-3 monitoring handlers
 const station3_3333 = new Station3Handler("3333");
@@ -4132,7 +4175,9 @@ let udpPcmStats = {
   translationRequests: 0,
   translationSuccesses: 0,
   translationErrors: 0,
-  startTime: Date.now()
+  startTime: Date.now(),
+  from3333LastTime: null,
+  from4444LastTime: null
 };
 
 // Audio Buffering
@@ -4153,6 +4198,37 @@ udpAudioBuffers.set('4444', {
 // Extension 3333 Handler (based on conf-server-phase1.js lines 175-196)
 socket3333In.on('message', async (msg, rinfo) => {
   udpPcmStats.from3333Packets++;
+  udpPcmStats.from3333LastTime = Date.now();
+
+  // Create trace on first packet for NEW monitoring
+  if (udpPcmStats.from3333Packets === 1 && newMonitoring) {
+    try {
+      const traceId = `call_3333_${Date.now()}`;
+      console.log(`[NEW-MONITORING] Creating trace for call on extension 3333: ${traceId}`);
+
+      // Create trace in monitoring system
+      const trace = await newMonitoring.startTrace({
+        trace_id: traceId,
+        station_key: "St_3_3333",
+        metadata: {
+          call_type: "incoming",
+          extension: "3333",
+          start_time: new Date().toISOString()
+        }
+      });
+
+      // Store trace info for this call
+      activeCallTraces.set("3333", {
+        traceId: traceId,
+        startTime: Date.now(),
+        packetCount: 0
+      });
+
+      console.log(`[NEW-MONITORING] Trace created successfully: ${traceId}`);
+    } catch (err) {
+      console.error('[NEW-MONITORING] Failed to create trace:', err.message);
+    }
+  }
 
   if (udpPcmStats.from3333Packets <= 5) {
     console.log(`[UDP-3333] Gateway connected: ${msg.length} bytes/frame (packet #${udpPcmStats.from3333Packets})`);
@@ -4278,6 +4354,37 @@ socket3333In.on('error', (err) => {
 // Extension 4444 Handler (based on conf-server-phase1.js lines 210-231)
 socket4444In.on('message', async (msg, rinfo) => {
   udpPcmStats.from4444Packets++;
+  udpPcmStats.from4444LastTime = Date.now();
+
+  // Create trace on first packet for NEW monitoring
+  if (udpPcmStats.from4444Packets === 1 && newMonitoring) {
+    try {
+      const traceId = `call_4444_${Date.now()}`;
+      console.log(`[NEW-MONITORING] Creating trace for call on extension 4444: ${traceId}`);
+
+      // Create trace in monitoring system
+      const trace = await newMonitoring.startTrace({
+        trace_id: traceId,
+        station_key: "St_4_4444",
+        metadata: {
+          call_type: "incoming",
+          extension: "4444",
+          start_time: new Date().toISOString()
+        }
+      });
+
+      // Store trace info for this call
+      activeCallTraces.set("4444", {
+        traceId: traceId,
+        startTime: Date.now(),
+        packetCount: 0
+      });
+
+      console.log(`[NEW-MONITORING] Trace created successfully: ${traceId}`);
+    } catch (err) {
+      console.error('[NEW-MONITORING] Failed to create trace:', err.message);
+    }
+  }
 
   if (udpPcmStats.from4444Packets <= 5) {
     console.log(`[UDP-4444] Gateway connected: ${msg.length} bytes/frame (packet #${udpPcmStats.from4444Packets})`);

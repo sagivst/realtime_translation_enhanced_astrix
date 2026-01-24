@@ -1,0 +1,14 @@
+import type * as Hume from "../../../../../../../index.mjs";
+/**
+ * Warning message
+ */
+export interface StreamWarningMessage {
+    /** Warning message text. */
+    warning?: string;
+    /** Unique identifier for the error. */
+    code?: string;
+    /** If a payload ID was passed in the request, the same payload ID will be sent back in the response body. */
+    payloadId?: string;
+    /** If the job_details flag was set in the request, details about the current streaming job will be returned in the response body. */
+    jobDetails?: Hume.expressionMeasurement.stream.StreamWarningMessageJobDetails;
+}

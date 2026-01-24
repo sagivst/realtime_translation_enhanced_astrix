@@ -1,0 +1,6 @@
+import type * as Hume from "../../../index.mjs";
+export interface ReturnTts {
+    generations: Hume.tts.ReturnGeneration[];
+    /** A unique ID associated with this request for tracking and troubleshooting. Use this ID when contacting [support](/support) for troubleshooting assistance. */
+    requestId?: string;
+}

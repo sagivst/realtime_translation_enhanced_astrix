@@ -1,0 +1,21 @@
+/**
+ * Indicates the current state of the audio reconstruction job. There are five possible statuses:
+ *
+ * - `QUEUED`: The reconstruction job is waiting to be processed.
+ *
+ * - `IN_PROGRESS`: The reconstruction is currently being processed.
+ *
+ * - `COMPLETE`: The audio reconstruction is finished and ready for download.
+ *
+ * - `ERROR`: An error occurred during the reconstruction process.
+ *
+ * - `CANCELED`: The reconstruction job has been canceled.
+ */
+export declare const ReturnChatAudioReconstructionStatus: {
+    readonly Queued: "QUEUED";
+    readonly InProgress: "IN_PROGRESS";
+    readonly Complete: "COMPLETE";
+    readonly Error: "ERROR";
+    readonly Cancelled: "CANCELLED";
+};
+export type ReturnChatAudioReconstructionStatus = (typeof ReturnChatAudioReconstructionStatus)[keyof typeof ReturnChatAudioReconstructionStatus];

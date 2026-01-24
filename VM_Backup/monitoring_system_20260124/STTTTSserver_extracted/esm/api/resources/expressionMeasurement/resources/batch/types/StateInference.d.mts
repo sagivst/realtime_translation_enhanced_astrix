@@ -1,0 +1,16 @@
+import type * as Hume from "../../../../../index.mjs";
+export type StateInference = Hume.expressionMeasurement.batch.StateInference.Queued | Hume.expressionMeasurement.batch.StateInference.InProgress | Hume.expressionMeasurement.batch.StateInference.Completed | Hume.expressionMeasurement.batch.StateInference.Failed;
+export declare namespace StateInference {
+    interface Queued extends Hume.expressionMeasurement.batch.QueuedState {
+        status: "QUEUED";
+    }
+    interface InProgress extends Hume.expressionMeasurement.batch.InProgressState {
+        status: "IN_PROGRESS";
+    }
+    interface Completed extends Hume.expressionMeasurement.batch.CompletedState {
+        status: "COMPLETED";
+    }
+    interface Failed extends Hume.expressionMeasurement.batch.FailedState {
+        status: "FAILED";
+    }
+}

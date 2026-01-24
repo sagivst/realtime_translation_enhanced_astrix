@@ -1,0 +1,17 @@
+import type * as Hume from "../../../index.mjs";
+export interface Snippet {
+    /** The segmented audio output in the requested format, encoded as a base64 string. */
+    audio: string;
+    /** The generation ID this snippet corresponds to. */
+    generationId: string;
+    /** A unique ID associated with this **Snippet**. */
+    id: string;
+    /** The text for this **Snippet**. */
+    text: string;
+    /** A list of word or phoneme level timestamps for the generated audio. Timestamps are only returned for Octave 2 requests. */
+    timestamps: Hume.tts.Timestamp[];
+    /** The transcribed text of the generated audio. It is only present if `instant_mode` is set to `false`. */
+    transcribedText?: string;
+    /** The index of the utterance in the request this snippet corresponds to. */
+    utteranceIndex?: number;
+}

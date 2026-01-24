@@ -1,0 +1,48 @@
+import type * as Hume from "../../../index.js";
+export interface PostedTts {
+    /** Utterances to use as context for generating consistent speech style and prosody across multiple requests. These will not be converted to speech output. */
+    context?: Hume.tts.PostedContext;
+    /** Specifies the output audio file format. */
+    format?: Hume.tts.Format;
+    /** The set of timestamp types to include in the response. Only supported for Octave 2 requests. */
+    includeTimestampTypes?: Hume.tts.TimestampType[];
+    /**
+     * Number of audio generations to produce from the input utterances.
+     *
+     * Using `num_generations` enables faster processing than issuing multiple sequential requests. Additionally, specifying `num_generations` allows prosody continuation across all generations without repeating context, ensuring each generation sounds slightly different while maintaining contextual consistency.
+     */
+    numGenerations?: number;
+    /**
+     * Controls how audio output is segmented in the response.
+     *
+     * - When **enabled** (`true`), input utterances are automatically split into natural-sounding speech segments.
+     *
+     * - When **disabled** (`false`), the response maintains a strict one-to-one mapping between input utterances and output snippets.
+     *
+     * This setting affects how the `snippets` array is structured in the response, which may be important for applications that need to track the relationship between input text and generated audio segments. When setting to `false`, avoid including utterances with long `text`, as this can result in distorted output.
+     */
+    splitUtterances?: boolean;
+    /** If enabled, the audio for all the chunks of a generation, once concatenated together, will constitute a single audio file. Otherwise, if disabled, each chunk's audio will be its own audio file, each with its own headers (if applicable). */
+    stripHeaders?: boolean;
+    /**
+     * A list of **Utterances** to be converted to speech output.
+     *
+     * An **Utterance** is a unit of input for [Octave](/docs/text-to-speech-tts/overview), and includes input `text`, an optional `description` to serve as the prompt for how the speech should be delivered, an optional `voice` specification, and additional controls to guide delivery for `speed` and `trailing_silence`.
+     */
+    utterances: Hume.tts.PostedUtterance[];
+    /**
+     * Selects the Octave model version used to synthesize speech for this request. If you omit this field, Hume automatically routes the request to the most appropriate model. Setting a specific version ensures stable and repeatable behavior across requests.
+     *
+     * Use `2` to opt into the latest Octave capabilities. When you specify version `2`, you must also provide a `voice`. Requests that set `version: 2` without a voice will be rejected.
+     *
+     * For a comparison of Octave versions, see the [Octave versions](/docs/text-to-speech-tts/overview#octave-versions) section in the TTS overview.
+     */
+    version?: Hume.tts.OctaveVersion;
+    /**
+     * Enables ultra-low latency streaming, significantly reducing the time until the first audio chunk is received. Recommended for real-time applications requiring immediate audio playback. For further details, see our documentation on [instant mode](/docs/text-to-speech-tts/overview#ultra-low-latency-streaming-instant-mode).
+     * - A [voice](/reference/text-to-speech-tts/synthesize-json-streaming#request.body.utterances.voice) must be specified when instant mode is enabled. Dynamic voice generation is not supported with this mode.
+     * - Instant mode is only supported for streaming endpoints (e.g., [/v0/tts/stream/json](/reference/text-to-speech-tts/synthesize-json-streaming), [/v0/tts/stream/file](/reference/text-to-speech-tts/synthesize-file-streaming)).
+     * - Ensure only a single generation is requested ([num_generations](/reference/text-to-speech-tts/synthesize-json-streaming#request.body.num_generations) must be `1` or omitted).
+     */
+    instantMode?: boolean;
+}

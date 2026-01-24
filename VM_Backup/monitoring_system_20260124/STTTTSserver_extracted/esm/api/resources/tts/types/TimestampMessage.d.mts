@@ -1,0 +1,15 @@
+import type * as Hume from "../../../index.mjs";
+/**
+ * A word or phoneme level timestamp for the generated audio.
+ */
+export interface TimestampMessage {
+    /** The generation ID of the parent snippet that this chunk corresponds to. */
+    generationId: string;
+    /** ID of the initiating request. */
+    requestId: string;
+    /** The ID of the parent snippet that this chunk corresponds to. */
+    snippetId: string;
+    /** A word or phoneme level timestamp for the generated audio. */
+    timestamp: Hume.tts.Timestamp;
+    type: "timestamp";
+}

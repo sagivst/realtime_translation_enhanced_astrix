@@ -1,0 +1,189 @@
+/** THIS FILE IS MANUALLY MAINTAINED: see .fernignore */
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import * as core from "../../../../../../core/index.mjs";
+import * as Hume from "../../../../../index.mjs";
+import { PublishEvent } from "../../../../../../serialization/resources/empathicVoice/resources/chat/types/PublishEvent.mjs";
+import { fromJson } from "../../../../../../core/json.mjs";
+import * as serializers from "../../../../../../serialization/index.mjs";
+export class ChatSocket {
+    constructor(args) {
+        this.eventHandlers = {};
+        this.handleOpen = () => {
+            var _a, _b;
+            (_b = (_a = this.eventHandlers).open) === null || _b === void 0 ? void 0 : _b.call(_a);
+        };
+        this.handleMessage = (event) => {
+            var _a, _b, _c, _d;
+            const data = fromJson(event.data);
+            const parsedResponse = serializers.empathicVoice.ChatSocketResponse.parse(data, {
+                unrecognizedObjectKeys: "passthrough",
+                allowUnrecognizedUnionMembers: true,
+                allowUnrecognizedEnumValues: true,
+                skipValidation: true,
+                omitUndefined: true,
+            });
+            if (parsedResponse.ok) {
+                (_b = (_a = this.eventHandlers).message) === null || _b === void 0 ? void 0 : _b.call(_a, Object.assign(Object.assign({}, parsedResponse.value), { receivedAt: new Date() }));
+            }
+            else {
+                (_d = (_c = this.eventHandlers).error) === null || _d === void 0 ? void 0 : _d.call(_c, new Error("Received unknown message type"));
+            }
+        };
+        this.handleClose = (event) => {
+            var _a, _b;
+            (_b = (_a = this.eventHandlers).close) === null || _b === void 0 ? void 0 : _b.call(_a, event);
+        };
+        this.handleError = (event) => {
+            var _a, _b;
+            const message = event.message;
+            (_b = (_a = this.eventHandlers).error) === null || _b === void 0 ? void 0 : _b.call(_a, new Error(message));
+        };
+        this.socket = args.socket;
+        this.socket.addEventListener("open", this.handleOpen);
+        this.socket.addEventListener("message", this.handleMessage);
+        this.socket.addEventListener("close", this.handleClose);
+        this.socket.addEventListener("error", this.handleError);
+    }
+    /** The current state of the connection; this is one of the readyState constants. */
+    get readyState() {
+        return this.socket.readyState;
+    }
+    /**
+     * @param event - The event to attach to.
+     * @param callback - The callback to run when the event is triggered.
+     * Usage:
+     * ```typescript
+     * this.on('open', () => {
+     *     console.log('The websocket is open');
+     * });
+     * ```
+     */
+    on(event, callback) {
+        this.eventHandlers[event] = callback;
+    }
+    sendPublish(message) {
+        this.assertSocketIsOpen();
+        const jsonPayload = PublishEvent.jsonOrThrow(message, {
+            unrecognizedObjectKeys: "passthrough",
+            allowUnrecognizedUnionMembers: true,
+            allowUnrecognizedEnumValues: true,
+            skipValidation: true,
+            omitUndefined: true,
+        });
+        this.socket.send(JSON.stringify(jsonPayload));
+    }
+    /**
+     * Send audio input
+     */
+    sendAudioInput(message) {
+        this.sendPublish(Object.assign({ type: "audio_input" }, message));
+    }
+    /**
+     * Send session settings
+     */
+    sendSessionSettings(message = {}) {
+        this.sendPublish(Object.assign({ type: "session_settings" }, message));
+    }
+    /**
+     * Send assistant input
+     */
+    sendAssistantInput(message) {
+        this.sendPublish(Object.assign({ type: "assistant_input" }, message));
+    }
+    /**
+     * Send pause assistant message
+     */
+    pauseAssistant(message = {}) {
+        this.sendPublish(Object.assign({ type: "pause_assistant_message" }, message));
+    }
+    /**
+     * Send resume assistant message
+     */
+    resumeAssistant(message = {}) {
+        this.sendPublish(Object.assign({ type: "resume_assistant_message" }, message));
+    }
+    /**
+     * Send tool response message
+     */
+    sendToolResponseMessage(message) {
+        this.sendPublish(Object.assign({ type: "tool_response" }, message));
+    }
+    /**
+     * Send tool error message
+     */
+    sendToolErrorMessage(message) {
+        this.sendPublish(Object.assign({ type: "tool_error" }, message));
+    }
+    /**
+     * Send text input
+     */
+    sendUserInput(text) {
+        this.sendPublish({
+            type: "user_input",
+            text,
+        });
+    }
+    /** Connect to the websocket and register event handlers. */
+    connect() {
+        this.socket.reconnect();
+        this.socket.addEventListener("open", this.handleOpen);
+        this.socket.addEventListener("message", this.handleMessage);
+        this.socket.addEventListener("close", this.handleClose);
+        this.socket.addEventListener("error", this.handleError);
+        return this;
+    }
+    /** Close the websocket and unregister event handlers. */
+    close() {
+        this.socket.close();
+        this.handleClose({ code: 1000 });
+        this.socket.removeEventListener("open", this.handleOpen);
+        this.socket.removeEventListener("message", this.handleMessage);
+        this.socket.removeEventListener("close", this.handleClose);
+        this.socket.removeEventListener("error", this.handleError);
+    }
+    /** Returns a promise that resolves when the websocket is open. */
+    waitForOpen() {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.socket.readyState === core.ReconnectingWebSocket.OPEN) {
+                return this.socket;
+            }
+            return new Promise((resolve, reject) => {
+                this.socket.addEventListener("open", () => {
+                    resolve(this.socket);
+                });
+                this.socket.addEventListener("error", (event) => {
+                    reject(event);
+                });
+            });
+        });
+    }
+    /**
+     * @deprecated Use waitForOpen() instead
+     */
+    tillSocketOpen() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.waitForOpen();
+        });
+    }
+    /** Asserts that the websocket is open. */
+    assertSocketIsOpen() {
+        if (!this.socket) {
+            throw new Error("Socket is not connected.");
+        }
+        if (this.socket.readyState !== core.ReconnectingWebSocket.OPEN) {
+            throw new Error("Socket is not open.");
+        }
+    }
+    /** Send a binary payload to the websocket. */
+    sendBinary(payload) {
+        this.socket.send(payload);
+    }
+}

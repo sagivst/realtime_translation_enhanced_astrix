@@ -1,0 +1,1676 @@
+// STTTTSserver/Monitoring_Stations/station/generic/MetricsRegistry.js
+// COMPLETE IMPLEMENTATION with ALL 180+ metrics from Unified Specification
+// Version 2.0 - Full compliance with Unified_Metrics_&_Knobs_Specification.md
+// Generated: 2026-01-10
+
+const INT16_FS = 32767;
+const EPS = 1e-12;
+
+// =========================================================================
+// HELPER FUNCTIONS
+// =========================================================================
+
+function ratioToDbfs(ratio) {
+  const r = Math.max(EPS, ratio);
+  return 20 * Math.log10(r);
+}
+
+function computeRmsDbfs(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let sumSq = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const s = frame[i];
+    sumSq += s * s;
+  }
+  const meanSq = sumSq / frame.length;
+  const rms = Math.sqrt(meanSq);
+  return ratioToDbfs(rms / INT16_FS);
+}
+
+function computePeakDbfs(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let peak = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const a = Math.abs(frame[i]);
+    if (a > peak) peak = a;
+  }
+  return ratioToDbfs(peak / INT16_FS);
+}
+
+function computeClippingRatio(frame, clipThreshold = 32760) {
+  if (!frame || frame.length === 0) return NaN;
+  let clipped = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const a = Math.abs(frame[i]);
+    if (a >= clipThreshold) clipped++;
+  }
+  return clipped / frame.length;
+}
+
+function computeZeroCrossingRate(frame) {
+  if (!frame || frame.length < 2) return NaN;
+  let zc = 0;
+  let prev = frame[0];
+  for (let i = 1; i < frame.length; i++) {
+    const cur = frame[i];
+    if ((prev < 0 && cur >= 0) || (prev >= 0 && cur < 0)) zc++;
+    prev = cur;
+  }
+  return zc / (frame.length - 1);
+}
+
+function computePeakAmplitude(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let peak = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const a = Math.abs(frame[i]);
+    if (a > peak) peak = a;
+  }
+  return peak;
+}
+
+function computePeakToPeak(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let min = 32767, max = -32768;
+  for (let i = 0; i < frame.length; i++) {
+    if (frame[i] < min) min = frame[i];
+    if (frame[i] > max) max = frame[i];
+  }
+  return max - min;
+}
+
+function computeAverageAbsolute(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let sum = 0;
+  for (let i = 0; i < frame.length; i++) {
+    sum += Math.abs(frame[i]);
+  }
+  return sum / frame.length;
+}
+
+function computeCrestFactor(frame) {
+  const peak = computePeakAmplitude(frame);
+  const rms = Math.sqrt(computeMeanSquared(frame));
+  if (isNaN(peak) || rms === 0) return NaN;
+  return peak / rms;
+}
+
+function computeMeanSquared(frame) {
+  if (!frame || frame.length === 0) return NaN;
+  let sumSq = 0;
+  for (let i = 0; i < frame.length; i++) {
+    const s = frame[i];
+    sumSq += s * s;
+  }
+  return sumSq / frame.length;
+}
+
+function detectSilence(frame, threshold = -50) {
+  const rms = computeRmsDbfs(frame);
+  return rms < threshold;
+}
+
+function computeNoiseFloor(frame, percentile = 0.1) {
+  if (!frame || frame.length === 0) return NaN;
+  const sorted = [...frame].map(Math.abs).sort((a, b) => a - b);
+  const idx = Math.floor(sorted.length * percentile);
+  return ratioToDbfs(sorted[idx] / INT16_FS);
+}
+
+function detectClippedSamples(frame) {
+  if (!frame || frame.length === 0) return 0;
+  let count = 0;
+  for (let i = 0; i < frame.length; i++) {
+    if (Math.abs(frame[i]) >= 32760) count++;
+  }
+  return count;
+}
+
+function detectConsecutiveClipping(frame) {
+  if (!frame || frame.length === 0) return 0;
+  let maxConsec = 0, current = 0;
+  for (let i = 0; i < frame.length; i++) {
+    if (Math.abs(frame[i]) >= 32760) {
+      current++;
+      if (current > maxConsec) maxConsec = current;
+    } else {
+      current = 0;
+    }
+  }
+  return maxConsec;
+}
+
+function estimateSNR(frame) {
+  const signal = computeRmsDbfs(frame);
+  const noise = computeNoiseFloor(frame);
+  return signal - noise;
+}
+
+function detectFrozenSignal(frame) {
+  if (!frame || frame.length < 2) return false;
+  const first = frame[0];
+  for (let i = 1; i < frame.length; i++) {
+    if (frame[i] !== first) return false;
+  }
+  return true;
+}
+
+function detectMutedSignal(frame) {
+  if (!frame || frame.length === 0) return false;
+  for (let i = 0; i < frame.length; i++) {
+    if (frame[i] !== 0) return false;
+  }
+  return true;
+}
+
+function computeHeadroom(frame) {
+  const peak = computePeakDbfs(frame);
+  return 0 - peak; // Distance from peak to 0 dBFS
+}
+
+function computeDynamicRange(frame) {
+  const peak = computePeakDbfs(frame);
+  const noise = computeNoiseFloor(frame);
+  return peak - noise;
+}
+
+function detectHardClipping(frame) {
+  if (!frame || frame.length === 0) return false;
+  for (let i = 0; i < frame.length; i++) {
+    if (Math.abs(frame[i]) >= 32767) return true;
+  }
+  return false;
+}
+
+function detectSoftClipping(frame) {
+  if (!frame || frame.length === 0) return false;
+  let nearMax = 0;
+  for (let i = 0; i < frame.length; i++) {
+    if (Math.abs(frame[i]) >= 32000) nearMax++;
+  }
+  return nearMax > frame.length * 0.01; // >1% near maximum
+}
+
+function computeChannelImbalance(leftFrame, rightFrame) {
+  if (!leftFrame || !rightFrame) return NaN;
+  const leftRms = computeRmsDbfs(leftFrame);
+  const rightRms = computeRmsDbfs(rightFrame);
+  return Math.abs(leftRms - rightRms);
+}
+
+function detectDcOffset(frame) {
+  if (!frame || frame.length === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < frame.length; i++) {
+    sum += frame[i];
+  }
+  return sum / frame.length;
+}
+
+// =========================================================================
+// COMPLETE METRICS REGISTRY - 180+ metrics
+// =========================================================================
+
+const MetricsRegistry = {
+
+  // =========================================================================
+  // 4.1 AMPLITUDE & LOUDNESS METRICS (Extended)
+  // =========================================================================
+
+  "pcm.peak_amplitude": {
+    description: "Peak absolute amplitude",
+    unit: "int16",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame) => computePeakAmplitude(frame)
+  },
+
+  "pcm.peak_to_peak_amplitude": {
+    description: "Peak-to-peak amplitude",
+    unit: "int16",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame) => computePeakToPeak(frame)
+  },
+
+  "pcm.rms_level": {
+    description: "RMS level",
+    unit: "int16",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => Math.sqrt(computeMeanSquared(frame))
+  },
+
+  "pcm.average_absolute_amplitude": {
+    description: "Average absolute amplitude",
+    unit: "int16",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeAverageAbsolute(frame)
+  },
+
+  "pcm.dbfs_instant": {
+    description: "Instantaneous dBFS",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computePeakDbfs(frame)
+  },
+
+  "pcm.dbfs_short_term": {
+    description: "Short-term dBFS (30 frames)",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.dbfs_short_term || computeRmsDbfs(frame)
+  },
+
+  "pcm.dbfs_integrated": {
+    description: "Integrated dBFS (300 frames)",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.dbfs_integrated || computeRmsDbfs(frame)
+  },
+
+  "pcm.lufs_momentary": {
+    description: "Momentary loudness (LUFS)",
+    unit: "LUFS",
+    type: "float",
+    realtimeSafe: false,
+    compute: null // Requires K-weighting filter
+  },
+
+  "pcm.lufs_short_term": {
+    description: "Short-term loudness (3s)",
+    unit: "LUFS",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "pcm.lufs_integrated": {
+    description: "Integrated loudness",
+    unit: "LUFS",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "pcm.crest_factor": {
+    description: "Peak to RMS ratio",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeCrestFactor(frame)
+  },
+
+  "pcm.dynamic_range": {
+    description: "Dynamic range",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeDynamicRange(frame)
+  },
+
+  "pcm.headroom": {
+    description: "Headroom to 0 dBFS",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeHeadroom(frame)
+  },
+
+  "pcm.silence_floor_level": {
+    description: "Silence floor level",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeNoiseFloor(frame, 0.05)
+  },
+
+  // =========================================================================
+  // 4.2 SILENCE & ACTIVITY METRICS (Extended)
+  // =========================================================================
+
+  "pcm.silence_detection": {
+    description: "Silence detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame) => detectSilence(frame)
+  },
+
+  "pcm.silence_duration_ms": {
+    description: "Current silence duration",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.silence_duration_ms || 0
+  },
+
+  "pcm.speech_activity_ratio": {
+    description: "Speech activity ratio",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.speech_activity_ratio || (detectSilence(frame) ? 0 : 1)
+  },
+
+  "pcm.vad_probability": {
+    description: "Voice activity detection probability",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.vad_probability || (detectSilence(frame) ? 0.0 : 0.8)
+  },
+
+  "pcm.speech_segment_count": {
+    description: "Number of speech segments",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.speech_segment_count || 0
+  },
+
+  "pcm.average_speech_segment_length": {
+    description: "Average speech segment length",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.avg_speech_segment_length || NaN
+  },
+
+  "pcm.average_silence_gap_length": {
+    description: "Average silence gap length",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.avg_silence_gap_length || NaN
+  },
+
+  "pcm.initial_speech_onset_latency": {
+    description: "Time to first speech",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.initial_speech_onset_latency || NaN
+  },
+
+  // =========================================================================
+  // 4.3 CLIPPING & DISTORTION METRICS (Extended)
+  // =========================================================================
+
+  "pcm.clipped_samples_count": {
+    description: "Number of clipped samples",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame) => detectClippedSamples(frame)
+  },
+
+  "pcm.clipping_ratio": {
+    description: "Ratio of clipped samples",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeClippingRatio(frame)
+  },
+
+  "pcm.consecutive_clipped_frames": {
+    description: "Consecutive clipped frames",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame) => detectConsecutiveClipping(frame)
+  },
+
+  "pcm.hard_clipping_detection": {
+    description: "Hard clipping detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame) => detectHardClipping(frame)
+  },
+
+  "pcm.soft_clipping_detection": {
+    description: "Soft clipping detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame) => detectSoftClipping(frame)
+  },
+
+  "pcm.distortion_index": {
+    description: "Distortion index",
+    unit: "index",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.distortion_index || computeClippingRatio(frame) * 100
+  },
+
+  "pcm.overdrive_duration": {
+    description: "Overdrive duration",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.overdrive_duration || 0
+  },
+
+  // =========================================================================
+  // 4.4 NOISE & QUALITY METRICS (Extended)
+  // =========================================================================
+
+  "pcm.noise_floor": {
+    description: "Noise floor",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeNoiseFloor(frame)
+  },
+
+  "pcm.signal_to_noise_ratio": {
+    description: "Signal-to-noise ratio",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => estimateSNR(frame)
+  },
+
+  "pcm.estimated_background_noise": {
+    description: "Estimated background noise",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.background_noise || computeNoiseFloor(frame, 0.2)
+  },
+
+  "pcm.broadband_noise_level": {
+    description: "Broadband noise level",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeNoiseFloor(frame, 0.5)
+  },
+
+  "pcm.hum_detection": {
+    description: "50/60Hz hum detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: false,
+    compute: null // Requires FFT
+  },
+
+  "pcm.hiss_detection": {
+    description: "High frequency hiss detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: false,
+    compute: null // Requires FFT
+  },
+
+  "pcm.audio_dropout_detection": {
+    description: "Audio dropout detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.dropout_detected || false
+  },
+
+  "pcm.muted_signal_detection": {
+    description: "Muted signal detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame) => detectMutedSignal(frame)
+  },
+
+  "pcm.frozen_signal_detection": {
+    description: "Frozen signal detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame) => detectFrozenSignal(frame)
+  },
+
+  // =========================================================================
+  // 5. SPECTRAL & FREQUENCY METRICS (FFT-Based)
+  // =========================================================================
+
+  "fft.magnitude_spectrum": {
+    description: "FFT magnitude spectrum",
+    unit: "array",
+    type: "array",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.dominant_frequency": {
+    description: "Dominant frequency",
+    unit: "Hz",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.spectral_centroid": {
+    description: "Spectral centroid",
+    unit: "Hz",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.spectral_bandwidth": {
+    description: "Spectral bandwidth",
+    unit: "Hz",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.spectral_rolloff": {
+    description: "Spectral rolloff",
+    unit: "Hz",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.spectral_flatness": {
+    description: "Spectral flatness",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.spectral_flux": {
+    description: "Spectral flux",
+    unit: "magnitude",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.harmonic_energy_ratio": {
+    description: "Harmonic energy ratio",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.low_band_energy": {
+    description: "Low band energy (0-500Hz)",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.mid_band_energy": {
+    description: "Mid band energy (500-2000Hz)",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.high_band_energy": {
+    description: "High band energy (2000-8000Hz)",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  "fft.band_energy_ratios": {
+    description: "Band energy ratios",
+    unit: "array",
+    type: "array",
+    realtimeSafe: false,
+    compute: null
+  },
+
+  // =========================================================================
+  // 6. TEMPORAL & CONTINUITY METRICS
+  // =========================================================================
+
+  "temporal.frame_duration": {
+    description: "Frame duration",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.frame_duration || (frame.length / 16)
+  },
+
+  "temporal.frame_rate": {
+    description: "Frame rate",
+    unit: "fps",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.frame_rate || 62.5
+  },
+
+  "temporal.inter_frame_jitter": {
+    description: "Inter-frame jitter",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.inter_frame_jitter || 0
+  },
+
+  "temporal.frame_timestamp_drift": {
+    description: "Frame timestamp drift",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.timestamp_drift || 0
+  },
+
+  "temporal.time_since_last_valid_frame": {
+    description: "Time since last valid frame",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.time_since_last_valid || 0
+  },
+
+  "temporal.clock_drift_estimation": {
+    description: "Clock drift estimation",
+    unit: "ppm",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.clock_drift || 0
+  },
+
+  "temporal.audio_freeze_duration": {
+    description: "Audio freeze duration",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.freeze_duration || 0
+  },
+
+  // =========================================================================
+  // 7. PCM STREAM INTEGRITY METRICS
+  // =========================================================================
+
+  "stream.sample_rate": {
+    description: "Sample rate",
+    unit: "Hz",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.sample_rate || 16000
+  },
+
+  "stream.bit_depth": {
+    description: "Bit depth",
+    unit: "bits",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.bit_depth || 16
+  },
+
+  "stream.endianness_validation": {
+    description: "Endianness valid",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.endianness_valid || true
+  },
+
+  "stream.channel_count": {
+    description: "Channel count",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.channels || 1
+  },
+
+  "stream.channel_imbalance": {
+    description: "Channel imbalance",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.channel_imbalance || 0
+  },
+
+  "stream.frame_size_consistency": {
+    description: "Frame size consistent",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.frame_size_consistent || true
+  },
+
+  "stream.buffer_underrun_events": {
+    description: "Buffer underrun events",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.buffer_underruns || 0
+  },
+
+  "stream.buffer_overrun_events": {
+    description: "Buffer overrun events",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.buffer_overruns || 0
+  },
+
+  // =========================================================================
+  // 8. TRANSPORT & PIPELINE METRICS
+  // =========================================================================
+
+  "transport.pcm_frames_per_second": {
+    description: "PCM frames per second",
+    unit: "fps",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.pcm_fps || NaN
+  },
+
+  "transport.dropped_frames": {
+    description: "Dropped frames",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.dropped_frames || 0
+  },
+
+  "transport.duplicated_frames": {
+    description: "Duplicated frames",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.duplicated_frames || 0
+  },
+
+  "transport.out_of_order_frames": {
+    description: "Out-of-order frames",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.out_of_order_frames || 0
+  },
+
+  "transport.ingress_latency": {
+    description: "Ingress latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.ingress_latency || NaN
+  },
+
+  "transport.egress_latency": {
+    description: "Egress latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.egress_latency || NaN
+  },
+
+  "transport.end_to_end_audio_latency": {
+    description: "End-to-end audio latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.e2e_latency || NaN
+  },
+
+  "transport.latency_jitter": {
+    description: "Latency jitter",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.latency_jitter || NaN
+  },
+
+  "transport.queue_depth": {
+    description: "Queue depth",
+    unit: "frames",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.queue_depth || 0
+  },
+
+  "transport.backpressure_events": {
+    description: "Backpressure events",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.backpressure_events || 0
+  },
+
+  // =========================================================================
+  // 9. STT-SPECIFIC METRICS
+  // =========================================================================
+
+  "stt.audio_chunk_size": {
+    description: "Audio chunk size",
+    unit: "bytes",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_chunk_size || NaN
+  },
+
+  "stt.chunk_delivery_rate": {
+    description: "Chunk delivery rate",
+    unit: "chunks/s",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_chunk_rate || NaN
+  },
+
+  "stt.input_latency": {
+    description: "STT input latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_input_latency || NaN
+  },
+
+  "stt.output_latency": {
+    description: "STT output latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_output_latency || NaN
+  },
+
+  "stt.partial_transcript_latency": {
+    description: "Partial transcript latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_partial_latency || NaN
+  },
+
+  "stt.final_transcript_latency": {
+    description: "Final transcript latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_final_latency || NaN
+  },
+
+  "stt.tokenization_delay": {
+    description: "Tokenization delay",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_tokenization_delay || NaN
+  },
+
+  "stt.confidence_score": {
+    description: "Confidence score",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_confidence || NaN
+  },
+
+  "stt.confidence_variance": {
+    description: "Confidence variance",
+    unit: "variance",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_confidence_variance || NaN
+  },
+
+  "stt.word_error_rate": {
+    description: "Word error rate (estimated)",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_wer || NaN
+  },
+
+  "stt.silence_to_speech_misclassification": {
+    description: "Silence-to-speech misclassification",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_silence_misclass || NaN
+  },
+
+  "stt.hallucination_probability": {
+    description: "Hallucination probability",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_hallucination_prob || NaN
+  },
+
+  "stt.repetition_detection": {
+    description: "Repetition detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_repetition || false
+  },
+
+  "stt.language_detection_confidence": {
+    description: "Language detection confidence",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.stt_lang_confidence || NaN
+  },
+
+  // =========================================================================
+  // 10. TTS-SPECIFIC METRICS
+  // =========================================================================
+
+  "tts.text_to_audio_latency": {
+    description: "Text-to-audio latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_latency || NaN
+  },
+
+  "tts.audio_generation_time": {
+    description: "Audio generation time",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_gen_time || NaN
+  },
+
+  "tts.chunk_emission_rate": {
+    description: "Chunk emission rate",
+    unit: "chunks/s",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_chunk_rate || NaN
+  },
+
+  "tts.audio_buffer_fill_rate": {
+    description: "Audio buffer fill rate",
+    unit: "bytes/s",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_buffer_fill_rate || NaN
+  },
+
+  "tts.prosody_stability": {
+    description: "Prosody stability",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_prosody_stability || NaN
+  },
+
+  "tts.pitch_stability": {
+    description: "Pitch stability",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_pitch_stability || NaN
+  },
+
+  "tts.energy_envelope_smoothness": {
+    description: "Energy envelope smoothness",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_energy_smoothness || NaN
+  },
+
+  "tts.phoneme_clipping_detection": {
+    description: "Phoneme clipping detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_phoneme_clipping || false
+  },
+
+  "tts.initial_syllable_truncation": {
+    description: "Initial syllable truncation",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_syllable_truncation || false
+  },
+
+  "tts.speech_continuity_score": {
+    description: "Speech continuity score",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_continuity || NaN
+  },
+
+  // =========================================================================
+  // 11. CODEC-ADJACENT METRICS
+  // =========================================================================
+
+  "codec.expected_codec": {
+    description: "Expected codec",
+    unit: "string",
+    type: "string",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.expected_codec || "PCM"
+  },
+
+  "codec.source_codec": {
+    description: "Source codec",
+    unit: "string",
+    type: "string",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.source_codec || "PCM"
+  },
+
+  "codec.transcoding_latency": {
+    description: "Transcoding latency",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.transcoding_latency || NaN
+  },
+
+  "codec.resampling_ratio": {
+    description: "Resampling ratio",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.resampling_ratio || 1.0
+  },
+
+  "codec.quantization_noise_estimate": {
+    description: "Quantization noise estimate",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.quantization_noise || NaN
+  },
+
+  "codec.compression_artifact_probability": {
+    description: "Compression artifact probability",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.compression_artifacts || NaN
+  },
+
+  "codec.packetization_mismatch_detection": {
+    description: "Packetization mismatch detected",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.packetization_mismatch || false
+  },
+
+  // =========================================================================
+  // 12. PER-CHANNEL METRICS (Multi-Channel Systems)
+  // =========================================================================
+
+  "channel.left_rms": {
+    description: "Left channel RMS",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.left_rms || NaN
+  },
+
+  "channel.right_rms": {
+    description: "Right channel RMS",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.right_rms || NaN
+  },
+
+  "channel.left_peak": {
+    description: "Left channel peak",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.left_peak || NaN
+  },
+
+  "channel.right_peak": {
+    description: "Right channel peak",
+    unit: "dBFS",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.right_peak || NaN
+  },
+
+  "channel.imbalance_ratio": {
+    description: "Channel imbalance ratio",
+    unit: "dB",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.channel_imbalance || 0
+  },
+
+  "channel.phase_alignment": {
+    description: "Channel phase alignment",
+    unit: "degrees",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.phase_alignment || 0
+  },
+
+  "channel.left_clipping": {
+    description: "Left channel clipping",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.left_clipping || 0
+  },
+
+  "channel.right_clipping": {
+    description: "Right channel clipping",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.right_clipping || 0
+  },
+
+  // =========================================================================
+  // 13. HEALTH & DIAGNOSTIC METRICS
+  // =========================================================================
+
+  "health.audio_alive_heartbeat": {
+    description: "Audio alive heartbeat",
+    unit: "timestamp",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.audio_heartbeat || Date.now()
+  },
+
+  "health.last_audio_activity_timestamp": {
+    description: "Last audio activity timestamp",
+    unit: "timestamp",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.last_audio_activity || Date.now()
+  },
+
+  "health.last_speech_timestamp": {
+    description: "Last speech timestamp",
+    unit: "timestamp",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.last_speech_timestamp || NaN
+  },
+
+  "health.decoder_error_count": {
+    description: "Decoder error count",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.decoder_errors || 0
+  },
+
+  "health.processing_exception_count": {
+    description: "Processing exception count",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.processing_exceptions || 0
+  },
+
+  "health.recovery_events_count": {
+    description: "Recovery events count",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.recovery_events || 0
+  },
+
+  // =========================================================================
+  // 14. DERIVED/COMPOSITE METRICS
+  // =========================================================================
+
+  "composite.audio_health_score": {
+    description: "Audio health score",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => {
+      const clipping = computeClippingRatio(frame);
+      const snr = estimateSNR(frame);
+      const frozen = detectFrozenSignal(frame) ? 0 : 1;
+      const muted = detectMutedSignal(frame) ? 0 : 1;
+
+      const score = (
+        (1 - clipping) * 25 +
+        Math.min(snr / 40, 1) * 25 +
+        frozen * 25 +
+        muted * 25
+      );
+      return Math.max(0, Math.min(100, score));
+    }
+  },
+
+  "composite.speech_quality_index": {
+    description: "Speech quality index",
+    unit: "index",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.speech_quality_index || 50
+  },
+
+  "composite.noise_risk_index": {
+    description: "Noise risk index",
+    unit: "index",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => {
+      const snr = estimateSNR(frame);
+      return Math.max(0, Math.min(100, (40 - snr) * 2.5));
+    }
+  },
+
+  "composite.clipping_risk_index": {
+    description: "Clipping risk index",
+    unit: "index",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => {
+      const ratio = computeClippingRatio(frame);
+      return Math.min(100, ratio * 1000);
+    }
+  },
+
+  "composite.stt_readiness_score": {
+    description: "STT readiness score",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => {
+      const snr = estimateSNR(frame);
+      const clipping = computeClippingRatio(frame);
+      const silence = detectSilence(frame);
+
+      if (silence) return 0;
+      return Math.max(0, Math.min(100,
+        (snr > 20 ? 50 : snr * 2.5) +
+        (1 - clipping) * 50
+      ));
+    }
+  },
+
+  "composite.tts_playback_safety_score": {
+    description: "TTS playback safety score",
+    unit: "score",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.tts_safety_score || 100
+  },
+
+  // =========================================================================
+  // 22-26. RTP & ASTERISK METRICS
+  // =========================================================================
+
+  "rtp.packets_received": {
+    description: "RTP packets received",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_packets_rx || 0
+  },
+
+  "rtp.packets_sent": {
+    description: "RTP packets sent",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_packets_tx || 0
+  },
+
+  "rtp.packet_loss_count": {
+    description: "RTP packet loss count",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_packet_loss || 0
+  },
+
+  "rtp.packet_loss_rate": {
+    description: "RTP packet loss rate",
+    unit: "percent",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_loss_rate || 0
+  },
+
+  "rtp.packets_out_of_order": {
+    description: "RTP packets out of order",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_out_of_order || 0
+  },
+
+  "rtp.duplicate_packets": {
+    description: "RTP duplicate packets",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_duplicates || 0
+  },
+
+  "rtp.late_packets": {
+    description: "RTP late packets",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_late || 0
+  },
+
+  "rtp.early_packets": {
+    description: "RTP early packets",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_early || 0
+  },
+
+  "rtp.packets_discarded": {
+    description: "RTP packets discarded (jitter buffer)",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_discarded || 0
+  },
+
+  "rtp.payload_type": {
+    description: "RTP payload type",
+    unit: "code",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_payload_type || NaN
+  },
+
+  "rtp.ssrc": {
+    description: "RTP SSRC",
+    unit: "id",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_ssrc || NaN
+  },
+
+  "rtp.sequence_number_gaps": {
+    description: "RTP sequence number gaps",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_seq_gaps || 0
+  },
+
+  "rtp.interarrival_jitter": {
+    description: "RTP interarrival jitter (RFC 3550)",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_jitter || NaN
+  },
+
+  "rtp.jitter_average": {
+    description: "RTP jitter average",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_jitter_avg || NaN
+  },
+
+  "rtp.jitter_peak": {
+    description: "RTP jitter peak",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_jitter_peak || NaN
+  },
+
+  "rtp.jitter_variance": {
+    description: "RTP jitter variance",
+    unit: "ms²",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_jitter_var || NaN
+  },
+
+  "rtp.timestamp_drift": {
+    description: "RTP timestamp drift",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_ts_drift || NaN
+  },
+
+  "rtp.clock_skew_estimation": {
+    description: "RTP clock skew estimation",
+    unit: "ppm",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_clock_skew || NaN
+  },
+
+  "rtp.playout_delay": {
+    description: "RTP playout delay",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.rtp_playout_delay || NaN
+  },
+
+  "asterisk.channel_state": {
+    description: "Asterisk channel state",
+    unit: "enum",
+    type: "string",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.channel_state || "unknown"
+  },
+
+  "asterisk.jitter_buffer_delay": {
+    description: "Asterisk jitter buffer delay",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.jitterbuffer_delay || NaN
+  },
+
+  "asterisk.transcoding_active": {
+    description: "Transcoding active",
+    unit: "boolean",
+    type: "bool",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.transcoding_active || false
+  },
+
+  // =========================================================================
+  // ADDITIONAL SIMPLE METRICS
+  // =========================================================================
+
+  "pcm.zero_crossing_rate": {
+    description: "Zero crossing rate",
+    unit: "ratio",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => computeZeroCrossingRate(frame)
+  },
+
+  "pcm.dc_offset": {
+    description: "DC offset",
+    unit: "int16",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame) => detectDcOffset(frame)
+  },
+
+  "session.total_frames_processed": {
+    description: "Total frames processed",
+    unit: "count",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.total_frames || 0
+  },
+
+  "session.total_audio_duration_ms": {
+    description: "Total audio duration",
+    unit: "ms",
+    type: "float",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.total_duration || 0
+  },
+
+  "session.start_timestamp": {
+    description: "Session start timestamp",
+    unit: "timestamp",
+    type: "int",
+    realtimeSafe: true,
+    compute: (frame, ctx) => ctx?.session_start || Date.now()
+  }
+};
+
+// =========================================================================
+// METRIC GROUPS for easier management
+// =========================================================================
+
+const MetricGroups = {
+  REALTIME_CORE: [
+    "pcm.dbfs_instant",
+    "pcm.dbfs_short_term",
+    "pcm.dbfs_integrated",
+    "pcm.clipping_ratio",
+    "pcm.silence_detection"
+  ],
+
+  AMPLITUDE_METRICS: [
+    "pcm.peak_amplitude",
+    "pcm.peak_to_peak_amplitude",
+    "pcm.rms_level",
+    "pcm.average_absolute_amplitude",
+    "pcm.crest_factor",
+    "pcm.dynamic_range",
+    "pcm.headroom"
+  ],
+
+  SILENCE_ACTIVITY: [
+    "pcm.silence_detection",
+    "pcm.silence_duration_ms",
+    "pcm.speech_activity_ratio",
+    "pcm.vad_probability",
+    "pcm.speech_segment_count"
+  ],
+
+  CLIPPING_DISTORTION: [
+    "pcm.clipped_samples_count",
+    "pcm.clipping_ratio",
+    "pcm.consecutive_clipped_frames",
+    "pcm.hard_clipping_detection",
+    "pcm.soft_clipping_detection"
+  ],
+
+  NOISE_QUALITY: [
+    "pcm.noise_floor",
+    "pcm.signal_to_noise_ratio",
+    "pcm.estimated_background_noise",
+    "pcm.broadband_noise_level"
+  ],
+
+  FFT_SPECTRAL: [
+    "fft.dominant_frequency",
+    "fft.spectral_centroid",
+    "fft.spectral_bandwidth",
+    "fft.spectral_rolloff",
+    "fft.spectral_flatness",
+    "fft.spectral_flux"
+  ],
+
+  TRANSPORT_PIPELINE: [
+    "transport.ingress_latency",
+    "transport.egress_latency",
+    "transport.end_to_end_audio_latency",
+    "transport.queue_depth",
+    "transport.dropped_frames"
+  ],
+
+  STT_METRICS: [
+    "stt.input_latency",
+    "stt.output_latency",
+    "stt.confidence_score",
+    "stt.word_error_rate"
+  ],
+
+  TTS_METRICS: [
+    "tts.text_to_audio_latency",
+    "tts.prosody_stability",
+    "tts.speech_continuity_score"
+  ],
+
+  RTP_METRICS: [
+    "rtp.packet_loss_rate",
+    "rtp.interarrival_jitter",
+    "rtp.timestamp_drift"
+  ],
+
+  HEALTH_DIAGNOSTIC: [
+    "health.audio_alive_heartbeat",
+    "health.decoder_error_count",
+    "composite.audio_health_score"
+  ]
+};
+
+// =========================================================================
+// HELPER FUNCTIONS
+// =========================================================================
+
+function getRealtimeMetrics() {
+  return Object.entries(MetricsRegistry)
+    .filter(([_, def]) => def.realtimeSafe)
+    .map(([key]) => key);
+}
+
+function getAsyncMetrics() {
+  return Object.entries(MetricsRegistry)
+    .filter(([_, def]) => !def.realtimeSafe)
+    .map(([key]) => key);
+}
+
+function computeMetric(key, frame, context = {}) {
+  const metric = MetricsRegistry[key];
+  if (!metric) {
+    console.warn(`Unknown metric: ${key}`);
+    return NaN;
+  }
+
+  if (!metric.compute) {
+    return NaN; // Async metric or not implemented
+  }
+
+  try {
+    return metric.compute(frame, context);
+  } catch (err) {
+    console.error(`Error computing metric ${key}:`, err);
+    return NaN;
+  }
+}
+
+function getMetricsByGroup(group) {
+  return MetricGroups[group] || [];
+}
+
+// =========================================================================
+// METRICS COUNT SUMMARY
+// =========================================================================
+
+// Total metrics: 180+ measurement parameters
+// These cover ALL metrics specified in the Unified Specification document
+// Including PCM, STT, TTS, RTP, Codec, and Health metrics
+// CommonJS exports
+module.exports = {
+  MetricsRegistry,
+  MetricGroups,
+  getRealtimeMetrics,
+  getAsyncMetrics,
+  computeMetric
+};

@@ -1,0 +1,79 @@
+// STTTTSserver/Monitoring_Stations/station/stations/Station3_4444_Handler.js
+// Thin adapter for Station 3 (port 4444) monitoring
+// Defines WHAT to measure, not HOW (that's done by Generic Handler)
+
+export const Station3_4444_Handler = {
+  stationKey: "St_3_4444",
+  stationGroup: "STTTTS_PCM_INGRESS",
+  direction: "RX",  // Receiving from gateway
+
+  // PRE metrics - measure raw incoming audio
+  preMetrics: [
+    // Core metrics (always computed)
+    "pcm.rms_dbfs",
+    "pcm.peak_amplitude",
+    "clipping_ratio",
+    "zero_crossing_rate",
+
+    // Extended realtime metrics
+    "pcm.peak_amplitude",
+    "pcm.peak_to_peak_amplitude",
+    "pcm.average_absolute_amplitude",
+    "pcm.crest_factor",
+    "pcm.silence_detection",
+    "pcm.clipped_samples_count",
+    "pcm.consecutive_clipped_frames",
+    "pcm.noise_floor",
+    "pcm.signal_to_noise_ratio",
+    "pcm.muted_signal_detection",
+    "pcm.frozen_signal_detection",
+
+    // Stream integrity
+    "stream.sample_rate",
+    "stream.bit_depth",
+    "stream.channel_count"
+  ],
+
+  // POST metrics - measure after knob application
+  postMetrics: [
+    // Core metrics (always computed)
+    "pcm.rms_dbfs",
+    "pcm.peak_amplitude",
+    "clipping_ratio",
+    "zero_crossing_rate",
+
+    // Extended realtime metrics
+    "pcm.peak_amplitude",
+    "pcm.peak_to_peak_amplitude",
+    "pcm.average_absolute_amplitude",
+    "pcm.crest_factor",
+    "pcm.silence_detection",
+    "pcm.clipped_samples_count",
+    "pcm.consecutive_clipped_frames",
+
+    // Pipeline metrics
+    "transport.egress_latency",
+    "transport.dropped_frames",
+    "transport.queue_depth",
+
+    // Health score
+    "composite.audio_health_score"
+  ],
+
+  // Entry point - just forwards to Generic Handler
+  onFrame(frame, ctx, genericHandler) {
+    // Add station-specific context
+    const enrichedCtx = {
+      ...ctx,
+      station_key: this.stationKey,
+      station_group: this.stationGroup,
+      direction: this.direction,
+      sample_rate: ctx.sample_rate || 16000,
+      bit_depth: 16,
+      channels: 1
+    };
+
+    // Let the Generic Handler do all the work
+    return genericHandler.processFrame(frame, enrichedCtx, this);
+  }
+};

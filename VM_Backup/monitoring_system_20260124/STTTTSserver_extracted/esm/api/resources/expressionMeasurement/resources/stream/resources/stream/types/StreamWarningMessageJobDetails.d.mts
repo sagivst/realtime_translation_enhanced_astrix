@@ -1,0 +1,7 @@
+/**
+ * If the job_details flag was set in the request, details about the current streaming job will be returned in the response body.
+ */
+export interface StreamWarningMessageJobDetails {
+    /** ID of the current streaming job. */
+    jobId?: string;
+}

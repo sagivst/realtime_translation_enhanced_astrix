@@ -1,0 +1,9 @@
+/**
+ * Settings for a specific timeout to be posted to the server
+ */
+export interface PostedTimeoutSpec {
+    /** Duration in seconds for the timeout. */
+    durationSecs?: number;
+    /** Boolean indicating if this event message is enabled. */
+    enabled: boolean;
+}

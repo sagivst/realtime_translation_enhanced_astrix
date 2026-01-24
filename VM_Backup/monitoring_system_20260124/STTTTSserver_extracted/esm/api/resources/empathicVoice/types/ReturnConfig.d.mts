@@ -1,0 +1,33 @@
+import type * as Hume from "../../../index.mjs";
+/**
+ * A specific config version returned from the server
+ */
+export interface ReturnConfig {
+    /** List of built-in tools associated with this config */
+    builtinTools?: (Hume.empathicVoice.ReturnBuiltinTool | undefined)[];
+    /** The timestamp when the first version of this config was created. */
+    createdOn?: number;
+    ellmModel?: Hume.empathicVoice.ReturnEllmModel;
+    eventMessages?: Hume.empathicVoice.ReturnEventMessageSpecs;
+    /** The version of the EVI used with this config. */
+    eviVersion?: string;
+    /** Identifier for a Config. Formatted as a UUID. */
+    id?: string;
+    languageModel?: Hume.empathicVoice.ReturnLanguageModel;
+    /** The timestamp when this version of the config was created. */
+    modifiedOn?: number;
+    /** Name applied to all versions of a particular Config. */
+    name?: string;
+    nudges?: Hume.empathicVoice.ReturnNudgeSpec;
+    prompt?: Hume.empathicVoice.ReturnPrompt;
+    timeouts?: Hume.empathicVoice.ReturnTimeoutSpecs;
+    /** List of user-defined tools associated with this config. */
+    tools?: (Hume.empathicVoice.ReturnUserDefinedTool | undefined)[];
+    /** Version number for a Config. Version numbers should be integers. The combination of configId and version number is unique. */
+    version?: number;
+    /** Description that is appended to a specific version of a Config. */
+    versionDescription?: string;
+    voice?: Hume.empathicVoice.ReturnVoice;
+    /** Map of webhooks associated with this config. */
+    webhooks?: (Hume.empathicVoice.ReturnWebhookSpec | undefined)[];
+}

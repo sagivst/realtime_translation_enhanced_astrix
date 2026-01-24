@@ -1,0 +1,31 @@
+===================================================
+MONITORING SYSTEM FULL BACKUP
+===================================================
+Backup Date: Sat Jan 24 11:08:13 PM UTC 2026
+VM IP: 20.170.155.53
+Backup Location: /home/azureuser/monitoring_backup_20260124_230657
+
+CONTENTS:
+---------
+1. STTTTSserver_full.tar.gz - Complete 4 Ts STTTTSserver directory
+2. Monitoring_Stations.tar.gz - Monitoring framework 
+3. .env files - Environment variables and API keys
+4. pm2_dump.json - PM2 saved configuration
+5. pm2_process_list.txt - Current PM2 status
+6. pm2_sttttsserver_info.txt - STTTTSserver details
+7. monitoring_v2_schema.sql - Database schema
+8. monitoring_v2_full.dump - Complete database backup
+9. restore_monitoring.sh - Restoration script
+
+SYSTEM STATE AT BACKUP:
+-----------------------
+- STTTTSserver: fork
+- PM2 Processes: 9
+- Database Size:  63 MB
+
+TO RESTORE:
+-----------
+cd /home/azureuser/monitoring_backup_20260124_230657
+./restore_monitoring.sh
+
+===================================================

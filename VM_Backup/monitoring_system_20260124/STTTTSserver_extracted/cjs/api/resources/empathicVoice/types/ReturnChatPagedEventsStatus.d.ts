@@ -1,0 +1,24 @@
+/**
+ * Indicates the current state of the chat. There are six possible statuses:
+ *
+ * - `ACTIVE`: The chat is currently active and ongoing.
+ *
+ * - `USER_ENDED`: The chat was manually ended by the user.
+ *
+ * - `USER_TIMEOUT`: The chat ended due to a user-defined timeout.
+ *
+ * - `MAX_DURATION_TIMEOUT`: The chat ended because it reached the maximum allowed duration.
+ *
+ * - `INACTIVITY_TIMEOUT`: The chat ended due to an inactivity timeout.
+ *
+ * - `ERROR`: The chat ended unexpectedly due to an error.
+ */
+export declare const ReturnChatPagedEventsStatus: {
+    readonly Active: "ACTIVE";
+    readonly UserEnded: "USER_ENDED";
+    readonly UserTimeout: "USER_TIMEOUT";
+    readonly MaxDurationTimeout: "MAX_DURATION_TIMEOUT";
+    readonly InactivityTimeout: "INACTIVITY_TIMEOUT";
+    readonly Error: "ERROR";
+};
+export type ReturnChatPagedEventsStatus = (typeof ReturnChatPagedEventsStatus)[keyof typeof ReturnChatPagedEventsStatus];

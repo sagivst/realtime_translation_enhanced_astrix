@@ -1,0 +1,81 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "monitoring_v2",
+    "user": "monitoring_user",
+    "password": "monitoring_pass",
+    "maxConnections": 10
+  },
+
+  "metricsEmitter": {
+    "maxQueueSize": 10000,
+    "flushIntervalMs": 200,
+    "batchSize": 100
+  },
+
+  "audioWriter": {
+    "baseDir": "/var/monitoring/audio",
+    "maxQueue": 5000,
+    "flushIntervalMs": 50
+  },
+
+  "audioRecorder": {
+    "bucketMs": 5000,
+    "sampleRateHz": 16000,
+    "channels": 1,
+    "maxSamplesGuardMultiplier": 2
+  },
+
+  "stations": {
+    "knobs": {
+      "pcm.input_gain_db": 0,
+      "pcm.output_gain_db": 0,
+      "pcm.target_level_dbfs": -12,
+
+      "limiter.enabled": true,
+      "limiter.threshold_dbfs": -6,
+      "limiter.release_ms": 50,
+      "limiter.lookahead_ms": 5,
+
+      "compressor.enabled": false,
+      "compressor.threshold_dbfs": -20,
+      "compressor.ratio": 4,
+      "compressor.attack_ms": 10,
+      "compressor.release_ms": 100,
+
+      "noise_gate.enabled": false,
+      "noise_gate.threshold_dbfs": -50,
+      "noise_gate.attack_ms": 1,
+      "noise_gate.hold_ms": 10,
+      "noise_gate.release_ms": 100,
+
+      "highpass.enabled": false,
+      "highpass.cutoff_hz": 80,
+
+
+      "agc.enabled": false,
+      "agc.target_level_dbfs": -18,
+      "agc.max_gain_db": 12,
+
+      "safety.max_output_level_dbfs": -1,
+      "safety.clipping_protection": true,
+
+      "monitoring.metrics_enabled": true,
+      "monitoring.audio_capture_enabled": true,
+      "monitoring.pre_tap_enabled": true,
+      "monitoring.post_tap_enabled": true,
+      "monitoring.fft_analysis_enabled": false,
+
+      "ai.optimization_allowed": true
+    }
+  },
+
+  "retentionHours": 72,
+
+  "logging": {
+    "level": "info",
+    "console": true,
+    "file": false
+  }
+}

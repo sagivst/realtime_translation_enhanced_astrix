@@ -1,0 +1,9 @@
+import type * as ElevenLabs from "../../api/index";
+import * as core from "../../core";
+import * as serializers from "../index";
+import { ConversationHistoryTranscriptOtherToolsResultCommonModel } from "./ConversationHistoryTranscriptOtherToolsResultCommonModel";
+import { ConversationHistoryTranscriptSystemToolResultCommonModel } from "./ConversationHistoryTranscriptSystemToolResultCommonModel";
+export declare const ConversationHistoryTranscriptCommonModelOutputToolResultsItem: core.serialization.Schema<serializers.ConversationHistoryTranscriptCommonModelOutputToolResultsItem.Raw, ElevenLabs.ConversationHistoryTranscriptCommonModelOutputToolResultsItem>;
+export declare namespace ConversationHistoryTranscriptCommonModelOutputToolResultsItem {
+    type Raw = ConversationHistoryTranscriptOtherToolsResultCommonModel.Raw | ConversationHistoryTranscriptSystemToolResultCommonModel.Raw | serializers.ConversationHistoryTranscriptWorkflowToolsResultCommonModelOutput.Raw;
+}

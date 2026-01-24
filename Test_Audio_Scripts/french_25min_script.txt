@@ -1,0 +1,58 @@
+# French Audio Script - 25 Minutes
+# For Extension 4444
+# Convert to audio using TTS or record naturally
+
+## Minutes 0-5: Bulletin d'information
+Bonjour, ceci est le service d'information automatisé. Nous sommes le 5 janvier 2026.
+
+Dans l'actualité technologique, l'intelligence artificielle continue de révolutionner les systèmes de traitement audio. Les développements récents dans l'optimisation en temps réel ont montré des améliorations remarquables dans les métriques de qualité d'appel. Les ingénieurs rapportent que le contrôle de gain adaptatif et les algorithmes de réduction du bruit atteignent des niveaux de clarté sans précédent.
+
+Les prévisions météorologiques pour aujourd'hui indiquent des conditions partiellement nuageuses avec des températures variant de 15 à 22 degrés Celsius. Les vitesses de vent devraient rester modérées tout au long de la journée, avec une légère possibilité d'averses l'après-midi dans les régions côtières.
+
+Sur les marchés financiers, les échanges ont ouvert de manière stable ce matin avec les principaux indices affichant des gains modestes. Le secteur technologique continue de mener la croissance, stimulé par les innovations dans l'informatique en nuage et les applications d'intelligence artificielle.
+
+## Minutes 5-10: Documentation technique
+Chapitre Un: Comprendre le traitement du signal audio.
+
+Le traitement du signal audio implique la manipulation des signaux audio pour améliorer la qualité, réduire le bruit ou extraire des caractéristiques spécifiques. Les concepts fondamentaux incluent le taux d'échantillonnage, la profondeur de bits et la réponse en fréquence.
+
+Le traitement numérique du signal, ou TNS, a révolutionné la façon dont nous gérons l'audio dans les systèmes de communication modernes. Les paramètres clés tels que les niveaux RMS, mesurés en décibels par rapport à la pleine échelle, fournissent des métriques critiques pour l'optimisation.
+
+La voix humaine fonctionne généralement dans une plage de fréquences de 85 Hz à 255 Hz pour les fréquences fondamentales, avec des harmoniques s'étendant beaucoup plus haut. Les systèmes de téléphonie limitent traditionnellement la bande passante à environ 300 Hz à 3400 Hz, ce qui capture adéquatement l'intelligibilité de la parole tout en minimisant les besoins en bande passante.
+
+Le contrôle automatique du gain, communément abrégé CAG, ajuste dynamiquement l'amplitude du signal pour maintenir des niveaux de sortie constants. Ce processus implique des temps d'attaque et de relâchement, des réglages de seuil et des contrôles de ratio.
+
+## Minutes 10-15: Passage littéraire
+Des œuvres de la littérature classique, nous présentons ce passage pour votre plaisir d'écoute.
+
+Le soleil se levait régulièrement à l'horizon, projetant de longues ombres sur le paysage. Les oiseaux commençaient leur chœur matinal, une symphonie de sons naturels qui a inspiré compositeurs et poètes à travers l'histoire. Le doux bruissement des feuilles dans la brise matinale créait une ambiance paisible.
+
+Au loin, la ville commençait à s'éveiller. Les sons de la vie quotidienne augmentaient progressivement - pas sur le trottoir, portes s'ouvrant et se fermant, le bourdonnement distant de la circulation commençant à s'intensifier. Chaque son contribuait à l'environnement acoustique complexe qui nous entoure chaque jour.
+
+La technologie de communication a transformé la façon dont nous vivons ces sons. Des premiers systèmes téléphoniques aux réseaux numériques modernes, l'objectif est resté constant: reproduire fidèlement la parole humaine à n'importe quelle distance.
+
+## Minutes 15-20: Contenu éducatif
+Bienvenue dans notre segment éducatif sur l'histoire des télécommunications.
+
+L'invention du téléphone par Alexander Graham Bell en 1876 a marqué le début d'une révolution dans la communication humaine. Les premiers mots transmis étaient "M. Watson, venez ici, je veux vous voir."
+
+Les premiers systèmes téléphoniques utilisaient des signaux analogiques transmis par des fils de cuivre. La qualité était souvent médiocre, avec un bruit et une distorsion importants. Les ingénieurs ont travaillé sans relâche pour améliorer ces systèmes, développant de nouvelles techniques pour l'amplification du signal et la réduction du bruit.
+
+La transition vers la téléphonie numérique dans la dernière partie du 20e siècle a apporté des améliorations spectaculaires de la qualité des appels. La modulation par impulsions codées, ou MIC, est devenue la norme pour encoder les signaux analogiques en format numérique.
+
+Les systèmes modernes de Voix sur IP s'appuient sur ces fondations, utilisant des réseaux à commutation de paquets pour transmettre des données vocales. Les mécanismes de Qualité de Service garantissent que les paquets vocaux reçoivent un traitement prioritaire pour minimiser la latence et la gigue.
+
+## Minutes 20-25: Prose continue
+Alors que nous approchons de la conclusion de ce test audio, réfléchissons à l'importance d'une communication claire dans notre monde interconnecté.
+
+La capacité de transmettre des idées, des émotions et des informations par la voix reste l'un des outils les plus puissants de l'humanité. Qu'il s'agisse de mener des négociations commerciales, de partager des moments personnels avec des proches ou de coordonner des interventions d'urgence, la communication vocale joue un rôle vital.
+
+La qualité audio affecte directement l'efficacité de ces communications. Des facteurs tels que la clarté, la cohérence du volume et la réduction du bruit de fond contribuent tous à la capacité de l'auditeur à comprendre et à s'engager avec le locuteur.
+
+Les systèmes d'optimisation modernes surveillent continuellement ces paramètres, effectuant des ajustements en temps réel pour améliorer l'expérience de communication. Les algorithmes d'apprentissage automatique analysent les modèles de parole et de bruit ambiant, prédisant et prévenant les problèmes de qualité avant qu'ils ne deviennent perceptibles.
+
+L'avenir de la communication vocale promet des avancées encore plus grandes. L'audio spatial, la reconnaissance des émotions et la traduction en temps réel ne sont que quelques-unes des technologies qui façonneront notre façon de communiquer dans les années à venir.
+
+Alors que ce test se termine, nous vous remercions de votre participation à l'avancement de l'état de la technologie de communication. Chaque point de données collecté contribue au développement de systèmes meilleurs et plus fiables pour tous.
+
+[Revenir au début si nécessaire pour atteindre exactement 25 minutes]

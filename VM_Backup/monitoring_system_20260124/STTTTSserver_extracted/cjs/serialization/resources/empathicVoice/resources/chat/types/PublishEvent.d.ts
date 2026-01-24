@@ -1,0 +1,15 @@
+import type * as Hume from "../../../../../../api/index.js";
+import * as core from "../../../../../../core/index.js";
+import type * as serializers from "../../../../../index.js";
+import { AssistantInput } from "../../../types/AssistantInput.js";
+import { AudioInput } from "../../../types/AudioInput.js";
+import { PauseAssistantMessage } from "../../../types/PauseAssistantMessage.js";
+import { ResumeAssistantMessage } from "../../../types/ResumeAssistantMessage.js";
+import { SessionSettings } from "../../../types/SessionSettings.js";
+import { ToolErrorMessage } from "../../../types/ToolErrorMessage.js";
+import { ToolResponseMessage } from "../../../types/ToolResponseMessage.js";
+import { UserInput } from "../../../types/UserInput.js";
+export declare const PublishEvent: core.serialization.Schema<serializers.empathicVoice.PublishEvent.Raw, Hume.empathicVoice.PublishEvent>;
+export declare namespace PublishEvent {
+    type Raw = AudioInput.Raw | SessionSettings.Raw | UserInput.Raw | AssistantInput.Raw | ToolResponseMessage.Raw | ToolErrorMessage.Raw | PauseAssistantMessage.Raw | ResumeAssistantMessage.Raw;
+}

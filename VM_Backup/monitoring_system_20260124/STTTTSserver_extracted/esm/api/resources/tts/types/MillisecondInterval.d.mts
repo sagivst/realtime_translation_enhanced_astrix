@@ -1,0 +1,6 @@
+export interface MillisecondInterval {
+    /** Start time of the interval in milliseconds. */
+    begin: number;
+    /** End time of the interval in milliseconds. */
+    end: number;
+}

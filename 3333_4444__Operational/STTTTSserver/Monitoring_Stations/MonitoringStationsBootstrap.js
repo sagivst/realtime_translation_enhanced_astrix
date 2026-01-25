@@ -14,8 +14,7 @@ import { Aggregator } from './station/generic/Aggregator.js';
 import { KnobsResolver } from './station/generic/KnobsResolver.js';
 
 // Station handlers
-import { Station3_3333_Handler } from './station/stations/Station3_3333_Handler.js';
-import { Station3_4444_Handler } from './station/stations/Station3_4444_Handler.js';
+import { Station3_3333_Handler, Station3_4444_Handler } from './station/stations/Station3_Handler.js';
 
 // Audio components
 import { AudioRecorder } from './audio/AudioRecorder.js';
@@ -252,7 +251,7 @@ export class MonitoringStationsBootstrap {
         database: "monitoring_v2",
         user: "monitoring_user",
         password: "monitoring_pass",
-        maxConnections: 10
+        maxConnections: 20
       },
       metricsEmitter: {
         maxQueueSize: 10000,
